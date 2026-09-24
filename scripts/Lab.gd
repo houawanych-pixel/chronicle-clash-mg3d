@@ -1,4 +1,6 @@
 extends RefCounted
+const Traversal=preload("res://scripts/Traversal.gd")
+var motion: RefCounted
 var game: Node3D
 var aim: bool=false
 var optic: String="gun"
@@ -20,7 +22,7 @@ var objective_expanded: bool=false
 var evidence: Dictionary={}
 var features: Array=["Controls and HUD","Environment and cover cameras","First-person optics","Pressure movement","Crawl and vent","Climb and jump","Hanging and shimmy","Pipe climbing","Push and pull crates","Shooting and reloading","CQC and dragging","Dagger and sword","Weapons and item wheels","Grenades and chaff","C4 and claymores","Heat-seeking rockets","Cloak and rations","Guard awareness and shadows","Card-table backup","Aerial drones","Drone dogs and kamikaze","Drone Master","Lockers and concealment","Swimming and oxygen","Training and persistence"]
 func _init(owner_game: Node3D) -> void:
-	game=owner_game
+	game=owner_game; motion=Traversal.new(game)
 	if FileAccess.file_exists("res://tests/verified_features.json"):
 		var data: Variant=JSON.parse_string(FileAccess.get_file_as_string("res://tests/verified_features.json"))
 		if data is Dictionary: evidence=data
@@ -51,17 +53,26 @@ func fire() -> void:
 	if optic=="binoculars" and aim: game.mark_aimed_guard(); return
 	if drawn: game.gear.fire()
 func context() -> String:
+	if game.player.mode=="hang": return "DROP"
+	if game.player.mode=="push": return "RELEASE"
+	if motion.airborne>0 and not motion.nearest_grab().is_empty(): return "GRAB"
+	if game.player.crouched and is_instance_valid(motion.near_crate()): return "PUSH"
 	if game.player.mode=="cover": return "KNOCK"
 	if not game.player.box_climb_target().is_empty(): return "CLIMB"
 	if game.player.position.distance_to(game.console_point)<2: return "USE"
 	return "JUMP"
 func action() -> void:
 	match context():
+		"JUMP": motion.jump()
+		"GRAB": motion.grab()
+		"DROP": motion.drop()
+		"PUSH": motion.pushed=motion.near_crate(); game.player.mode="push"
+		"RELEASE": game.player.mode="ground"; motion.pushed=null; game.build_navigation()
 		"KNOCK": game.command("knock")
 		"CLIMB": game.player.climb_box()
 		"USE": game.use_console()
 func tick(delta: float) -> void:
-	stamina=minf(100,stamina+delta*8)
+	if not game.player.mode in ["hang","swim"] and motion.tier!="run": stamina=minf(100,stamina+delta*8)
 func objective() -> String:
 	var names: Dictionary={"cover":"Push into a wall to take cover","knock":"Use ACTION to knock in cover","reload":"Fire, then tap RELOAD","guard_down":"Defeat the patrol guard"}
 	for goal: String in game.rooms[game.room].goals:

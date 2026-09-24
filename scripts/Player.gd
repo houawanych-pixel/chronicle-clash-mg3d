@@ -111,6 +111,9 @@ func tick(delta: float, move: Vector2) -> void:
 	cover_cooldown=maxf(0,cover_cooldown-delta)
 	drop_cooldown=maxf(0,drop_cooldown-delta)
 	cover_motion=Vector3.ZERO
+	if crouched and not prone and move.length()>.15 and mode=="ground": toggle_crawl()
+	if game.lab.motion.tick(delta,move):
+		_update_visual(delta); return
 	if mode=="mantle":
 		_tick_box_climb(delta)
 		_update_visual(delta)
@@ -131,7 +134,7 @@ func tick(delta: float, move: Vector2) -> void:
 	elif mode=="grapple":
 		_tick_grapple(delta,direction)
 	else:
-		var speed: float = 1.1 if prone else (2.2 if crouched else 4.4)
+		var speed: float = game.lab.motion.speed(move)
 		if mode=="cover":
 			var n: Vector2 = cover.normal
 			var tangent: Vector2 = Vector2(-n.y,n.x)
@@ -150,6 +153,8 @@ func tick(delta: float, move: Vector2) -> void:
 				facing=Vector3(n.x,0,n.y)
 		velocity.x=direction.x*speed
 		velocity.z=direction.z*speed
+		if game.lab.motion.airborne>0 and not is_on_floor():
+			velocity.x=game.lab.motion.air_velocity.x; velocity.z=game.lab.motion.air_velocity.z
 		velocity.y-=22*delta
 		var landing_speed: float=velocity.y
 		var before_move: Vector3=global_position
@@ -168,7 +173,7 @@ func tick(delta: float, move: Vector2) -> void:
 			else: wall_pressure=0
 		foot_time-=delta
 		if velocity.length()>2.6 and is_on_floor() and foot_time<=0:
-			foot_time=.42; game.sound("step",-21); game.emit_noise(global_position,3.0)
+			foot_time=.42; game.sound("step",-21); game.emit_noise(global_position,8.0 if game.lab.motion.tier=="run" else 3.0)
 	if grip<=0 and mode in ["climb","grapple"]: drop(true)
 	if global_position.y< -4:
 		global_position=last_safe+Vector3.UP*.1
@@ -250,6 +255,9 @@ func _update_visual(delta: float) -> void:
 	elif game.aim_enabled and mode=="ground": avatar.pose=4; avatar.facing=(game.aim_point-global_position).normalized()
 	if mode=="mantle": avatar.pose=17
 	if prone: avatar.pose=18
+	if mode=="hang": avatar.pose=19
+	elif mode=="push": avatar.pose=20
+	elif game.lab.motion.airborne>0: avatar.pose=21
 	avatar.tick(delta,game.camera)
 	tether.visible=mode in ["climb","grapple"] and is_instance_valid(anchor_body)
 	if tether.visible:
@@ -340,5 +348,5 @@ func toggle_crawl() -> void:
 func toggle_crouch() -> void:
 	if prone:
 		toggle_crawl()
-		if prone: return
+		return
 	crouched=not crouched

@@ -150,6 +150,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	roof_body.set_meta("roof",true)
 	V.label(stage,Vector3(10,3.5,.12),"ROOFED / FOLLOW CAMERA",Color("74e6dd"),27)
 	V.label(stage,Vector3(-5,.08,9.4),"OPEN SKY / OVERHEAD",Color("74e6dd"),28)
+	lab.motion.build()
 	build_navigation()
 	player=PlayerScript.new(); player.game=self; stage.add_child(player); player.position=data.start; player.last_safe=data.start
 	if room==2: player.health=65
@@ -317,7 +318,8 @@ func _physics_process(delta: float) -> void:
 			if stick.length()>.2: move=stick.limit_length()
 			var look: Vector2=Vector2(Input.get_joy_axis(pad,JOY_AXIS_RIGHT_X),Input.get_joy_axis(pad,JOY_AXIS_RIGHT_Y))
 			if look.length()>.2:
-				if gear.scope: scope_yaw-=look.x*delta*1.8; scope_pitch=clampf(scope_pitch-look.y*delta*1.3,-1.1,1.1)
+				if lab.aim: lab.look(look*delta*250)
+				elif gear.scope: scope_yaw-=look.x*delta*1.8; scope_pitch=clampf(scope_pitch-look.y*delta*1.3,-1.1,1.1)
 				else: aim_screen+=look*delta*400; aim_screen=aim_screen.clamp(Vector2.ZERO,get_viewport().get_visible_rect().size); aim_enabled=true
 		if hud.joystick.length()>.08:
 			var right: Vector3=camera.global_basis.x; right.y=0; right=right.normalized()
@@ -326,6 +328,11 @@ func _physics_process(delta: float) -> void:
 			move=Vector2(touch_move.x,touch_move.z)
 		if demo_kind=="reveal_right": move=Vector2(1,0)
 		elif demo_kind=="reveal_left": move=Vector2(-1,0)
+		if lab.aim and hud.joy_id==-99:
+			var side: Vector3=Vector3(cos(lab.yaw),0,-sin(lab.yaw))
+			var back: Vector3=Vector3(sin(lab.yaw),0,cos(lab.yaw))
+			var world_move: Vector3=side*move.x+back*move.y; move=Vector2(world_move.x,world_move.z)
+		if not lab.wheel.is_empty(): move=Vector2.ZERO
 		player.tick(delta,move)
 		gear.tick(delta)
 		if held("fire") and player.mode!="mantle":

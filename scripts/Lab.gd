@@ -1,4 +1,6 @@
 extends RefCounted
+const Missions=preload("res://scripts/Missions.gd")
+var missions: RefCounted
 const Traversal=preload("res://scripts/Traversal.gd")
 var item_cooldown: float=0
 var combo: int=0
@@ -28,7 +30,7 @@ var objective_expanded: bool=false
 var evidence: Dictionary={}
 var features: Array=["Controls and HUD","Environment and cover cameras","First-person optics","Pressure movement","Crawl and vent","Climb and jump","Hanging and shimmy","Pipe climbing","Push and pull crates","Shooting and reloading","CQC and dragging","Dagger and sword","Weapons and item wheels","Grenades and chaff","C4 and claymores","Heat-seeking rockets","Cloak and rations","Guard awareness and shadows","Card-table backup","Aerial drones","Drone dogs and kamikaze","Drone Master","Lockers and concealment","Swimming and oxygen","Training and persistence"]
 func _init(owner_game: Node3D) -> void:
-	game=owner_game; motion=Traversal.new(game)
+	game=owner_game; motion=Traversal.new(game); missions=Missions.new(game)
 	if FileAccess.file_exists("res://tests/verified_features.json"):
 		var data: Variant=JSON.parse_string(FileAccess.get_file_as_string("res://tests/verified_features.json"))
 		if data is Dictionary: evidence=data
@@ -76,10 +78,17 @@ func use_item() -> void:
 	else: return
 	item_counts[item]-=1;item_cooldown=.5
 func fire() -> void:
+	if missions.hidden:return
+	if is_instance_valid(hostage):
+		var end: Vector3=hostage.position+game.player.facing*1.4
+		if game.clear_sight(hostage.position+Vector3.UP,end+Vector3.UP):hostage.position=end
+		hostage.knock_out();hostage=null;game.mark_goal("throw");return
 	if optic=="binoculars" and aim: game.mark_aimed_guard(); return
 	if drawn: game.gear.fire()
 	else: melee("fist")
 func context() -> String:
+	if missions.hidden: return "EXIT"
+	if game.player.position.distance_to(missions.locker)<1.6: return "HIDE"
 	if is_instance_valid(hostage): return "RELEASE" if hostage.state=="DOWN" else "CHOKE"
 	var guard: Node3D=near_guard()
 	if not drawn and is_instance_valid(guard) and (guard.state=="DOWN" or behind(guard)): return "DRAG" if guard.state=="DOWN" else "HOLD"
@@ -92,6 +101,7 @@ func context() -> String:
 	if game.player.position.distance_to(game.console_point)<2: return "USE"
 	return "JUMP"
 func action() -> void:
+	if context() in ["HIDE","EXIT"]: missions.toggle_locker(); return
 	if is_instance_valid(hostage):
 		if hostage.state!="DOWN": hostage.knock_out(); game.mark_goal("choke")
 		hostage=null; return
@@ -107,7 +117,7 @@ func action() -> void:
 		"CLIMB": game.player.climb_box()
 		"USE": game.use_console()
 func tick(delta: float) -> void:
-	item_cooldown=maxf(0,item_cooldown-delta); melee_timer=maxf(0,melee_timer-delta); combo_timer=maxf(0,combo_timer-delta); parry_time=maxf(0,parry_time-delta)
+	missions.tick(delta); item_cooldown=maxf(0,item_cooldown-delta); melee_timer=maxf(0,melee_timer-delta); combo_timer=maxf(0,combo_timer-delta); parry_time=maxf(0,parry_time-delta)
 	if combo_timer==0: combo=0
 	if is_instance_valid(hostage):
 		hostage.position=game.player.position-game.player.facing*.7; hostage.stun=1.0; game.mark_goal("drag")
@@ -132,7 +142,7 @@ func melee(kind: String) -> void:
 	if not is_instance_valid(g) or g.health<=0: return
 	if kind=="fist":
 		g.receive_hit(10,"fist",g.position)
-		if combo==3: g.knock_out(); game.mark_goal("combo")
+		if combo==3 or game.player.crouched: g.knock_out(); game.mark_goal("combo" if combo==3 else "sweep")
 	else:
 		g.receive_hit(120 if kind=="dagger" and behind(g) else 45 if kind=="dagger" else 55,kind,g.position); game.mark_goal(kind)
 func lock_target() -> Node3D:

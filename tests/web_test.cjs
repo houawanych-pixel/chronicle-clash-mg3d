@@ -32,6 +32,14 @@ const server=http.createServer((req,res)=>{
   await tap(1110,455);await waitState(s=>s.aim&&s.view==='aim');passes++;console.log('PASS '+spec.name+' AIM first person');
   await page.screenshot({path:path.join(out,spec.name+'_aim.png')});
   await tap(1110,455);await waitState(s=>!s.aim);passes++;console.log('PASS '+spec.name+' AIM exit');
+  for(const chamber of [4,5]) {
+   await tap(932,68);await waitState(s=>s.mode==='paused');
+   await tap(210,480);await waitState(s=>s.mode==='chambers');
+   await tap(350,142+chamber*76);await waitState(s=>s.mode==='brief'&&s.room===chamber);
+   await tap(210,573);await waitState(s=>s.mode==='play'&&s.room===chamber);
+   if(state.meshes>=300)throw Error('Chamber mesh budget failure');passes++;console.log('PASS '+spec.name+' chamber '+chamber+' touch selection and rendering; '+state.meshes+' meshes');
+   await page.screenshot({path:path.join(out,spec.name+'_chamber'+chamber+'.png')});
+  }
   await ctx.close();
  }
  if(errors.length)throw Error(errors.join('\n'));

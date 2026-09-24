@@ -2,6 +2,10 @@ extends CharacterBody3D
 const AvatarScript=preload("res://scripts/Avatar.gd")
 const V=preload("res://scripts/Visuals.gd")
 const Spatial=preload("res://scripts/StealthMath.gd")
+var seated: bool=false
+var returning: bool=false
+var home: Vector3
+var backup: bool=false
 var game: Node
 var route: Array=[]
 var route_index: int=1
@@ -47,11 +51,11 @@ func _ready() -> void:
 		facing=Vector3(dir.x,0,dir.y).normalized()
 func point() -> Vector2: return Vector2(global_position.x,global_position.z)
 func hear(at: Vector3) -> void:
-	if health<=0 or state in ["CALL","CHASE"]: return
+	if health<=0 or seated or state in ["CALL","CHASE"]: return
 	last_known=at; state="INVESTIGATE"; search_time=5; path_time=0
 func receive_hit(amount: float, _weapon: String, _at: Vector3) -> void:
 	if health<=0: return
-	health-=amount; avatar.flash=.2; stun=.25
+	seated=false; returning=false; health-=amount; avatar.flash=.2; stun=.25
 	last_known=game.player.global_position
 	if health<=0:
 		game.mark_goal("guard_down")
@@ -69,6 +73,15 @@ func tick(delta: float) -> void:
 		avatar.height=1.9
 		avatar.tick(delta,game.camera)
 		return
+	if seated:
+		seeing=false; avatar.pose=14; avatar.height=1.2; avatar.tick(delta,game.camera); reaction.text="CARDS"; return
+	if returning:
+		var d: Vector3=home-position
+		if d.length()<.4: seated=true;returning=false;state="SEATED";return
+		var points: PackedVector2Array=game.route_to(point(),Vector2(home.x,home.z))
+		if points.size()>1:
+			var to: Vector2=(points[1]-point()).normalized(); velocity=Vector3(to.x*1.8,-2,to.y*1.8);move_and_slide();facing=Vector3(to.x,0,to.y)
+		avatar.pose=-1;avatar.move_speed=1.8;avatar.facing=facing;avatar.tick(delta,game.camera);return
 	step_clock+=delta
 	stun=maxf(0,stun-delta)
 	shot_time=maxf(0,shot_time-delta)
@@ -79,10 +92,11 @@ func tick(delta: float) -> void:
 	var to_player: Vector3=target-eye
 	var flat: Vector3=Vector3(to_player.x,0,to_player.z)
 	var range_limit: float=8.8
+	if game.lab.missions.in_shadow(game.player.position): range_limit*=.55
 	if game.player.prone: range_limit*=.5
 	elif game.player.crouched: range_limit*=.8
 	if game.player.cloaked and game.player.exposed_time<=0: range_limit=1.5
-	seeing=to_player.length()<range_limit and (flat.length()<.7 or facing.dot(flat.normalized())>cos(deg_to_rad(40))) and game.clear_sight(eye,target)
+	seeing=not game.lab.missions.hidden and to_player.length()<range_limit and (flat.length()<.7 or facing.dot(flat.normalized())>cos(deg_to_rad(40))) and game.clear_sight(eye,target)
 	if seeing:
 		suspicion=minf(1,suspicion+delta*1.15)
 		last_known=game.player.global_position; lost_time=0

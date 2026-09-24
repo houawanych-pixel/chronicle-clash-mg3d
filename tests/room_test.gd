@@ -11,8 +11,8 @@ func run() -> void:
 	game=Game.new(); game.muted=true; root.add_child(game); game.set_physics_process(false)
 	await physics_frame; await physics_frame
 	game.mode="play"
-	check(game.rooms.size()==1 and game.guards.size()==1,"One room and one guard")
-	check(game.gear.items.size()==1,"Pistol-only scope")
+	check(game.rooms.size()==18 and game.guards.size()==1,"Eighteen selectable chambers; baseline has one guard")
+	check(game.gear.items.size()==7,"Seven-weapon integrated scope")
 	var avatar: Node3D=game.player.avatar
 	check(avatar.rig.get_bone_count()==16,"16-bone 3D character")
 	check(avatar.rig.get_bone_global_pose(avatar.bones.head).origin.y>1.5,"Skeleton rest pose places head above torso")

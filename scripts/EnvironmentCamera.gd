@@ -111,4 +111,4 @@ func update(delta: float) -> void:
 		else:
 			camera.position=next; camera.quaternion=camera.quaternion.slerp(target_rotation,1-exp(-delta*10))
 		camera.fov=fov
-	p.avatar.visible=not view in ["vent","aim"]
+	p.avatar.visible=not view in ["vent","aim"] and not game.lab.missions.hidden

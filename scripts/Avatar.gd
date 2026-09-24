@@ -18,6 +18,11 @@ var spare_magazine: MeshInstance3D
 var bones: Dictionary={}
 var attachments: Dictionary={}
 var skin_material: StandardMaterial3D
+var weapon_id: String="pistol"
+var weapon_drawn: bool=true
+var gun_body: MeshInstance3D
+var gun_grip: MeshInstance3D
+var blade: MeshInstance3D
 var current_clip: String=""
 func material(hex: String) -> StandardMaterial3D:
 	var m: StandardMaterial3D=StandardMaterial3D.new()
@@ -85,8 +90,9 @@ func _ready() -> void:
 		mesh("forearm_"+side,Vector3(0,-.12,0),Vector3(.14,.27,.15),cloth,true)
 		mesh("hand_"+side,Vector3(0,-.035,0),Vector3(.13,.15,.14),dark,true)
 	# Pistol points down the arm's local -Y axis. Raising the arm aims it forward.
-	mesh("hand_r",Vector3(0,-.10,-.04),Vector3(.085,.27,.105),armor)
-	mesh("hand_r",Vector3(0,-.012,.055),Vector3(.075,.08,.16),dark)
+	gun_body=mesh("hand_r",Vector3(0,-.10,-.04),Vector3(.085,.27,.105),armor)
+	gun_grip=mesh("hand_r",Vector3(0,-.012,.055),Vector3(.075,.08,.16),dark)
+	blade=mesh("hand_r",Vector3(0,-.40,-.04),Vector3(.06,.7,.03),material("d3eaf4"));blade.visible=false
 	magazine=mesh("hand_r",Vector3(0,.005,.14),Vector3(.062,.055,.07),dark)
 	spare_magazine=mesh("hand_l",Vector3(0,-.09,0),Vector3(.06,.16,.075),dark)
 	spare_magazine.visible=false
@@ -102,6 +108,9 @@ func _ready() -> void:
 	make_clip(library,"cover",1.2,true,{"arm_r":Vector3(.65,0,-.22),"forearm_r":Vector3(.7,0,0),"arm_l":Vector3(.15,0,.35),"thigh_l":Vector3(.10,0,.08),"thigh_r":Vector3(-.1,0,-.08),"head":Vector3(0,.45,0)})
 	make_clip(library,"reload",1.3,false,{"arm_r":Vector3(.9,0,-.28),"forearm_r":Vector3(.6,0,-.2),"arm_l":Vector3(.3,0,-.25),"forearm_l":Vector3(.65,0,-.65),"head":Vector3(-.2,0,0)})
 	make_clip(library,"crouch",1.0,true,{"thigh_l":Vector3(-.7,0,0),"thigh_r":Vector3(-.7,0,0),"shin_l":Vector3(1.25,0,0),"shin_r":Vector3(1.25,0,0),"chest":Vector3(-.15,0,0),"arm_r":Vector3(.6,0,0)})
+	make_clip(library,"punch",.42,false,{"arm_r":Vector3(1.8,0,.15),"chest":Vector3(0,.25,0)})
+	make_clip(library,"kick",.5,false,{"thigh_r":Vector3(-1.4,0,0),"shin_r":Vector3(.2,0,0),"chest":Vector3(.2,0,0)})
+	make_clip(library,"slash",.5,false,{"arm_r":Vector3(1.6,0,-.8),"chest":Vector3(0,-.4,0)})
 	make_clip(library,"hang",1.0,true,{"arm_r":Vector3(2.8,0,0),"arm_l":Vector3(2.8,0,0),"thigh_l":Vector3(-.25,0,0),"thigh_r":Vector3(-.25,0,0)})
 	make_clip(library,"push",1.0,true,{"arm_r":Vector3(1.4,0,0),"arm_l":Vector3(1.4,0,0)},true)
 	make_clip(library,"jump",1.0,true,{"thigh_l":Vector3(-.6,0,0),"thigh_r":Vector3(-.3,0,0),"shin_l":Vector3(.6,0,0)})
@@ -145,6 +154,9 @@ func tick(delta: float,_camera: Camera3D) -> void:
 	elif pose==19: clip="hang"
 	elif pose==20: clip="push"
 	elif pose==21: clip="jump"
+	elif pose==22: clip="punch"
+	elif pose==23: clip="kick"
+	elif pose==13: clip="slash"
 	elif pose==18: clip="crawl" if move_speed>.15 else "prone"
 	if clip!=current_clip:
 		animation.play(clip,.12); current_clip=clip
@@ -156,7 +168,12 @@ func tick(delta: float,_camera: Camera3D) -> void:
 	rig.position=Vector3(0,.32,.85) if pose==18 else Vector3.ZERO
 	if pose in [1,3]: rig.set_bone_pose_rotation(bones.head,Quaternion.from_euler(Vector3(0,-.45,0)))
 	var reloading: bool=clip=="reload" and animation.current_animation_position>.2 and animation.current_animation_position<.95
-	magazine.visible=not reloading; spare_magazine.visible=reloading
+	var is_blade: bool=weapon_id in ["dagger","sword"]
+	gun_body.visible=weapon_drawn and not is_blade;gun_grip.visible=gun_body.visible
+	gun_body.scale=Vector3(1.6,2.8,1.6) if weapon_id=="rocket" else Vector3(1,2.3,1) if weapon_id in ["rifle","sniper","smg"] else Vector3.ONE
+	blade.visible=weapon_drawn and is_blade;blade.scale.y=.5 if weapon_id=="dagger" else 1.3
+	magazine.visible=not reloading and gun_body.visible; spare_magazine.visible=reloading and weapon_drawn
+	skin_material.albedo_color=Color("3caaa1") if opacity<.5 else Color("56616a" if guard else "486779")
 	flash=maxf(0,flash-delta)
 	skin_material.emission_enabled=flash>0
 	skin_material.emission=Color("9f3f31")

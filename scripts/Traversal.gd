@@ -13,13 +13,13 @@ func build() -> void:
 	grabbers.clear();anchor.clear();pushed=null
 	V.solid(game.stage,Vector3(-12,1.15,-1),Vector3(3,2.3,2),Color("4b6374"),true)
 	grabbers.append({"kind":"ledge","a":Vector3(-13.2,2.3,.43),"b":Vector3(-10.8,2.3,.43),"normal":Vector3.BACK})
-	V.solid(game.stage,Vector3(-9,2.7,9),Vector3(5,.15,.15),Color("74d2ce"),false)
-	for x: float in [-11.5,-6.5]: V.solid(game.stage,Vector3(x,1.35,9),Vector3(.12,2.7,.12),Color("446578"),false)
-	grabbers.append({"kind":"bar","a":Vector3(-11.1,2.7,9),"b":Vector3(-6.9,2.7,9),"normal":Vector3.BACK})
+	V.solid(game.stage,Vector3(-9,2.7,10.5),Vector3(5,.15,.15),Color("74d2ce"),false)
+	for x: float in [-11.5,-6.5]: V.solid(game.stage,Vector3(x,1.35,10.5),Vector3(.12,2.7,.12),Color("446578"),false)
+	grabbers.append({"kind":"bar","a":Vector3(-11.1,2.7,10.5),"b":Vector3(-6.9,2.7,10.5),"normal":Vector3.BACK})
 	V.solid(game.stage,Vector3(-14,1.9,5),Vector3(.18,3.8,.18),Color("79c4c8"),false)
 	grabbers.append({"kind":"pole","a":Vector3(-14,.9,5.6),"b":Vector3(-14,3.4,5.6),"normal":Vector3.BACK})
 	V.label(game.stage,Vector3(-12,3.1,-1),"LEDGE",Color("ffe1a2"),36)
-	V.label(game.stage,Vector3(-9,3.3,9),"HANG / SHIMMY",Color("ffe1a2"),36)
+	V.label(game.stage,Vector3(-9,3.3,10.5),"HANG / SHIMMY",Color("ffe1a2"),36)
 func speed(move: Vector2) -> float:
 	var p=game.player
 	if p.prone: tier="crawl"; return 1.1
@@ -82,7 +82,8 @@ func tick(delta: float,move: Vector2) -> bool:
 		var size: Vector3=pushed.get_meta("size");var shape=BoxShape3D.new();shape.size=size-Vector3(.03,.06,.03)
 		var q=PhysicsShapeQueryParameters3D.new();q.shape=shape;q.transform=Transform3D(Basis.IDENTITY,pushed.position+step);q.collision_mask=17;q.exclude=[pushed.get_rid()]
 		if game.get_world_3d().direct_space_state.intersect_shape(q,1).is_empty():
-			pushed.position+=step;p.position+=step
+			game.walls.erase(pushed.get_meta("nav_rect"));pushed.position+=step;p.position+=step
+			var rect: Rect2=Rect2(pushed.position.x-size.x*.5,pushed.position.z-size.z*.5,size.x,size.z);pushed.set_meta("nav_rect",rect);game.walls.append(rect)
 			if step.length()>.001: game.mark_goal("push_pull")
 		return true
 	if tier=="run" and move.length()>.1: game.lab.stamina=maxf(0,game.lab.stamina-14*delta)

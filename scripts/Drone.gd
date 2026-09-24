@@ -21,17 +21,24 @@ var label: Label3D
 var beam_direction: Vector3=Vector3.DOWN
 func _ready() -> void:
 	collision_layer=4; collision_mask=17
-	health=70 if kind=="scout" else 105 # pistol does 35: exactly 2 / 3 hits.
+	health=70 if kind=="scout" else 280 if kind=="master" else 105 # pistol does 35: exactly 2 / 3 hits.
 	route=[Vector3(-11,3.3,-6),Vector3(-4,3.3,-6)] if kind=="scout" else [Vector3(7,2.7,6),Vector3(12,2.7,6)]
+	if kind in ["dog","kamikaze","master"]:
+		route=[Vector3(-2,.5 if kind=="dog" else 2.5,-8),Vector3(3,.5 if kind=="dog" else 2.5,-8)]
 	position=route[0]
 	var col: CollisionShape3D=CollisionShape3D.new(); var sphere: SphereShape3D=SphereShape3D.new(); sphere.radius=.65; col.shape=sphere; add_child(col)
 	hull=Node3D.new(); add_child(hull)
+	if kind=="master": hull.scale=Vector3.ONE*1.8
 	var color: Color=Color("e8bc62") if kind=="scout" else Color("dd675a")
 	V.box(hull,Vector3.ZERO,Vector3(.8,.3,.6),V.mat(color))
 	V.box(hull,Vector3(0,-.15,-.34),Vector3(.2,.18,.15),V.mat(Color("6ef8ee"),1))
 	for x in [-.6,.6]:
 		for z in [-.45,.45]:
 			var rotor: MeshInstance3D=V.box(hull,Vector3(x,.12,z),Vector3(.72,.04,.12),V.mat(Color("97b6c9"))); rotors.append(rotor)
+	if kind=="dog":
+		for rotor: Node3D in rotors: rotor.visible=false
+		for x: float in [-.35,.35]:
+			for z: float in [-.3,.3]: V.box(hull,Vector3(x,-.3,z),Vector3(.12,.55,.12),V.mat(Color("6d8d9e")))
 	V.box(hull,Vector3.ZERO,Vector3(1.3,.08,.12),V.mat(Color("304656")))
 	label=V.label(self,Vector3(0,.8,0),kind.to_upper(),color,23)
 	searchlight=SpotLight3D.new(); add_child(searchlight); searchlight.light_color=color; searchlight.light_energy=2; searchlight.spot_range=8; searchlight.spot_angle=25; searchlight.shadow_enabled=true
@@ -62,18 +69,26 @@ func tick(delta: float) -> void:
 	searchlight.look_at(global_position+beam_direction,Vector3.FORWARD)
 	seeing=can_see_player()
 	# Attack drones track a visible target in a wider forward arc; walls still occlude.
-	if kind=="attack":
+	if kind in ["attack","dog","kamikaze","master"]:
 		var target: Vector3=game.player.target_point()-position
 		var flat: Vector3=Vector3(target.x,0,target.z)
 		seeing=target.length()<10 and (flat.length()<1 or heading.dot(flat.normalized())>-.1) and game.clear_sight(position,game.player.target_point())
+	if game.lab.missions.hidden or (game.player.cloaked and game.player.exposed_time<=0): seeing=false
 	if seeing:
 		suspicion=minf(1,suspicion+delta)
 		if kind=="scout" and suspicion>=1 and not alarm_latched:
 			alarm_latched=true; game.alarms+=1; game.sound("alarm",-12)
 			for guard: Node3D in game.guards: guard.hear(game.player.global_position)
-			game.toast("Scout drone raised the alarm!")
-		if kind=="attack" and cooldown<=0:
-			cooldown=1.2; game.tracer(global_position,game.player.target_point(),Color("ff7263"),.1); game.sound("pistol",-15); game.player.damage(8)
+			game.call_support(game.player.position); game.toast("Scout drone raised the alarm!")
+		if kind in ["attack","master"] and cooldown<=0:
+			cooldown=.35 if kind=="master" else 1.2; game.tracer(global_position,game.player.target_point(),Color("ff7263"),.1); game.sound("pistol",-15); game.player.damage(8)
+		if kind in ["dog","kamikaze"]:
+			var chase: Vector3=game.player.target_point()-position
+			if kind=="dog": chase.y=0
+			velocity=chase.normalized()*(4.2 if kind=="dog" else 5.5);move_and_slide()
+			if chase.length()<1.4 and cooldown<=0:
+				if kind=="kamikaze": receive_hit(999,"self",position);game.blast(position,3,70,"kamikaze")
+				else: game.player.damage(12);cooldown=.9
 	else:
 		suspicion=maxf(0,suspicion-delta*.6)
 		if suspicion<=0: alarm_latched=false
@@ -83,6 +98,6 @@ func receive_hit(amount: float,_weapon: String,_at: Vector3) -> void:
 	if health<=0: return
 	health=maxf(0,health-amount)
 	if health<=0:
-		state="DOWN"; seeing=false; collision_layer=0; velocity=Vector3.ZERO
+		game.mark_goal(kind+"_down");state="DOWN"; seeing=false; collision_layer=0; velocity=Vector3.ZERO
 		searchlight.visible=false; label.text=kind.to_upper()+" DOWN"
 		game.sound("guard_down",-12); game.toast(kind.capitalize()+" drone down.")

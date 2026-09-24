@@ -29,7 +29,7 @@ func run() -> void:
 	check(m.pull_up(),"Up on ledge starts safe pull-up")
 	for i in range(60):p.tick(1.0/60,Vector2.ZERO);await physics_frame
 	check(p.position.y>2.25 and p.mode=="ground","Pull-up ends standing on ledge")
-	p.position=Vector3(-9,1.3,9);p.mode="ground";check(m.grab(),"Bar can be grabbed")
+	p.position=Vector3(-9,1.3,10.5);p.mode="ground";check(m.grab(),"Bar can be grabbed")
 	game.lab.stamina=.05;p.tick(.1,Vector2.ZERO);check(p.mode=="ground","Stamina zero drops from bar")
 	game.lab.stamina=100;p.position=Vector3(-14,0,5.6);check(m.grab(),"Pole grab succeeds");var y: float=p.position.y;p.tick(.3,Vector2(0,-1));check(p.position.y>y,"Pole supports upward climbing")
 	m.drop();check(p.mode=="ground","Drop releases pole")

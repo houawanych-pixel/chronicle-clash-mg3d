@@ -75,7 +75,7 @@ func run() -> void:
 	game.hud.queue_redraw(); await process_frame; await process_frame
 	var button: Dictionary={}
 	for entry in game.hud.buttons:
-		if entry.action=="climb_box": button=entry
+		if entry.action=="action": button=entry
 	check(not button.is_empty(),"Rendered HUD includes CLIMB touch button")
 	if not button.is_empty():
 		var e=InputEventScreenTouch.new(); e.index=3; e.pressed=true; e.position=button.rect.get_center()*game.hud.scale_ui+game.hud.offset_ui

@@ -46,7 +46,7 @@ func run() -> void:
 	game.command("crawl"); check(not game.player.prone,"Can stand after clearing vent")
 	camera_settle(); check(game.camera_controller.view=="follow" and game.player.avatar.visible,"Vent exit restores visible third-person player")
 	var guard=game.guards[0]
-	guard.position=Vector3(-12,0,0); guard.facing=Vector3.FORWARD; place(Vector3(-12,0,-6)); await physics_frame
+	guard.position=Vector3(-14.5,0,0); guard.facing=Vector3.FORWARD; place(Vector3(-14.5,0,-6)); await physics_frame
 	guard.tick(.01); check(guard.seeing,"Standing target visible at six meters")
 	game.command("crawl"); guard.facing=Vector3.FORWARD; guard.tick(.01)
 	check(not guard.seeing,"Prone target hidden beyond half guard range")
@@ -57,8 +57,8 @@ func run() -> void:
 	check(guard.position.z>3.4,"Standing guard physically cannot enter vent")
 	var scout=game.drones[0]; var attack=game.drones[1]
 	check(scout.kind=="scout" and attack.kind=="attack","Both drone roles spawn")
-	scout.position=Vector3(-12,3,0); scout.route=[scout.position,scout.position]; scout.heading=Vector3.FORWARD
-	place(Vector3(-12,0,-2)); await physics_frame
+	scout.position=Vector3(-14.5,3,0); scout.route=[scout.position,scout.position]; scout.heading=Vector3.FORWARD
+	place(Vector3(-14.5,0,-2)); await physics_frame
 	var alarms: int=game.alarms
 	for i in range(5): scout.tick(.1)
 	check(game.alarms==alarms and scout.suspicion>.4,"Scout detection accumulates without immediate alarm")
@@ -70,13 +70,13 @@ func run() -> void:
 	check(not scout.can_see_player(),"Roof blocks drone sight")
 	scout.position=Vector3(6.5,3,1.5); scout.beam_direction=Vector3.DOWN; place(Vector3(6.5,0,1.5)); game.command("crawl"); await physics_frame
 	check(not scout.can_see_player(),"Vent blocks drone sight")
-	place(Vector3(-12,0,-2)); game.command("crawl"); attack.position=Vector3(-12,3,0); attack.route=[attack.position,attack.position]; attack.heading=Vector3.FORWARD
+	place(Vector3(-14.5,0,-2)); game.command("crawl"); attack.position=Vector3(-14.5,3,0); attack.route=[attack.position,attack.position]; attack.heading=Vector3.FORWARD
 	game.player.health=100; game.player.hurt_time=0; await physics_frame
 	attack.tick(.01); check(game.player.health==92,"Attack drone deals eight damage")
 	game.player.hurt_time=0; attack.tick(.5); check(game.player.health==92,"Attack drone waits for shot cooldown")
 	attack.tick(.71); check(game.player.health==84,"Attack drone fires again after 1.2 seconds")
 	# Aim assist checks horizontal bearing because the touch stick has no elevation axis.
-	place(Vector3(-12,0,4)); scout.position=Vector3(-12,3,-2); attack.position=Vector3(12,3,6); await physics_frame
+	place(Vector3(-14.5,0,4)); scout.position=Vector3(-14.5,3,-2); attack.position=Vector3(12,3,6); await physics_frame
 	camera_settle(); game.hud.touch_aim_active=true; game.hud.aim_direction=Vector2(0,-1); game.refresh_aim()
 	check(game.locked_drone==scout and game.aim_point.y>2,"Aim stick locks onto elevated drone in real aim pipeline")
 	game.hud.touch_aim_active=false
@@ -84,24 +84,24 @@ func run() -> void:
 	check(game.assist_drone(Vector3.FORWARD.rotated(Vector3.UP,deg_to_rad(15)))==null,"Aim assist rejects drone outside cone")
 	place(Vector3(10,0,-5)); scout.position=Vector3(10,6,-8); await physics_frame
 	check(game.assist_drone(Vector3.FORWARD)==null,"Aim assist cannot lock through roof")
-	place(Vector3(-12,0,4)); scout.position=Vector3(-12,3,-2); await physics_frame
+	place(Vector3(-14.5,0,4)); scout.position=Vector3(-14.5,3,-2); await physics_frame
 	game.aim_point=scout.position
 	for i in range(2): game.gear.cooldown=0; game.gear.switch_time=0; game.gear.fire()
 	check(scout.health==0 and scout.state=="DOWN","Two real pistol hits down scout")
 	var y: float=scout.position.y
 	for i in range(60): scout.tick(1.0/60); await physics_frame
 	check(scout.position.y<y-1 and not scout.searchlight.visible,"Downed scout falls and searchlight turns off")
-	attack.position=Vector3(-12,3,-2); await physics_frame; game.aim_point=attack.position
+	attack.position=Vector3(-14.5,3,-2); await physics_frame; game.aim_point=attack.position
 	for i in range(3): game.gear.cooldown=0; game.gear.fire()
 	check(attack.health==0,"Three real pistol hits down attack drone")
 	check(game.assist_drone(Vector3.FORWARD)==null,"Dead drones cannot be aim targets")
 	game.hud.queue_redraw(); await process_frame; await process_frame
 	var button: Dictionary={}
 	for b in game.hud.buttons:
-		if b.action=="crawl": button=b
-	check(not button.is_empty(),"Rendered HUD contains CRAWL")
+		if b.action=="crouch": button=b
+	check(not button.is_empty(),"Rendered HUD contains CROUCH / crawl entry")
 	if not button.is_empty():
 		var e=InputEventScreenTouch.new(); e.index=5; e.pressed=true; e.position=button.rect.get_center()*game.hud.scale_ui+game.hud.offset_ui
-		game.hud._input(e); check(game.player.prone,"Touching CRAWL changes stance")
+		game.hud._input(e);game.player.tick(.016,Vector2(.2,0)); check(game.player.prone,"Touch CROUCH plus movement crawls")
 	print("RESULT: %d passed, %d failed"%[passed,failed])
 	game.queue_free(); await process_frame; await process_frame; quit(1 if failed else 0)

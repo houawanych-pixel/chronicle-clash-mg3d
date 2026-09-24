@@ -87,6 +87,8 @@ func _draw() -> void:
 		if y<=100: label(Vector2(466,y),line,28,GOLD)
 	if not game.lab.wheel.is_empty(): draw_wheel()
 	elif game.lab.objective_expanded: draw_objectives()
+	elif game.mode=="chambers": draw_chambers()
+	elif game.mode=="checklist": draw_checklist()
 	elif game.mode!="play": draw_modal()
 func draw_radar(rect: Rect2) -> void:
 	panel(rect)
@@ -128,7 +130,10 @@ func draw_modal() -> void:
 	label(Vector2(70,265),"Push a wall for cover. ACTION changes with context.",28)
 	label(Vector2(70,310),"Tap AIM; drag the right side to look. FIRE to shoot.",28)
 	label(Vector2(70,355),"Tap CROUCH, then move to crawl. Tap again to stand.",28)
-	label(Vector2(70,420),game.rooms[game.room].tag,28,GOLD)
+	label(Vector2(70,410),game.rooms[game.room].tag,28,GOLD)
+	var record: Dictionary=game.scores.get("record_"+str(game.room),{})
+	if not record.is_empty():label(Vector2(780,355),"BEST %.1fs / %s"%[record.time,record.rank],28,CYAN)
+	button(Rect2(70,450,295,66),"CHAMBERS","chambers");button(Rect2(395,450,295,66),"CHECKLIST","checklist");button(Rect2(720,450,450,66),"TEST: ALL OPEN" if game.lab.test_mode else "TRAINING MODE","test_mode")
 	button(Rect2(70,536,295,80),"PLAY" if game.mode in ["title","brief"] else "RESUME" if game.mode=="paused" else "RETRY","confirm")
 	button(Rect2(395,536,220,80),"RETRY","retry");button(Rect2(645,536,220,80),"MENU","menu");button(Rect2(895,536,280,80),"SOUND","mute")
 func _input(event: InputEvent) -> void:
@@ -178,3 +183,22 @@ func release(id: int) -> void:
 			if other.action=="fire": holds.fire=true
 	if id==joy_id: joy_id=-99; joystick=Vector2.ZERO
 	if id==aim_id: aim_id=-99
+
+func draw_chambers() -> void:
+	draw_rect(Rect2(0,0,1280,720),INK);buttons.clear();label(Vector2(65,70),"CHAMBERS / ALL OPEN" if game.lab.test_mode else "TRAINING / PROGRESSION",34,CYAN,true)
+	var begin: int=game.lab.menu_page*6
+	for i in range(6):
+		var id: int=begin+i
+		if id>=game.rooms.size(): break
+		var locked: bool=not game.lab.test_mode and id>int(game.scores.get("unlocked",7))
+		button(Rect2(70,110+i*76,1120,65),("LOCKED / " if locked else "")+game.rooms[id].name,"room_"+str(id))
+	button(Rect2(70,610,270,70),"PREVIOUS","page_prev");button(Rect2(380,610,270,70),"MENU","menu");button(Rect2(690,610,270,70),"NEXT","page_next")
+func draw_checklist() -> void:
+	draw_rect(Rect2(0,0,1280,720),INK);buttons.clear();label(Vector2(65,70),"VERIFICATION / BUILD 06",34,CYAN,true)
+	for i in range(5):
+		var id: int=game.lab.feature_page*5+i
+		if id>=game.lab.features.size(): break
+		var feature: String=game.lab.features[id];var entry: Dictionary=game.lab.evidence.get(feature,{})
+		label(Vector2(65,130+i*91),feature,28,WHITE,true)
+		label(Vector2(65,166+i*91),str(entry.get("status","UNFINISHED"))+" / "+str(entry.get("test","No passing test recorded")),24,CYAN if entry.get("status","")=="WORKING" else GOLD)
+	button(Rect2(70,610,270,70),"PREVIOUS","features_prev");button(Rect2(380,610,270,70),"MENU","menu");button(Rect2(690,610,270,70),"NEXT","features_next")

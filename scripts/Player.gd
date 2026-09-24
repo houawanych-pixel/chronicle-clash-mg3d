@@ -232,7 +232,8 @@ func _tick_climb(delta: float, move: Vector2) -> void:
 func _update_visual(delta: float) -> void:
 	avatar.facing=facing
 	avatar.move_speed=Vector2(velocity.x,velocity.z).length()
-	avatar.opacity=1.0
+	avatar.opacity=.3 if cloaked else 1.0
+	avatar.weapon_id=str(game.gear.current().id);avatar.weapon_drawn=game.lab.drawn
 	avatar.pose=-1
 	avatar.height=1.9
 	avatar.position=Vector3.ZERO
@@ -249,8 +250,8 @@ func _update_visual(delta: float) -> void:
 	elif gear.switch_time>0: avatar.pose=9
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.held("fire") and gear.selected<4: avatar.pose=4
-	if attack_time>0: avatar.pose=13
-	if gear.action_time>0: avatar.pose=6
+	if attack_time>0: avatar.pose=(23 if game.lab.combo==3 else 22) if not game.lab.drawn else 13
+	if gear.action_time>0 and gear.action!="clear": avatar.pose=6
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.aim_enabled and mode=="ground": avatar.pose=4; avatar.facing=(game.aim_point-global_position).normalized()
 	if mode=="mantle": avatar.pose=17
@@ -328,7 +329,7 @@ func _tick_box_climb(delta: float) -> void:
 		game.toast("Climb blocked. Move to a clear side of the crate."); return
 	if mantle_time>=.65:
 		mode="ground"; velocity=Vector3.ZERO; cover_cooldown=.8; climb_input_lock=true
-		game.toast("On top. Release the movement stick, then move to step off.")
+		game.mark_goal("climb"); game.toast("On top. Release the movement stick, then move to step off.")
 
 func target_point() -> Vector3:
 	return global_position+Vector3.UP*(.35 if prone else .95)

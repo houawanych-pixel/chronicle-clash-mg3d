@@ -142,7 +142,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	for entry: Dictionary in data.crates:
 		var size: Vector3=entry.size
 		var body: StaticBody3D=V.solid(stage,entry.at+Vector3.UP*size.y*.5,size,Color("426476"),true)
-		body.set_meta("waist_crate",true); crates.append(body)
+		body.set_meta("waist_crate",true);body.set_meta("nav_rect",Rect2(entry.at.x-size.x*.5,entry.at.z-size.z*.5,size.x,size.z)); crates.append(body)
 		walls.append(Rect2(entry.at.x-size.x*.5,entry.at.z-size.z*.5,size.x,size.z))
 		V.label(stage,entry.at+Vector3.UP*(size.y+.4),"CLIMB",Color("ffd18b"),24)
 	var shelter: Rect2=data.shelter
@@ -158,7 +158,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	V.solid(stage,console_point+Vector3.UP*.45,Vector3(.7,.9,.7),Color("276977"),false)
 	V.label(stage,console_point+Vector3.UP*1.6,"USE / TRAINING",Color("7ae8e1"),25)
 	for route: Array in data.routes: spawn_guard(route)
-	for kind: String in ["scout","attack"]:
+	for kind: String in (["dog","kamikaze","master"] if data.get("kind","")=="drones" else ["scout","attack"]):
 		var drone=DroneScript.new(); drone.game=self; drone.kind=kind; stage.add_child(drone); drones.append(drone)
 	for point: Vector3 in data.chips:
 		var node: Node3D=Node3D.new(); stage.add_child(node); node.position=point+Vector3.UP*.8
@@ -175,8 +175,7 @@ func load_room(index: int, brief: bool=true) -> void:
 		V.label(stage,Vector3(0,.06,4),"PISTOL    /    RIFLE    /    SNIPER    /    ROCKET",Color("96bacb"),32)
 	if room==2:
 		V.label(stage,Vector3(-11,1,5),"TACTICAL PRACTICE / SUPPLIES",Color("a4c8d7"),24)
-	if room==3:
-		titan=TitanScript.new(); titan.game=self; stage.add_child(titan); titan.position=Vector3(0,0,-4)
+	lab.missions.build()
 	camera.position=Vector3(0,30,23); camera.look_at(Vector3(0,0,0),Vector3.UP)
 	camera_controller.reset()
 	hud.release_controls(); notification_time=0
@@ -220,15 +219,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	for action: String in ["weapon_slot","item_slot"]:
 		if event.is_action_pressed(action): key_hold[action]=Time.get_ticks_msec()
 		elif event.is_action_released(action) and key_hold.has(action):
-			var held_time: int=Time.get_ticks_msec()-int(key_hold[action]); key_hold.erase(action)
-			if held_time>=450: lab.open_wheel("weapon" if action=="weapon_slot" else "item")
+			var held_time: int=-1 if int(key_hold[action])<0 else Time.get_ticks_msec()-int(key_hold[action]); key_hold.erase(action)
+			if held_time<0: pass
+			elif held_time>=450: lab.open_wheel("weapon" if action=="weapon_slot" else "item")
 			elif action=="weapon_slot": lab.drawn=not lab.drawn
 			else: lab.use_item()
 	for action: String in ["reload","action","aim","crouch","pause","confirm"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
 	if action in ["hook","scope","cloak","drop","detonate","equipment","next","previous","zoom"]: return
-	if action.begins_with("room_"): load_room(int(action.trim_prefix("room_"))); return
+	if action.begins_with("room_"):
+		var id: int=int(action.trim_prefix("room_"))
+		if id>=0 and id<rooms.size() and (lab.test_mode or id<=int(scores.get("unlocked",7))): load_room(id)
+		return
+	if action=="chambers": mode="chambers";hud.release_controls();return
+	if action=="checklist": mode="checklist";hud.release_controls();return
+	if action=="test_mode": lab.test_mode=not lab.test_mode; return
+	if action in ["page_next","page_prev"]: lab.menu_page=posmod(lab.menu_page+(1 if action=="page_next" else -1),3);return
+	if action in ["features_next","features_prev"]: lab.feature_page=posmod(lab.feature_page+(1 if action=="features_next" else -1),5);return
 	if action.begins_with("equip_"): lab.choose_weapon(int(action.trim_prefix("equip_"))); return
 	if action.begins_with("item_"): lab.choose_item(action.trim_prefix("item_")); return
 	if action=="wheel_close": lab.close_wheel(); return
@@ -247,7 +255,7 @@ func command(action: String) -> void:
 		if mode=="title": load_room(room)
 		elif mode in ["brief","paused"]: mode="play"
 		elif mode=="failed": load_room(room)
-		elif mode=="complete": load_room(0)
+		elif mode=="complete": load_room(mini(room+1,rooms.size()-1) if not lab.test_mode else room)
 		hud.release_controls(); return
 	if mode!="play": return
 	match action:
@@ -307,6 +315,9 @@ func refresh_aim() -> void:
 		if face.length()>.3 and player.mode=="ground": player.facing=face.normalized()
 func _physics_process(delta: float) -> void:
 	tick_count+=1
+	for action: String in key_hold.keys():
+		if int(key_hold[action])>=0 and Time.get_ticks_msec()-int(key_hold[action])>=450:
+			key_hold[action]=-1;lab.open_wheel("weapon" if action=="weapon_slot" else "item")
 	if demo_kind=="reload" and tick_count==72: gear.items[0].ammo=3; gear.reload()
 	if mode=="play":
 		elapsed+=delta; notification_time=maxf(0,notification_time-delta); support_cooldown=maxf(0,support_cooldown-delta); noise_cooldown=maxf(0,noise_cooldown-delta)
@@ -335,7 +346,7 @@ func _physics_process(delta: float) -> void:
 			var side: Vector3=Vector3(cos(lab.yaw),0,-sin(lab.yaw))
 			var back: Vector3=Vector3(sin(lab.yaw),0,cos(lab.yaw))
 			var world_move: Vector3=side*move.x+back*move.y; move=Vector2(world_move.x,world_move.z)
-		if not lab.wheel.is_empty(): move=Vector2.ZERO
+		if not lab.wheel.is_empty() or lab.missions.hidden: move=Vector2.ZERO
 		player.tick(delta,move)
 		gear.tick(delta)
 		if held("fire") and player.mode!="mantle":
@@ -356,7 +367,7 @@ func _physics_process(delta: float) -> void:
 		if fx.life<=0: fx.node.queue_free(); effects.remove_at(i)
 	hud.queue_redraw()
 	if verify_web and tick_count%60==0:
-		print("MG05_STATE "+JSON.stringify({"mode":mode,"room":room,"aim":lab.aim,"wheel":lab.wheel,"stamina":lab.stamina,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size()}))
+		print("MG05_STATE "+JSON.stringify({"mode":mode,"room":room,"aim":lab.aim,"wheel":lab.wheel,"stamina":lab.stamina,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size(),"object_count":stage.find_children("*","Node3D",true,false).size()}))
 	if not capture_name.is_empty() and tick_count==100: capture.call_deferred()
 func update_camera(delta: float) -> void:
 	if is_instance_valid(player): camera_controller.update(delta)
@@ -370,6 +381,7 @@ func update_objectives() -> void:
 		if player.global_position.distance_to(rooms[room].exit)<1.4:
 			mode="complete"; sound("win"); hud.release_controls()
 			var score: int=maxi(100,4000-int(elapsed*8)-alarms*150)
+			lab.missions.record()
 			scores[str(room)]=maxi(score,int(scores.get(str(room),0))); save_scores()
 func mission_ready() -> bool:
 	if collected<chips.size(): return false
@@ -389,13 +401,14 @@ func use_console() -> void:
 			for target: StaticBody3D in targets:
 				target.health=100; target.marker.material_override=V.mat(Color("394b5d"))
 			toast("Range targets reset. Supplies refilled.")
-	elif room==3: titan.start()
+	elif room==3: toast("Jump forward to catch the ledge. Up pulls up; down drops.")
 	else: toast("Supplies refilled. All equipment is available from EQUIP.")
 func emit_noise(at: Vector3,radius: float) -> void:
 	for guard: CharacterBody3D in guards:
 		if guard.global_position.distance_to(at)<radius: guard.hear(at)
 func call_support(_at: Vector3) -> void:
-	toast("Guard radio transmission complete. Evade and break line of sight.")
+	lab.missions.support(_at)
+	toast("Radio complete: card-table backup is responding!")
 	sound("radio")
 func mark_aimed_guard() -> void:
 	if aim_hit.has("collider") and aim_hit.collider in guards:

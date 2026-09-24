@@ -1,65 +1,43 @@
-# Chronicle Clash MG 3D — Build 05 preview
+# Chronicle Clash MG 3D — Build 06 review testbed
 
-Based on the web-fixed MG repo commit `ea6cc3e`. Intended for review on branch **build05** only; do not deploy or merge to main before independent review. The separate castle-rpg-testbed game is untouched.
+Godot **4.3**, original 3D blockout models, touch-first landscape controls. One project contains **7 unlocked labs and 11 training stages**. This is a mechanics prototype, not the finished facility campaign.
 
-## New in this build
-- Restored Build 03 low-angle wall-hug camera outdoors and indoors: FOV 58, normal distance 5.5, height 2.8, trailing tangent distance 3, focus tangent 1.4, corner-peek focus 2. Side bias is active while sliding/peeking, recenters at rest. Environment transitions and collision safety remain.
-- CRAWL / STAND touch button: prone movement at 1.1 m/s, 0.6m capsule, half guard sight range. Standing is blocked under a low ceiling. CROUCH is still a separate action.
-- A 3.9m vent leads from the courtyard through the left side of the roofed room's front wall. Crawl in for first-person view. Move stick forward/back; right stick turns the view. Guards cannot fit or route through it.
-- Yellow scout drone: searchlight detection raises an alarm after approximately one second; two pistol hits bring it down.
-- Red attack drone: shoots for 8 damage at 1.2-second intervals when it sees you; three pistol hits bring it down.
-- Both drones are on the minimap, respect wall/roof/vent occlusion, and fall when defeated. Point the aim stick within 12 degrees of a visible drone's horizontal bearing for automatic elevation/target lock (18m maximum).
-- The merged grid geometry fix is retained. The room starts with 160 mesh instances, below the 300-object budget.
+**Review branch: `build06`. Do not merge or deploy to the live site until independent review.** Only `houawanych-pixel/chronicle-clash-mg3d` is in scope. Do not modify `castle-rpg-testbed`.
 
-## Open the editable project
-Extract the ZIP, import `chronicle-clash-mg3d/project.godot` into Godot 4.3, then run it. On Android use the editor's Run Project button and landscape orientation. Tap TAP TO START, then PLAY. This package is source, not an APK.
+## Open and play
 
-The live website is not changed by this package. Physical Samsung testing remains pending. See `docs/BUILD05.md` for the exact validation record.
+Extract the source ZIP and import `chronicle-clash-mg3d/project.godot` in Godot 4.3. On the Android editor, use its **Run Project** button; no F5 is needed. This ZIP is not an APK. Physical Samsung performance has not been tested.
 
-## One-room goal
-Enter cover, knock, defeat the single guard and reload the pistol. Then reach the green extraction ring. All four checklist items must be complete. Retry resets everything. The cyan console refills ammo.
+Tap **PLAY**, then **PLAY** on the briefing. Pause → **CHAMBERS** selects any lab or stage. **TEST: ALL OPEN** is on by default. Toggle it for training unlocks. Pause → **CHECKLIST** shows verified and unfinished features. Use the cyan console to refill supplies; in the weapons range it also cycles normal/persistent jam drills.
 
 ## Controls
-| Action | Keyboard / mouse | Touch |
+
+| Control | Touch | Keyboard / mouse |
 |---|---|---|
-| Move | WASD / arrows | Left stick |
-| Aim | Mouse over world / guard | Right stick or tap world |
-| Fire pistol | Left click or J | Push aim stick to outer ring, or hold FIRE |
-| Cover / leave | Space, or deliberately push into wall | COVER / LEAVE |
-| Shuffle / peek | Move sideways along wall to its edge | Move stick sideways |
-| Climb onto crate | B | CLIMB |
-| Crawl / stand | Z | CRAWL / STAND |
-| Knock in cover | K | KNOCK |
-| Reload | R | RELOAD |
-| Crouch | C | CROUCH |
-| Refill near console | F | REFILL |
-| Pause | Esc / P | PAUSE |
+| Move | Floating left stick; light tilt sneaks, full tilt runs | WASD / arrows; Alt sneaks, Shift runs |
+| Stance | Tap CROUCH; move while crouched to crawl; tap again to stand | C |
+| Context action | ACTION changes to climb, jump, knock, grab, hide, etc. | Space |
+| Shoot / melee | FIRE; holster first for punch–punch–kick | J or left mouse |
+| First-person aim | Tap AIM; drag empty right side to look | Right mouse or V; hold left mouse and drag empty right side to look |
+| Reload / clear jam | LOAD beside weapon | R |
+| Weapon | Tap slot to holster/draw; hold 0.45s for wheel | Tap/hold E |
+| Item | Tap slot to use; hold 0.45s for wheel | Tap/hold Q |
+| Pause | II | Esc / P |
 
-Gamepad mappings: left stick move, right stick aim, RB fire, A cover, B crouch, X reload, Y climb, left-stick click crawl, D-pad up refill, Start pause. Physical controller testing is pending.
+Weapon/item wheels slow simulation to 20%. Sniper and binoculars share zoom buttons. Gun aim acquires nearby visible targets in third person; first-person aim is manual. A sword uses AIM as a short timed parry. A concealed player cannot fire from a locker.
 
-Aim at the guard's body, not the floor in front of it. Walls block bullets and vision. Reload transfers ammo only after the reload timer completes. The guard patrols, hears knocks, investigates, identifies the player, calls on the radio, and attacks. Reinforcement spawning is intentionally disabled for this single-guard test. Holding fire repeats pistol shots at a limited rate.
+Jump toward the tall ledge or bar to catch it. Left/right shimmies; up pulls onto a ledge; down drops. Poles support upward climbing. Hanging drains stamina and drops you at zero. For crates, face one and use CLIMB; crouch near one and use PUSH to push/pull, then RELEASE. CLIMB stands on top instead of vaulting over.
 
-## What to judge
-- Does normal movement feel responsive?
-- Does entering the roofed room switch smoothly to follow view, or cut safely when obstructed?
-- Is the character comfortably spaced from the wall in the lower view?
-- Can you peek around either edge without losing orientation?
-- Are pistol aim/recoil/reload poses readable?
+Holster near a guard's back for HOLD, then ACTION chokes or FIRE throws. Holster near a downed guard for DRAG, move, then ACTION releases. These actions use simple blockout animation.
 
-## Model and animation status
-These are original **3D blockout characters**, assembled from simple meshes attached to bones. They have actual depth and cast shadows. They are not finished skinned character models, motion capture, or final Chronicle Clash character art. The ready/walk/aim/recoil/cover/shuffle/reload/crouch clips are authored in `scripts/Avatar.gd` and blend through AnimationPlayer transitions. A magazine appears in the left hand during reloading; hand-to-weapon contact still needs art polish. The meshes remain rigid within each bone segment; continuous skinned deformation is the next asset milestone.
+C4's first item tap places a charge; the next detonates it. Chaff disables nearby visible drones for eight seconds. Rations restore health. Cloak drains energy and shooting exposes you. Rifle jams occur after 240–300 hot shots, not every few rounds.
 
-## Files
-- `scripts/Avatar.gd`: native 3D rig, mesh assembly and animation clips.
-- `scripts/Player.gd`: physical movement and cover, reused from Build 01 with 3D presentation.
-- `scripts/Guard.gd`: reusable guard behavior and 3D presentation.
-- `scripts/Game.gd`, `HUD.gd`, `Data.gd`, `Equipment.gd`: one-room configuration, input, pistol and HUD. Camera behavior is in `EnvironmentCamera.gd`.
-- `docs/PRD_3D_Milestone.md`: revised scope and acceptance gates.
-- `docs/BUILD05.md`: current scope, tests and limits. Older docs describe earlier builds.
-- `docs/screenshots/`: actual Godot captures.
-- `tests/room_test.gd`: run with `godot --path . --script res://tests/room_test.gd`.
+In WATER LAB, walk into the pool. ACTION dives/surfaces; near the south edge it climbs out. While diving, first-person look pitch controls vertical swim direction. Oxygen depletes underwater and refills near the surface.
 
-Some shared traversal/equipment source modules from Build 01 remain in the source tree for later reuse. Their mechanics are disabled in this milestone's command handler and are not offered by its UI or inventory. This is an implementation fork, not a replacement of the original ZIP.
+Gamepad mappings exist (left stick move, right stick look, A action, B stance, X reload, LB aim, RB fire, stick clicks for weapon/item, Start pause). Physical gamepad testing remains pending.
 
-## Re-exporting Android
-Install the official Godot 4.3 Android export templates and configure Android SDK / Java SDK in the editor. Use the Samsung Android export preset. `build_support/debug.keystore` preserves this test build's signing identity for updates; its public debug credentials are alias `androiddebugkey`, password `android`. This is a development signing key, not a production release key. The key is excluded from game export.
+## Scope and evidence
+
+See `docs/BUILD06.md` for the validation record, limitations and handoff. Per-suite runtime logs and rendered browser captures are under `docs/build06/`. The in-game verification manifest is `assets/verified_features.json`; the export preset includes it explicitly.
+
+The source ZIP and Git bundle are review deliverables. They do not update GitHub or the live website automatically.

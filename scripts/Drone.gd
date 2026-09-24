@@ -24,7 +24,8 @@ func _ready() -> void:
 	health=70 if kind=="scout" else 280 if kind=="master" else 105 # pistol does 35: exactly 2 / 3 hits.
 	route=[Vector3(-11,3.3,-6),Vector3(-4,3.3,-6)] if kind=="scout" else [Vector3(7,2.7,6),Vector3(12,2.7,6)]
 	if kind in ["dog","kamikaze","master"]:
-		route=[Vector3(-2,.5 if kind=="dog" else 2.5,-8),Vector3(3,.5 if kind=="dog" else 2.5,-8)]
+		var start: Vector3=Vector3(-2,.5,-8) if kind=="dog" else Vector3(-4,3.2,-9) if kind=="kamikaze" else Vector3(1,4.8,-8)
+		route=[start,start+Vector3(4,0,0)]
 	position=route[0]
 	var col: CollisionShape3D=CollisionShape3D.new(); var sphere: SphereShape3D=SphereShape3D.new(); sphere.radius=.65; col.shape=sphere; add_child(col)
 	hull=Node3D.new(); add_child(hull)

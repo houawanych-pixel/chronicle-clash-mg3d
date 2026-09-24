@@ -1,0 +1,41 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS Open sky selects overhead
+PASS Overhead camera is elevated
+PASS Roof selects follow camera
+PASS Normal follow camera centers character
+PASS Roof obstructs camera sweep and causes hard cut
+PASS Follow camera remains outside geometry
+PASS Doorway jitter does not flicker
+PASS Brief doorway exit is debounced
+PASS Sustained exit restores overhead
+PASS Roofed wall supports wall hug
+PASS Right wall shuffle reveals right / character left
+PASS Left wall shuffle reveals left / character right
+PASS Stationary wall hug recenters
+PASS Normal movement has no lookahead
+PASS Clear path starts smooth transition
+PASS Smooth transition completes in .4s
+PASS Crate has clear climb target
+PASS CLIMB starts physical climb
+PASS Climb finishes standing on crate
+PASS Held movement does not vault off crate
+PASS Character stays on top after release
+PASS Crate has clear climb target
+PASS CLIMB starts physical climb
+PASS Climb finishes standing on crate
+PASS Held movement does not vault off crate
+PASS Character stays on top after release
+PASS Crate has clear climb target
+PASS CLIMB starts physical climb
+PASS Climb finishes standing on crate
+PASS Held movement does not vault off crate
+PASS Character stays on top after release
+PASS Distant crate cannot be climbed
+PASS Tall walls cannot be climbed as crates
+PASS Rendered HUD includes CLIMB touch button
+PASS Real CLIMB button touch starts climb
+RESULT: 35 passed, 0 failed

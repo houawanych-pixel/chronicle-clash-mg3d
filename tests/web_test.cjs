@@ -19,7 +19,8 @@ const server=http.createServer((req,res)=>{
  browser=await chromium.launch({executablePath:process.env.CHROMIUM_BIN,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],env:{...process.env,LD_LIBRARY_PATH:path.dirname(process.env.CHROMIUM_BIN)}});
  const base='http://127.0.0.1:'+server.address().port;
  const errors=[];let passes=0;
- for(const spec of [{name:'desktop',size:{width:1280,height:720}},{name:'phone',size:{width:915,height:412}}]) {
+ for(const spec of [{name:'desktop',size:{width:1280,height:720}},{name:'phone',size:{width:915,height:412}},{name:'phone_195',size:{width:844,height:390}}]) {
+  if(process.env.WEB_VIEW&&process.env.WEB_VIEW!==spec.name)continue;
   const ctx=await browser.newContext({viewport:spec.size,hasTouch:true});const page=await ctx.newPage();let state;
   page.on('pageerror',e=>errors.push(String(e)));
   page.on('console',msg=>{const t=msg.text();if(t.startsWith('MG05_STATE '))state=JSON.parse(t.slice(11));if(/SCRIPT ERROR|ERROR:/.test(t))errors.push(t);});
@@ -32,14 +33,17 @@ const server=http.createServer((req,res)=>{
   await tap(1110,455);await waitState(s=>s.aim&&s.view==='aim');passes++;console.log('PASS '+spec.name+' AIM first person');
   await page.screenshot({path:path.join(out,spec.name+'_aim.png')});
   await tap(1110,455);await waitState(s=>!s.aim);passes++;console.log('PASS '+spec.name+' AIM exit');
-  for(const chamber of [4,5]) {
+  for(const chamber of (process.env.WEB_CHAMBERS?process.env.WEB_CHAMBERS.split(',').map(Number):[4,5,6])) {
    await tap(932,68);await waitState(s=>s.mode==='paused');
    await tap(210,480);await waitState(s=>s.mode==='chambers');
-   await tap(350,142+chamber*76);await waitState(s=>s.mode==='brief'&&s.room===chamber);
+   if(chamber===6){await tap(825,645);await page.waitForTimeout(300);}
+   await tap(350,142+(chamber%6)*76);await waitState(s=>s.mode==='brief'&&s.room===chamber);
    await tap(210,573);await waitState(s=>s.mode==='play'&&s.room===chamber);
    if(state.meshes>=300)throw Error('Chamber mesh budget failure');passes++;console.log('PASS '+spec.name+' chamber '+chamber+' touch selection and rendering; '+state.meshes+' meshes');
    await page.screenshot({path:path.join(out,spec.name+'_chamber'+chamber+'.png')});
   }
+  await tap(932,68);await waitState(s=>s.mode==='paused');await tap(530,480);await waitState(s=>s.mode==='checklist');
+  if(state.feature_count!==25)throw Error('Export omitted verification manifest');await page.screenshot({path:path.join(out,spec.name+'_checklist.png')});passes++;console.log('PASS '+spec.name+' checklist opens through touch');
   await ctx.close();
  }
  if(errors.length)throw Error(errors.join('\n'));

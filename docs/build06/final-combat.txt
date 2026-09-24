@@ -1,0 +1,24 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS Pistol ray damages guard
+PASS Shot consumes round and starts flash
+PASS Reload transfers reserve rounds
+PASS Empty trigger automatically reloads
+PASS Hot rifle jams at magazine threshold
+PASS Reload clears ordinary jam
+PASS Persistent jam falls back to pistol
+PASS All seven weapons available
+PASS Punch punch kick knocks guard out
+PASS Holstered action grabs downed guard
+PASS Dragging keeps body beside operative
+PASS Action releases body
+PASS Approach from behind grabs live guard
+PASS Held guard cannot see or radio
+PASS Action chokes held guard unconscious
+PASS Dagger rear takedown
+PASS Sword timed parry blocks damage
+PASS Parry expires
+RESULT: 18 passed, 0 failed

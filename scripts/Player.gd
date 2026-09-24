@@ -112,6 +112,7 @@ func tick(delta: float, move: Vector2) -> void:
 	drop_cooldown=maxf(0,drop_cooldown-delta)
 	cover_motion=Vector3.ZERO
 	if crouched and not prone and move.length()>.15 and mode=="ground": toggle_crawl()
+	if game.lab.water.tick(delta,move): return
 	if game.lab.motion.tick(delta,move):
 		_update_visual(delta); return
 	if mode=="mantle":
@@ -251,7 +252,7 @@ func _update_visual(delta: float) -> void:
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.held("fire") and gear.selected<4: avatar.pose=4
 	if attack_time>0: avatar.pose=(23 if game.lab.combo==3 else 22) if not game.lab.drawn else 13
-	if gear.action_time>0 and gear.action!="clear": avatar.pose=6
+	if gear.action_time>0: avatar.pose=8 if gear.action=="clear" else 6
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.aim_enabled and mode=="ground": avatar.pose=4; avatar.facing=(game.aim_point-global_position).normalized()
 	if mode=="mantle": avatar.pose=17

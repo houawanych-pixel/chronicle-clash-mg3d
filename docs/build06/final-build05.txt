@@ -1,0 +1,47 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS MeshInstance count below 300
+MESH COUNT: 171
+PASS Outdoor cover restores low FOV58 view
+PASS Clear cover camera uses Build03 5.5 / -3 / 2.8 offsets
+PASS Build03 tangent focus 1.4 restored
+PASS Corner peek adds 2-unit focus swing
+PASS Stationary cover removes side shift
+PASS Roofed cover also restores FOV58 view
+PASS CRAWL reduces capsule to .6m
+PASS Crawl traverses 4m vent at 1.1m/s
+PASS Vent uses first person and hides own body
+PASS Vent eye is below low ceiling
+PASS Backing up in vent does not flip POV
+PASS Cannot stand through vent ceiling
+PASS CROUCH cannot bypass low-ceiling stand protection
+PASS Climb does not bypass prone clearance
+PASS Crawl exits into roofed room
+PASS Can stand after clearing vent
+PASS Vent exit restores visible third-person player
+PASS Standing target visible at six meters
+PASS Prone target hidden beyond half guard range
+PASS Standing guard physically cannot enter vent
+PASS Both drone roles spawn
+PASS Scout detection accumulates without immediate alarm
+PASS Scout raises alarm after one second
+PASS Continuous spotlight does not spam alarms
+PASS Roof blocks drone sight
+PASS Vent blocks drone sight
+PASS Attack drone deals eight damage
+PASS Attack drone waits for shot cooldown
+PASS Attack drone fires again after 1.2 seconds
+PASS Aim stick locks onto elevated drone in real aim pipeline
+PASS Aim assist accepts drone within 12 degrees
+PASS Aim assist rejects drone outside cone
+PASS Aim assist cannot lock through roof
+PASS Two real pistol hits down scout
+PASS Downed scout falls and searchlight turns off
+PASS Three real pistol hits down attack drone
+PASS Dead drones cannot be aim targets
+PASS Rendered HUD contains CROUCH / crawl entry
+PASS Touch CROUCH plus movement crawls
+RESULT: 40 passed, 0 failed

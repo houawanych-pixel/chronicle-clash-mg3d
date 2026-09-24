@@ -1,4 +1,6 @@
 extends RefCounted
+const Water=preload("res://scripts/Water.gd")
+var water: RefCounted
 const Missions=preload("res://scripts/Missions.gd")
 var missions: RefCounted
 const Traversal=preload("res://scripts/Traversal.gd")
@@ -30,9 +32,9 @@ var objective_expanded: bool=false
 var evidence: Dictionary={}
 var features: Array=["Controls and HUD","Environment and cover cameras","First-person optics","Pressure movement","Crawl and vent","Climb and jump","Hanging and shimmy","Pipe climbing","Push and pull crates","Shooting and reloading","CQC and dragging","Dagger and sword","Weapons and item wheels","Grenades and chaff","C4 and claymores","Heat-seeking rockets","Cloak and rations","Guard awareness and shadows","Card-table backup","Aerial drones","Drone dogs and kamikaze","Drone Master","Lockers and concealment","Swimming and oxygen","Training and persistence"]
 func _init(owner_game: Node3D) -> void:
-	game=owner_game; motion=Traversal.new(game); missions=Missions.new(game)
-	if FileAccess.file_exists("res://tests/verified_features.json"):
-		var data: Variant=JSON.parse_string(FileAccess.get_file_as_string("res://tests/verified_features.json"))
+	game=owner_game; motion=Traversal.new(game); missions=Missions.new(game);water=Water.new(game)
+	if FileAccess.file_exists("res://assets/verified_features.json"):
+		var data: Variant=JSON.parse_string(FileAccess.get_file_as_string("res://assets/verified_features.json"))
 		if data is Dictionary: evidence=data
 func reset() -> void:
 	item_cooldown=0; item_counts={"ration":5,"binoculars":1,"frag":8,"chaff":8,"c4":6,"claymore":6,"cloak":1}; hostage=null; combo=0; melee_timer=0; aim=false; optic="gun"; drawn=true; stamina=100; oxygen=100; close_wheel()
@@ -55,9 +57,9 @@ func choose_weapon(index: int) -> void:
 func choose_item(id: String) -> void:
 	item=id; close_wheel()
 func use_item() -> void:
-	if item_cooldown>0: return
 	if item=="binoculars": toggle_aim("binoculars"); return
 	if item=="cloak": game.player.toggle_cloak(); return
+	if item_cooldown>0: return
 	if item=="c4":
 		for mine: Node3D in game.mines:
 			if mine.kind=="remote": game.gear.detonate(); item_cooldown=.5; return
@@ -87,6 +89,7 @@ func fire() -> void:
 	if drawn: game.gear.fire()
 	else: melee("fist")
 func context() -> String:
+	if not water.context().is_empty():return water.context()
 	if missions.hidden: return "EXIT"
 	if game.player.position.distance_to(missions.locker)<1.6: return "HIDE"
 	if is_instance_valid(hostage): return "RELEASE" if hostage.state=="DOWN" else "CHOKE"
@@ -101,6 +104,7 @@ func context() -> String:
 	if game.player.position.distance_to(game.console_point)<2: return "USE"
 	return "JUMP"
 func action() -> void:
+	if not water.context().is_empty():water.action();return
 	if context() in ["HIDE","EXIT"]: missions.toggle_locker(); return
 	if is_instance_valid(hostage):
 		if hostage.state!="DOWN": hostage.knock_out(); game.mark_goal("choke")

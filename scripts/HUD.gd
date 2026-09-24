@@ -85,6 +85,8 @@ func _draw() -> void:
 				if y>100: break
 			line+=word+" "
 		if y<=100: label(Vector2(466,y),line,28,GOLD)
+	if game.player.mode=="swim":
+		panel(Rect2(452,90,400,50));label(Vector2(470,125),"OXYGEN  %d%%"%game.lab.oxygen,28,CYAN,true)
 	if not game.lab.wheel.is_empty(): draw_wheel()
 	elif game.lab.objective_expanded: draw_objectives()
 	elif game.mode=="chambers": draw_chambers()

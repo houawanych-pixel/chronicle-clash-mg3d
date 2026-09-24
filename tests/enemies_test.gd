@@ -29,9 +29,13 @@ func run() -> void:
 	g.state="PATROL";g.position=p.position+Vector3.FORWARD;g.facing=Vector3.BACK;g.tick(.1);check(not g.seeing,"Hidden operative excluded from guard sight")
 	game.lab.action();check(not m.hidden,"Context action exits locker")
 	check(m.in_shadow(Vector3(-12,0,-9)) and not m.in_shadow(Vector3.ZERO),"Marked shadow zone influences sight")
+	p.position=Vector3(-12,0,-9);g.position=Vector3(-12,0,-4);g.facing=Vector3.FORWARD;g.stun=0;await physics_frame;g.tick(.01)
+	check(not g.seeing,"Shadow reduces actual guard detection range")
+	p.position.x=-14.5;g.position.x=-14.5;g.facing=Vector3.FORWARD;await physics_frame;g.tick(.01)
+	check(g.seeing,"Same distance outside shadow is visible")
 	game.load_room(5);await physics_frame;await physics_frame;game.mode="play";p=game.player
 	var dog=game.drones[0];var kam=game.drones[1];var master=game.drones[2]
-	check(dog.kind=="dog" and kam.kind=="kamikaze" and master.kind=="master","Three advanced drone roles spawn")
+	check(dog.kind=="dog" and kam.kind=="kamikaze" and master.kind=="master" and kam.position.distance_to(master.position)>3,"Three advanced drone roles spawn separately")
 	p.position=Vector3(0,0,-7);dog.position=Vector3(0,.5,-8);dog.route=[dog.position,dog.position];dog.heading=Vector3.BACK;await physics_frame;var hp: float=p.health;dog.tick(.1);check(p.health<hp,"Drone dog closes and attacks")
 	p.hurt_time=0;kam.position=p.position+Vector3(0,1,-.8);kam.route=[kam.position,kam.position];kam.heading=Vector3.BACK;await physics_frame;kam.tick(.1);check(kam.health==0,"Kamikaze detonates at contact")
 	master.position=Vector3(0,2,-10);master.route=[master.position,master.position];master.heading=Vector3.BACK;p.hurt_time=0;hp=p.health;await physics_frame;master.tick(.01);check(p.health<hp and master.cooldown<.5,"Drone Master fires faster burst cadence")

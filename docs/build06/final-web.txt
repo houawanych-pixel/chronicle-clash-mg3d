@@ -1,0 +1,22 @@
+PASS desktop real touch start and rendered room; 171 meshes
+PASS desktop AIM first person
+PASS desktop AIM exit
+PASS desktop chamber 4 touch selection and rendering; 248 meshes
+PASS desktop chamber 5 touch selection and rendering; 183 meshes
+PASS desktop chamber 6 touch selection and rendering; 184 meshes
+PASS desktop checklist opens through touch
+PASS phone real touch start and rendered room; 171 meshes
+PASS phone AIM first person
+PASS phone AIM exit
+PASS phone chamber 4 touch selection and rendering; 248 meshes
+PASS phone chamber 5 touch selection and rendering; 183 meshes
+PASS phone chamber 6 touch selection and rendering; 184 meshes
+PASS phone checklist opens through touch
+PASS phone_195 real touch start and rendered room; 171 meshes
+PASS phone_195 AIM first person
+PASS phone_195 AIM exit
+PASS phone_195 chamber 4 touch selection and rendering; 248 meshes
+PASS phone_195 chamber 5 touch selection and rendering; 183 meshes
+PASS phone_195 chamber 6 touch selection and rendering; 184 meshes
+PASS phone_195 checklist opens through touch
+RESULT: 21 browser checks passed, no script/page errors. Inspect saved images for 3D rendering.

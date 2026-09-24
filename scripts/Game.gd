@@ -126,7 +126,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	var shelter_walls: Array=[Rect2(5,-10,.4,10),Rect2(13.6,-10,.4,10),Rect2(5,-10,9,.4),Rect2(5,-.4,.8,.4),Rect2(7.2,-.4,.8,.4),Rect2(12,-.4,2,.4)]
 	walls.append_array(shelter_walls)
 	stage=Node3D.new(); add_child(stage)
-	V.solid(stage,Vector3(0,-.3,0),Vector3(32,.6,24),Color("122a40"),true)
+	lab.water.build_floor()
 	for rect: Rect2 in walls:
 		var h: float=4.3 if rect in shelter_walls else 2.5
 		if rect.size.x>25 or rect.size.y>20: h=1.0
@@ -367,7 +367,7 @@ func _physics_process(delta: float) -> void:
 		if fx.life<=0: fx.node.queue_free(); effects.remove_at(i)
 	hud.queue_redraw()
 	if verify_web and tick_count%60==0:
-		print("MG05_STATE "+JSON.stringify({"mode":mode,"room":room,"aim":lab.aim,"wheel":lab.wheel,"stamina":lab.stamina,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size(),"object_count":stage.find_children("*","Node3D",true,false).size()}))
+		print("MG05_STATE "+JSON.stringify({"mode":mode,"room":room,"aim":lab.aim,"wheel":lab.wheel,"stamina":lab.stamina,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size(),"feature_count":lab.evidence.size(),"object_count":stage.find_children("*","Node3D",true,false).size()}))
 	if not capture_name.is_empty() and tick_count==100: capture.call_deferred()
 func update_camera(delta: float) -> void:
 	if is_instance_valid(player): camera_controller.update(delta)

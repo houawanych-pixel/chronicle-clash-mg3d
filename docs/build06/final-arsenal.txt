@@ -1,0 +1,27 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS RIFLE actual projectile ray damage
+PASS RIFLE reload conservation
+PASS SNIPER actual projectile ray damage
+PASS SNIPER reload conservation
+PASS SMG actual projectile ray damage
+PASS SMG reload conservation
+PASS Sword slash damage
+PASS Sword replaces gun mesh
+PASS Holstering hides held weapon
+PASS Third combo attack plays kick animation
+PASS First combo attack plays punch animation
+PASS Held guard can be thrown
+PASS Jam clearing animates weapon handling
+PASS pistol firing completes range target
+PASS rifle firing completes range target
+PASS sniper firing completes range target
+PASS rocket firing completes range target
+RESULT: 17 passed, 0 failed
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+     at: cleanup (core/object/object.cpp:2284)
+ERROR: 1 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:604)

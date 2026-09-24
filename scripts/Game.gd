@@ -294,9 +294,12 @@ func refresh_aim() -> void:
 	else:
 		from=player.global_position+Vector3.UP*1.2; direction=player.facing
 	locked_drone=null
-	if hud.touch_aim_active:
+	if hud.touch_aim_active or not lab.aim:
 		locked_drone=assist_drone(direction)
 		if is_instance_valid(locked_drone): direction=(locked_drone.global_position-from).normalized()
+	if not lab.aim and not hud.touch_aim_active:
+		var target: Node3D=lab.lock_target()
+		if is_instance_valid(target): direction=(target.position+(Vector3.UP if target in guards else Vector3.ZERO)-from).normalized()
 	aim_hit=ray(from,from+direction*80,29,[player.get_rid()])
 	aim_point=aim_hit.get("position",from+direction*28)
 	if lab.aim or aim_enabled or gear.scope:

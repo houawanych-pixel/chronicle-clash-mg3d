@@ -267,6 +267,7 @@ func _update_visual(delta: float) -> void:
 		tether.scale=Vector3(1,1,maxf(.01,start.distance_to(end)))
 		if start.distance_to(end)>.01: tether.look_at(end,Vector3.UP if absf((end-start).normalized().y)<.99 else Vector3.RIGHT)
 func damage(amount: float) -> void:
+	if game.lab.parry_time>0: game.mark_goal("parry"); return
 	if hurt_time>0: return
 	health=maxf(0,health-amount)
 	hurt_time=.65

@@ -60,6 +60,8 @@ func receive_hit(amount: float, _weapon: String, _at: Vector3) -> void:
 	else:
 		# Damage interrupts an in-progress radio transmission.
 		radio_time=0; state="INVESTIGATE"; search_time=5; suspicion=.65; path_time=0
+func knock_out() -> void:
+	health=0; state="DOWN"; collision_layer=0; cone.visible=false; reaction.text="Z Z Z"; radio_time=0; seeing=false; game.mark_goal("guard_down")
 func tick(delta: float) -> void:
 	mark_time=maxf(0,mark_time-delta)
 	if health<=0:
@@ -70,6 +72,8 @@ func tick(delta: float) -> void:
 	step_clock+=delta
 	stun=maxf(0,stun-delta)
 	shot_time=maxf(0,shot_time-delta)
+	if stun>0:
+		seeing=false; velocity=Vector3.ZERO; reaction.text="STUN"; avatar.pose=13; avatar.tick(delta,game.camera); return
 	var target: Vector3=game.player.target_point()
 	var eye: Vector3=global_position+Vector3.UP*1.4
 	var to_player: Vector3=target-eye

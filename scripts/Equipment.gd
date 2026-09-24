@@ -72,7 +72,7 @@ func reload() -> void:
 	if bool(item.jammed):
 		action = "clear"
 		action_total = 2.0
-	elif selected < 4 and item.ammo < item.capacity and item.reserve > 0:
+	elif str(item.id) not in ["dagger","sword"] and item.ammo < item.capacity and item.reserve > 0:
 		action = "reload"
 		action_total = float(item.reload)
 	else: return
@@ -92,21 +92,8 @@ func toggle_scope() -> void:
 func fire() -> void:
 	if action_time > 0 or cooldown > 0 or switch_time > 0: return
 	var item: Dictionary = current()
-	if selected == 7:
-		scope = true
-		game.mark_goal("binoculars")
-		game.mark_aimed_guard()
-		cooldown = .3
-		return
-	if selected == 8:
-		if game.player.health >= 100: game.toast("Health is full."); return
-		if item.ammo <= 0: game.toast("No rations left. Resupply at the console."); return
-		item.ammo -= 1
-		game.player.health = minf(100,game.player.health+45)
-		game.mark_goal("ration")
-		game.sound("chip")
-		cooldown = .6
-		return
+	if str(item.id) in ["dagger","sword"]:
+		game.lab.melee(str(item.id)); cooldown=float(item.interval); return
 	if item.jammed:
 		game.toast("JAMMED — RELOAD to clear, or equip a sidearm.")
 		game.sound("empty",-13)
@@ -114,7 +101,7 @@ func fire() -> void:
 		return
 	if item.ammo <= 0:
 		game.sound("empty",-12)
-		game.toast("Empty. RELOAD or switch equipment.")
+		reload()
 		cooldown = .5
 		return
 	if selected == 1 and jam_countdown <= 0 and item.heat > 45:
@@ -128,7 +115,7 @@ func fire() -> void:
 	var target: Vector3 = game.aim_point
 	var direction: Vector3 = (target-origin).normalized()
 	if direction.length()<.5: direction = game.player.facing
-	if selected < 3:
+	if str(item.id) in ["pistol","rifle","sniper","smg"]:
 		var hit: Dictionary = game.ray(origin,origin+direction*65,29,[game.player.get_rid()])
 		var end: Vector3 = hit.get("position",origin+direction*65)
 		game.tracer(origin,end,Color("ffcf75"),.07)
@@ -146,16 +133,7 @@ func fire() -> void:
 		game.spawn_projectile("rocket",origin+direction*.6,direction*17)
 		game.sound("rocket",-9)
 		game.emit_noise(origin,20)
-	elif selected == 4:
-		var flat: Vector3 = direction
-		flat.y = 0
-		var distance: float = clampf(origin.distance_to(target),3,12)
-		game.spawn_projectile("grenade",origin+flat.normalized()*.6,flat.normalized()*distance+Vector3.UP*7)
-		game.mark_goal("grenade")
-		game.sound("cover")
-	else:
-		game.place_mine("claymore" if selected==5 else "remote")
-		if selected==5: game.mark_goal("claymore")
+		game.projectiles.back().homing_target=game.lab.lock_target()
 func detonate() -> void:
 	var detonated: bool = false
 	for mine: Node3D in game.mines.duplicate():
@@ -165,6 +143,7 @@ func detonate() -> void:
 	if detonated: game.mark_goal("detonate")
 	else: game.toast("Place a remote mine first.")
 func replenish() -> void:
+	game.lab.item_counts={"ration":5,"binoculars":1,"frag":8,"chaff":8,"c4":6,"claymore":6,"cloak":1}
 	for item: Dictionary in items:
 		item.ammo = item.capacity
 		if item.has("damage"): item.reserve = int(Data.equipment()[items.find(item)].reserve)

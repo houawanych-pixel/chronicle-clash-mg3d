@@ -20,6 +20,31 @@ static func box(parent: Node3D, pos: Vector3, size: Vector3, material: Material)
 	parent.add_child(n)
 	n.position = pos
 	return n
+static func merged(parent: Node3D, parts: Array, material: Material) -> void:
+	if parts.is_empty(): return
+	var verts: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	var unit: BoxMesh = BoxMesh.new()
+	for part: Array in parts:
+		unit.size = part[1]
+		var arrays: Array = unit.get_mesh_arrays()
+		var base: int = verts.size()
+		for v: Vector3 in arrays[Mesh.ARRAY_VERTEX]: verts.append(v+part[0])
+		normals.append_array(arrays[Mesh.ARRAY_NORMAL])
+		uvs.append_array(arrays[Mesh.ARRAY_TEX_UV])
+		for i: int in arrays[Mesh.ARRAY_INDEX]: indices.append(base+i)
+	var out: Array = []
+	out.resize(Mesh.ARRAY_MAX)
+	out[Mesh.ARRAY_VERTEX] = verts; out[Mesh.ARRAY_NORMAL] = normals
+	out[Mesh.ARRAY_TEX_UV] = uvs; out[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,out)
+	var n: MeshInstance3D = MeshInstance3D.new()
+	n.mesh = mesh
+	n.material_override = material
+	parent.add_child(n)
 static func solid(parent: Node3D, pos: Vector3, size: Vector3, color: Color, grid: bool = true, moving: bool = false) -> StaticBody3D:
 	var body: StaticBody3D = StaticBody3D.new()
 	parent.add_child(body)
@@ -33,26 +58,30 @@ static func solid(parent: Node3D, pos: Vector3, size: Vector3, color: Color, gri
 	body.set_meta("climbable",true)
 	box(body,Vector3.ZERO,size,mat(color))
 	if grid:
-		var line: Material = mat(Color("477487"),0.12)
-		var edge: Material = mat(Color("57cad8"),0.5)
+		# Grid lines are merged into one mesh per material. Separate MeshInstances
+		# (1,100+ in Build 04) stopped the 3D view drawing in web browsers.
+		var line_parts: Array = []
+		var edge_parts: Array = []
 		var sx: float = size.x/2
 		var sy: float = size.y/2
 		var sz: float = size.z/2
 		for x in range(ceili(-sx),ceili(sx)):
-			box(body,Vector3(x,sy+.012,0),Vector3(.018,.015,size.z),line)
-			box(body,Vector3(x,0,sz+.012),Vector3(.018,size.y,.015),line)
-			box(body,Vector3(x,0,-sz-.012),Vector3(.018,size.y,.015),line)
+			line_parts.append([Vector3(x,sy+.012,0),Vector3(.018,.015,size.z)])
+			line_parts.append([Vector3(x,0,sz+.012),Vector3(.018,size.y,.015)])
+			line_parts.append([Vector3(x,0,-sz-.012),Vector3(.018,size.y,.015)])
 		for z in range(ceili(-sz),ceili(sz)):
-			box(body,Vector3(0,sy+.013,z),Vector3(size.x,.015,.018),line)
-			box(body,Vector3(sx+.012,0,z),Vector3(.015,size.y,.018),line)
-			box(body,Vector3(-sx-.012,0,z),Vector3(.015,size.y,.018),line)
+			line_parts.append([Vector3(0,sy+.013,z),Vector3(size.x,.015,.018)])
+			line_parts.append([Vector3(sx+.012,0,z),Vector3(.015,size.y,.018)])
+			line_parts.append([Vector3(-sx-.012,0,z),Vector3(.015,size.y,.018)])
 		for y in range(ceili(-sy),ceili(sy)):
-			box(body,Vector3(0,y,sz+.014),Vector3(size.x,.018,.015),line)
-			box(body,Vector3(0,y,-sz-.014),Vector3(size.x,.018,.015),line)
-			box(body,Vector3(sx+.014,y,0),Vector3(.015,.018,size.z),line)
-			box(body,Vector3(-sx-.014,y,0),Vector3(.015,.018,size.z),line)
-		for z: float in [-sz,sz]: box(body,Vector3(0,sy+.025,z),Vector3(size.x,.035,.035),edge)
-		for x: float in [-sx,sx]: box(body,Vector3(x,sy+.025,0),Vector3(.035,.035,size.z),edge)
+			line_parts.append([Vector3(0,y,sz+.014),Vector3(size.x,.018,.015)])
+			line_parts.append([Vector3(0,y,-sz-.014),Vector3(size.x,.018,.015)])
+			line_parts.append([Vector3(sx+.014,y,0),Vector3(.015,.018,size.z)])
+			line_parts.append([Vector3(-sx-.014,y,0),Vector3(.015,.018,size.z)])
+		for z: float in [-sz,sz]: edge_parts.append([Vector3(0,sy+.025,z),Vector3(size.x,.035,.035)])
+		for x: float in [-sx,sx]: edge_parts.append([Vector3(x,sy+.025,0),Vector3(.035,.035,size.z)])
+		merged(body,line_parts,mat(Color("477487"),0.12))
+		merged(body,edge_parts,mat(Color("57cad8"),0.5))
 	return body
 static func ring(parent: Node3D, pos: Vector3, radius: float, color: Color) -> MeshInstance3D:
 	var n: MeshInstance3D = MeshInstance3D.new()

@@ -124,7 +124,7 @@ func fire() -> void:
 	shot_serial += 1
 	cooldown = float(item.get("interval",.65))
 	game.player.exposed_time = 1.5
-	var origin: Vector3 = game.player.global_position+Vector3.UP*1.0
+	var origin: Vector3 = game.player.target_point()
 	var target: Vector3 = game.aim_point
 	var direction: Vector3 = (target-origin).normalized()
 	if direction.length()<.5: direction = game.player.facing

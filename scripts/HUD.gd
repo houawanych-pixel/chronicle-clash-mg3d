@@ -53,13 +53,15 @@ func _draw() -> void:
 	label(Vector2(32,38),"CHRONICLE CLASH / 3D",15,CYAN,true)
 	label(Vector2(32,70),"%02d / %s"%[game.room+1,game.rooms[game.room].name],23,WHITE,true)
 	label(Vector2(385,36),"HP %d"%int(game.player.health),13,MUTE); meter(Vector2(385,45),110,game.player.health,Color("78d6a7"))
-	label(Vector2(515,36),game.camera_controller.mode.to_upper(),13,CYAN)
-	label(Vector2(645,36),"VR v04",13,MUTE)
+	label(Vector2(515,36),game.camera_controller.view.to_upper(),13,CYAN)
+	label(Vector2(645,36),"VR v05",13,MUTE)
 	label(Vector2(385,74),"%02d:%02d   DATA %d/%d"%[int(game.elapsed)/60,int(game.elapsed)%60,game.collected,game.chips.size()],16,WHITE)
 	var alert: String="UNDETECTED"
 	for guard: CharacterBody3D in game.guards:
 		if guard.state in ["CALL","CHASE"]: alert="ALERT / EVADE"; break
 		if guard.state in ["INVESTIGATE","SEARCH"]: alert="SEARCHING"
+	for drone: Node3D in game.drones:
+		if drone.state=="ALERT": alert="ALERT / EVADE"
 	label(Vector2(647,74),alert,14,Color("ff8b87") if alert=="ALERT / EVADE" else GOLD)
 	button(Rect2(880,21,98,58),"PAUSE","pause",false,true)
 	draw_radar(Rect2(1004,14,260,183))
@@ -75,10 +77,10 @@ func _draw() -> void:
 	draw_stick(MOVE_CENTER,joystick,"MOVE",false)
 	draw_stick(AIM_CENTER,aim_stick,"AIM / FIRE",aim_firing)
 	label(Vector2(225,579),"PISTOL  %d / %d"%[item.ammo,item.reserve],21,GOLD,true)
-	label(Vector2(490,579),"RELOADING" if game.gear.action_time>0 else "Push aim stick to its outer ring to fire",15,CYAN if game.gear.action_time>0 else MUTE)
+	label(Vector2(490,579),"RELOADING" if game.gear.action_time>0 else ("DRONE LOCK" if is_instance_valid(game.locked_drone) else "Aim outwards to fire"),15,CYAN if game.gear.action_time>0 else MUTE)
 	button(Rect2(905,558,136,37),"REFILL","use",false,true)
-	var actions: Array=[["LEAVE COVER" if game.player.mode=="cover" else "COVER","brace"],["CLIMB","climb_box"],["RELOAD","reload"],["FIRE","fire"],["KNOCK","knock"],["CROUCH","crouch"]]
-	for i in range(actions.size()): button(Rect2(225+i*136,610,128,75),actions[i][0],actions[i][1],(game.held("fire") if actions[i][1]=="fire" else (game.player.mode=="cover" if actions[i][1]=="brace" else game.player.crouched if actions[i][1]=="crouch" else false)),true)
+	var actions: Array=[["LEAVE COVER" if game.player.mode=="cover" else "COVER","brace"],["CLIMB","climb_box"],["RELOAD","reload"],["FIRE","fire"],["KNOCK","knock"],["CROUCH","crouch"],["STAND" if game.player.prone else "CRAWL","crawl"]]
+	for i in range(actions.size()): button(Rect2(225+i*115,610,107,75),actions[i][0],actions[i][1],(game.held("fire") if actions[i][1]=="fire" else (game.player.mode=="cover" if actions[i][1]=="brace" else game.player.crouched if actions[i][1]=="crouch" else game.player.prone if actions[i][1]=="crawl" else false)),true)
 	if game.notification_time>0:
 		panel(Rect2(185,511,1079,34),Color(.025,.055,.095,.95)); center(Vector2(724,534),game.toast_text,14,WHITE)
 	elif game.room==3 and is_instance_valid(game.titan) and game.titan.warning:
@@ -111,6 +113,12 @@ func draw_radar(rect: Rect2) -> void:
 		var points: PackedVector2Array=PackedVector2Array([at])
 		for i in range(9): points.append(map_point(Spatial.clip_ray(guard.point(),guard.point()+face.rotated(lerpf(-.7,.7,i/8.0))*8.8,game.walls),r))
 		draw_colored_polygon(points,Color(color,.13))
+	for drone: Node3D in game.drones:
+		if drone.health<=0: continue
+		var at: Vector2=map_point(drone.point(),r)
+		var color: Color=GOLD if drone.kind=="scout" else Color("ff7c7c")
+		draw_rect(Rect2(at-Vector2(3,3),Vector2(6,6)),color)
+		if drone.state=="ALERT": draw_arc(at,7,0,TAU,16,color,1)
 	for chip: Dictionary in game.chips:
 		if not chip.taken: draw_circle(map_point(Vector2(chip.at.x,chip.at.z),r),2.4,GOLD)
 	var exit: Vector3=game.rooms[game.room].exit
@@ -120,7 +128,7 @@ func map_point(at: Vector2,r: Rect2) -> Vector2: return r.position+(at+Vector2(1
 func draw_modal() -> void:
 	draw_rect(Rect2(-1000,-1000,4000,3000),Color(.015,.035,.06,.9)); buttons.clear()
 	panel(Rect2(135,100,1010,512),INK,Color("3b6475"))
-	label(Vector2(174,144),"CHRONICLE CLASH / 3D / CAMERA + CLIMB / BUILD 04",15,CYAN,true)
+	label(Vector2(174,144),"CHRONICLE CLASH / 3D / COVER / CRAWL / DRONES / BUILD 05",15,CYAN,true)
 	var title: String="3D COVER PROTOTYPE"
 	var sub: String="One room. Articulated 3D characters. Cover and pistol combat."
 	var primary: String="TAP TO START"

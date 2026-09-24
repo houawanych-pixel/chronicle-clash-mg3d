@@ -70,12 +70,13 @@ func tick(delta: float) -> void:
 	step_clock+=delta
 	stun=maxf(0,stun-delta)
 	shot_time=maxf(0,shot_time-delta)
-	var target: Vector3=game.player.global_position+Vector3.UP*.95
+	var target: Vector3=game.player.target_point()
 	var eye: Vector3=global_position+Vector3.UP*1.4
 	var to_player: Vector3=target-eye
 	var flat: Vector3=Vector3(to_player.x,0,to_player.z)
 	var range_limit: float=8.8
-	if game.player.crouched: range_limit*=.8
+	if game.player.prone: range_limit*=.5
+	elif game.player.crouched: range_limit*=.8
 	if game.player.cloaked and game.player.exposed_time<=0: range_limit=1.5
 	seeing=to_player.length()<range_limit and (flat.length()<.7 or facing.dot(flat.normalized())>cos(deg_to_rad(40))) and game.clear_sight(eye,target)
 	if seeing:

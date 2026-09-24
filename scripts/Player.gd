@@ -9,6 +9,8 @@ var grip: float = 100
 var cloak_energy: float = 100
 var cloaked: bool = false
 var crouched: bool = false
+var prone: bool = false
+var body_shape: CollisionShape3D
 var exposed_time: float = 0
 var hurt_time: float = 0
 var facing: Vector3 = Vector3.FORWARD
@@ -40,6 +42,7 @@ func _ready() -> void:
 	var shape: CapsuleShape3D = CapsuleShape3D.new()
 	shape.radius = .3
 	shape.height = 1.6
+	body_shape=col
 	col.shape = shape
 	col.position.y = .8
 	add_child(col)
@@ -58,7 +61,7 @@ func anchor_point() -> Vector3:
 func toggle_cover() -> void:
 	if mode=="cover":
 		cover.clear(); mode="ground"; cover_cooldown=.7; peek=Vector3.ZERO; return
-	if mode!="ground" or global_position.y>.3: return
+	if prone or mode!="ground" or global_position.y>.3: return
 	cover = Spatial.cover_face(point(),game.walls,1.0)
 	if cover.is_empty(): game.toast("Push against a wall or move closer to cover."); return
 	global_position = Vector3(cover.point.x,global_position.y,cover.point.y)
@@ -128,7 +131,7 @@ func tick(delta: float, move: Vector2) -> void:
 	elif mode=="grapple":
 		_tick_grapple(delta,direction)
 	else:
-		var speed: float = 2.2 if crouched else 4.4
+		var speed: float = 1.1 if prone else (2.2 if crouched else 4.4)
 		if mode=="cover":
 			var n: Vector2 = cover.normal
 			var tangent: Vector2 = Vector2(-n.y,n.x)
@@ -158,8 +161,8 @@ func tick(delta: float, move: Vector2) -> void:
 			grip=minf(100,grip+delta*22)
 			if global_position.y<.3: last_safe=global_position
 		if mode=="ground":
-			if direction.length()>.15: facing=direction.normalized()
-			if is_on_wall() and direction.length()>.3 and cover_cooldown<=0 and global_position.y<.3:
+			if direction.length()>.15 and not (prone and game.in_vent(global_position)): facing=direction.normalized()
+			if not prone and is_on_wall() and direction.length()>.3 and cover_cooldown<=0 and global_position.y<.3:
 				wall_pressure+=delta
 				if wall_pressure>.22: toggle_cover(); wall_pressure=0
 			else: wall_pressure=0
@@ -246,6 +249,7 @@ func _update_visual(delta: float) -> void:
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.aim_enabled and mode=="ground": avatar.pose=4; avatar.facing=(game.aim_point-global_position).normalized()
 	if mode=="mantle": avatar.pose=17
+	if prone: avatar.pose=18
 	avatar.tick(delta,game.camera)
 	tether.visible=mode in ["climb","grapple"] and is_instance_valid(anchor_body)
 	if tether.visible:
@@ -267,7 +271,7 @@ func strike() -> void:
 	if is_instance_valid(game.titan): game.titan.strike(global_position+Vector3.UP)
 
 func box_climb_target() -> Dictionary:
-	if not mode in ["ground","cover"]: return {}
+	if prone or not mode in ["ground","cover"]: return {}
 	var floor_hit: Dictionary=game.ray(global_position+Vector3.UP*.12,global_position-Vector3.UP*.15,17,[get_rid()])
 	if not is_on_floor() and floor_hit.is_empty(): return {}
 	var direction: Vector3=facing; direction.y=0
@@ -316,3 +320,25 @@ func _tick_box_climb(delta: float) -> void:
 	if mantle_time>=.65:
 		mode="ground"; velocity=Vector3.ZERO; cover_cooldown=.8; climb_input_lock=true
 		game.toast("On top. Release the movement stick, then move to step off.")
+
+func target_point() -> Vector3:
+	return global_position+Vector3.UP*(.35 if prone else .95)
+func can_stand() -> bool:
+	var shape: CapsuleShape3D=CapsuleShape3D.new(); shape.radius=.3; shape.height=1.6
+	var q: PhysicsShapeQueryParameters3D=PhysicsShapeQueryParameters3D.new()
+	q.shape=shape; q.transform=Transform3D(Basis.IDENTITY,global_position+Vector3.UP*.82); q.collision_mask=21; q.exclude=[get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(q,1).is_empty()
+func toggle_crawl() -> void:
+	if not mode in ["ground","cover"]: return
+	if prone and not can_stand(): game.toast("Ceiling too low. Crawl out before standing."); return
+	if mode=="cover": toggle_cover()
+	prone=not prone; crouched=false; cover_cooldown=.5
+	var shape: CapsuleShape3D=body_shape.shape
+	shape.height=.6 if prone else 1.6; shape.radius=.28 if prone else .3
+	body_shape.position.y=.3 if prone else .8
+	game.toast("Crawling — use the low vent into the room." if prone else "Standing.")
+func toggle_crouch() -> void:
+	if prone:
+		toggle_crawl()
+		if prone: return
+	crouched=not crouched

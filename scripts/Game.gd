@@ -7,6 +7,10 @@ const Data=preload("res://scripts/Data.gd")
 const V=preload("res://scripts/Visuals.gd")
 const Spatial=preload("res://scripts/StealthMath.gd")
 const PlayerScript=preload("res://scripts/Player.gd")
+const DroneScript=preload("res://scripts/Drone.gd")
+var drones: Array=[]
+var locked_drone: Node3D
+var vent_bounds: AABB=AABB(Vector3(5.8,0,-.6),Vector3(1.4,.85,4.1))
 const GuardScript=preload("res://scripts/Guard.gd")
 const GearScript=preload("res://scripts/Equipment.gd")
 const HUDScript=preload("res://scripts/HUD.gd")
@@ -58,6 +62,7 @@ var lab_drill: int=0
 var tick_count: int=0
 var capture_name: String=""
 var demo_kind: String=""
+var verify_web: bool=false
 func _ready() -> void:
 	setup_input()
 	setup_audio()
@@ -79,16 +84,17 @@ func _ready() -> void:
 	load_room(0,false)
 	var args: PackedStringArray=OS.get_cmdline_user_args()
 	for arg: String in args:
+		if arg=="--verify-web": verify_web=true
 		if arg.begins_with("--capture="): capture_name=arg.trim_prefix("--capture=")
 		if arg.begins_with("--demo="): demo_kind=arg.trim_prefix("--demo=")
 	if not demo_kind.is_empty(): setup_demo.call_deferred()
 func setup_input() -> void:
-	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_E],"brace":[KEY_SPACE],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Q],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_Z]}
+	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"crawl":[KEY_Z],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_E],"brace":[KEY_SPACE],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Q],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_V]}
 	for name: String in keys:
 		InputMap.add_action(name)
 		for code: int in keys[name]:
 			var event: InputEventKey=InputEventKey.new(); event.physical_keycode=code; InputMap.action_add_event(name,event)
-	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"scope":JOY_BUTTON_LEFT_SHOULDER,"brace":JOY_BUTTON_A,"crouch":JOY_BUTTON_B,"climb_box":JOY_BUTTON_Y,"reload":JOY_BUTTON_X,"hook":JOY_BUTTON_Y,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
+	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"scope":JOY_BUTTON_LEFT_SHOULDER,"brace":JOY_BUTTON_A,"crouch":JOY_BUTTON_B,"climb_box":JOY_BUTTON_Y,"reload":JOY_BUTTON_X,"crawl":JOY_BUTTON_LEFT_STICK,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
 	for name: String in pad:
 		var event: InputEventJoypadButton=InputEventJoypadButton.new(); event.button_index=pad[name]; InputMap.action_add_event(name,event)
 func setup_audio() -> void:
@@ -106,14 +112,14 @@ func sound(cue: String, volume: float=-8) -> void:
 func load_room(index: int, brief: bool=true) -> void:
 	if is_instance_valid(stage): remove_child(stage); stage.queue_free()
 	room=index; mode="brief" if brief else "title"
-	guards.clear(); chips.clear(); targets.clear(); projectiles.clear(); mines.clear(); effects.clear(); goals.clear()
+	guards.clear(); drones.clear(); locked_drone=null; chips.clear(); targets.clear(); projectiles.clear(); mines.clear(); effects.clear(); goals.clear()
 	titan=null; collected=0; alarms=0; elapsed=0; support_count=0; support_cooldown=0; lab_drill=0
 	gear.reset(); last_scope=false; aim_enabled=false
 	var data: Dictionary=rooms[room]
 	walls=data.walls.duplicate()
 	walls.append_array([Rect2(-16,-12,32,.4),Rect2(-16,11.6,32,.4),Rect2(-16,-12,.4,24),Rect2(15.6,-12,.4,24)])
 	# The north-east shelter has a 4m doorway facing the open courtyard.
-	var shelter_walls: Array=[Rect2(5,-10,.4,10),Rect2(13.6,-10,.4,10),Rect2(5,-10,9,.4),Rect2(5,-.4,3,.4),Rect2(12,-.4,2,.4)]
+	var shelter_walls: Array=[Rect2(5,-10,.4,10),Rect2(13.6,-10,.4,10),Rect2(5,-10,9,.4),Rect2(5,-.4,.8,.4),Rect2(7.2,-.4,.8,.4),Rect2(12,-.4,2,.4)]
 	walls.append_array(shelter_walls)
 	stage=Node3D.new(); add_child(stage)
 	V.solid(stage,Vector3(0,-.3,0),Vector3(32,.6,24),Color("122a40"),true)
@@ -121,6 +127,13 @@ func load_room(index: int, brief: bool=true) -> void:
 		var h: float=4.3 if rect in shelter_walls else 2.5
 		if rect.size.x>25 or rect.size.y>20: h=1.0
 		V.solid(stage,Vector3(rect.get_center().x,h/2,rect.get_center().y),Vector3(rect.size.x,h,rect.size.y),Color("2b435b"),true)
+	# Low entrance through the front wall, with an intact lintel above.
+	V.solid(stage,Vector3(6.5,2.575,-.2),Vector3(1.4,3.45,.4),Color("2b435b"),true)
+	V.solid(stage,Vector3(5.7,.525,1.55),Vector3(.2,1.05,3.9),Color("304f60"),true)
+	V.solid(stage,Vector3(7.3,.525,1.55),Vector3(.2,1.05,3.9),Color("304f60"),true)
+	V.solid(stage,Vector3(6.5,.95,1.55),Vector3(1.8,.2,3.9),Color("304f60"),true)
+	walls.append_array([Rect2(5.6,-.4,.2,3.9),Rect2(7.2,-.4,.2,3.9)])
+	V.label(stage,Vector3(6.5,1.35,3.55),"CRAWL / VENT",Color("74e6dd"),24)
 	crates.clear()
 	for entry: Dictionary in data.crates:
 		var size: Vector3=entry.size
@@ -140,6 +153,8 @@ func load_room(index: int, brief: bool=true) -> void:
 	V.solid(stage,console_point+Vector3.UP*.45,Vector3(.7,.9,.7),Color("276977"),false)
 	V.label(stage,console_point+Vector3.UP*1.6,"USE / TRAINING",Color("7ae8e1"),25)
 	for route: Array in data.routes: spawn_guard(route)
+	for kind: String in ["scout","attack"]:
+		var drone=DroneScript.new(); drone.game=self; drone.kind=kind; stage.add_child(drone); drones.append(drone)
 	for point: Vector3 in data.chips:
 		var node: Node3D=Node3D.new(); stage.add_child(node); node.position=point+Vector3.UP*.8
 		var mesh: MeshInstance3D=V.box(node,Vector3.ZERO,Vector3(.48,.48,.48),V.mat(Color("ffcf75"),.6)); mesh.rotation_degrees=Vector3(35,0,45)
@@ -170,7 +185,7 @@ func build_navigation() -> void:
 		for y in range(48):
 			var id: Vector2i=Vector2i(x,y)
 			for wall: Rect2 in walls:
-				if wall.grow(.4).has_point(navigation.get_point_position(id)): navigation.set_point_solid(id); break
+				if wall.grow(.4).has_point(navigation.get_point_position(id)) or Rect2(5.5,-.7,2,4.5).has_point(navigation.get_point_position(id)): navigation.set_point_solid(id); break
 func nav_cell(at: Vector2) -> Vector2i:
 	var id: Vector2i=Vector2i(clampi(roundi((at.x+15.75)*2),0,63),clampi(roundi((at.y+11.75)*2),0,47))
 	if not navigation.is_point_solid(id): return id
@@ -197,7 +212,7 @@ func held(action: String) -> bool:
 	return Input.is_action_pressed(action) or bool(hud.holds.get(action,false)) or (action=="fire" and (mouse_fire or hud.aim_firing))
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.echo: return
-	for action: String in ["reload","climb_box","brace","crouch","knock","use","pause","confirm"]:
+	for action: String in ["reload","climb_box","crawl","brace","crouch","knock","use","pause","confirm"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
 	if action in ["hook","scope","cloak","drop","detonate","equipment","next","previous","zoom"]: return
@@ -228,7 +243,8 @@ func command(action: String) -> void:
 		"hook": player.hook()
 		"brace":
 			if player.mode in ["ground","cover"]: player.toggle_cover()
-		"crouch": player.crouched=not player.crouched
+		"crouch": player.toggle_crouch()
+		"crawl": player.toggle_crawl()
 		"cloak": player.toggle_cloak()
 		"drop": player.drop()
 		"detonate": gear.detonate()
@@ -242,7 +258,7 @@ func refresh_aim() -> void:
 	var from: Vector3
 	var direction: Vector3
 	if hud.touch_aim_active:
-		from=player.global_position+Vector3.UP
+		from=player.target_point()
 		var right: Vector3=camera.global_basis.x; right.y=0; right=right.normalized()
 		var back: Vector3=Vector3(-right.z,0,right.x)
 		direction=(right*hud.aim_direction.x+back*hud.aim_direction.y).normalized()
@@ -252,6 +268,10 @@ func refresh_aim() -> void:
 		from=camera.project_ray_origin(aim_screen); direction=camera.project_ray_normal(aim_screen)
 	else:
 		from=player.global_position+Vector3.UP*1.2; direction=player.facing
+	locked_drone=null
+	if hud.touch_aim_active:
+		locked_drone=assist_drone(direction)
+		if is_instance_valid(locked_drone): direction=(locked_drone.global_position-from).normalized()
 	aim_hit=ray(from,from+direction*80,29,[player.get_rid()])
 	aim_point=aim_hit.get("position",from+direction*28)
 	if aim_enabled or gear.scope:
@@ -262,6 +282,8 @@ func _physics_process(delta: float) -> void:
 	if demo_kind=="reload" and tick_count==72: gear.items[0].ammo=3; gear.reload()
 	if mode=="play":
 		elapsed+=delta; notification_time=maxf(0,notification_time-delta); support_cooldown=maxf(0,support_cooldown-delta); noise_cooldown=maxf(0,noise_cooldown-delta)
+		if player.prone and in_vent(player.global_position) and hud.touch_aim_active:
+			player.facing=player.facing.rotated(Vector3.UP,-hud.aim_stick.x*delta*1.5)
 		refresh_aim()
 		var move: Vector2=Input.get_vector("left","right","up","down")
 		if not Input.get_connected_joypads().is_empty():
@@ -285,6 +307,7 @@ func _physics_process(delta: float) -> void:
 			if room==3 and player.mode=="climb": player.strike()
 			else: gear.fire()
 		for guard: CharacterBody3D in guards: guard.tick(delta)
+		for drone: CharacterBody3D in drones: drone.tick(delta)
 		for projectile: Node3D in projectiles.duplicate(): if is_instance_valid(projectile): projectile.tick(delta)
 		for mine: Node3D in mines.duplicate(): if is_instance_valid(mine): mine.tick(delta)
 		if is_instance_valid(titan): titan.tick(delta)
@@ -297,6 +320,8 @@ func _physics_process(delta: float) -> void:
 		var fx: Dictionary=effects[i]; fx.life-=delta
 		if fx.life<=0: fx.node.queue_free(); effects.remove_at(i)
 	hud.queue_redraw()
+	if verify_web and tick_count%60==0:
+		print("MG05_STATE "+JSON.stringify({"mode":mode,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size()}))
 	if not capture_name.is_empty() and tick_count==100: capture.call_deferred()
 func update_camera(delta: float) -> void:
 	if is_instance_valid(player): camera_controller.update(delta)
@@ -385,6 +410,11 @@ func setup_demo() -> void:
 	elif demo_kind=="reload":
 		player.global_position=Vector3(-4,0,3.48); player.toggle_cover(); gear.items[0].ammo=3; gear.reload()
 	elif demo_kind=="overhead": player.global_position=Vector3(-4,0,5)
+	elif demo_kind=="vent":
+		player.global_position=Vector3(6.5,0,2.5); player.toggle_crawl(); player.facing=Vector3.FORWARD
+	elif demo_kind=="crawl":
+		player.global_position=Vector3(6.5,0,4.5); player.toggle_crawl(); player.facing=Vector3.FORWARD
+	elif demo_kind=="drones": player.global_position=Vector3(6,0,8)
 	elif demo_kind=="indoor": player.global_position=Vector3(10,0,-3)
 	elif demo_kind in ["reveal_right","reveal_left"]:
 		player.global_position=Vector3(10,0,-9.1); player.toggle_cover()
@@ -410,3 +440,19 @@ func _exit_tree() -> void:
 	if is_instance_valid(music):
 		music.stop()
 		music.stream=null
+
+func in_vent(at: Vector3) -> bool:
+	return vent_bounds.has_point(at+Vector3.UP*.3)
+func assist_drone(direction: Vector3) -> Node3D:
+	var best: Node3D=null
+	var best_angle: float=deg_to_rad(12)
+	var flat: Vector3=Vector3(direction.x,0,direction.z).normalized()
+	for drone: Node3D in drones:
+		if drone.health<=0: continue
+		var to: Vector3=drone.global_position-player.target_point()
+		var ground: Vector3=Vector3(to.x,0,to.z)
+		if ground.length()<.1 or to.length()>18: continue
+		var angle: float=flat.angle_to(ground.normalized())
+		if angle<best_angle and clear_sight(player.target_point(),drone.global_position):
+			best=drone; best_angle=angle
+	return best

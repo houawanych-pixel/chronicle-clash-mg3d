@@ -1,0 +1,34 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS One room and one guard
+PASS Pistol-only scope
+PASS 16-bone 3D character
+PASS Skeleton rest pose places head above torso
+PASS No billboard sprites
+PASS Native animation clips exist
+PASS Walk clip drives skeleton
+PASS Reload clip moves arm
+PASS Physical wall pressure enters cover
+PASS Capsule stays outside cover wall
+PASS Wall camera is perspective
+PASS Knock works in cover
+PASS Corner shuffle reaches peek
+PASS Leaving cover restores overhead
+PASS Three pistol hits defeat guard
+PASS Shots consume magazine ammo
+PASS Reload transfer waits for completion
+PASS Reload state selects 3D clip
+PASS Reload conserves ammunition
+PASS Four objectives satisfied
+PASS Extraction completes room
+PASS Completion restarts valid single room
+PASS Deferred mechanics are disabled
+PASS Pause releases held fire
+RESULT: 24 passed, 0 failed
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+     at: cleanup (core/object/object.cpp:2284)
+ERROR: 1 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:604)

@@ -1,3 +1,6 @@
 .godot/
 *.tmp
 .DS_Store
+
+docs/screenshots/*.import
+build/

@@ -1,0 +1,15 @@
+PASS desktop real touch start, room running, 160 meshes, two drones
+PASS desktop real CRAWL touch
+PASS desktop real STAND touch
+PASS desktop reveal_left rendered fixture, view=cover
+PASS desktop vent rendered fixture, view=vent
+PASS desktop crawl rendered fixture, view=overhead
+PASS desktop drones rendered fixture, view=overhead
+PASS phone real touch start, room running, 160 meshes, two drones
+PASS phone real CRAWL touch
+PASS phone real STAND touch
+PASS phone reveal_left rendered fixture, view=cover
+PASS phone vent rendered fixture, view=vent
+PASS phone crawl rendered fixture, view=overhead
+PASS phone drones rendered fixture, view=overhead
+RESULT: 14 browser checks passed, no script/page errors. Inspect saved images for 3D rendering.

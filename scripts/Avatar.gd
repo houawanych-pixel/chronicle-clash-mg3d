@@ -102,6 +102,8 @@ func _ready() -> void:
 	make_clip(library,"cover",1.2,true,{"arm_r":Vector3(.65,0,-.22),"forearm_r":Vector3(.7,0,0),"arm_l":Vector3(.15,0,.35),"thigh_l":Vector3(.10,0,.08),"thigh_r":Vector3(-.1,0,-.08),"head":Vector3(0,.45,0)})
 	make_clip(library,"reload",1.3,false,{"arm_r":Vector3(.9,0,-.28),"forearm_r":Vector3(.6,0,-.2),"arm_l":Vector3(.3,0,-.25),"forearm_l":Vector3(.65,0,-.65),"head":Vector3(-.2,0,0)})
 	make_clip(library,"crouch",1.0,true,{"thigh_l":Vector3(-.7,0,0),"thigh_r":Vector3(-.7,0,0),"shin_l":Vector3(1.25,0,0),"shin_r":Vector3(1.25,0,0),"chest":Vector3(-.15,0,0),"arm_r":Vector3(.6,0,0)})
+	make_clip(library,"prone",1.2,true,{"arm_r":Vector3(1.1,0,0),"arm_l":Vector3(1.1,0,0)})
+	make_clip(library,"crawl",1.4,true,{"arm_r":Vector3(1.1,0,0),"arm_l":Vector3(1.1,0,0)},true)
 	make_clip(library,"box_climb",.65,false,{"arm_r":Vector3(1.6,0,-.1),"arm_l":Vector3(1.6,0,.1),"forearm_r":Vector3(.35,0,0),"forearm_l":Vector3(.35,0,0),"thigh_l":Vector3(-.8,0,0),"shin_l":Vector3(1.0,0,0)})
 	animation.play("idle")
 func make_clip(library: AnimationLibrary,id: String,duration: float,loop: bool,poses: Dictionary,walking: bool=false) -> void:
@@ -137,11 +139,15 @@ func tick(delta: float,_camera: Camera3D) -> void:
 	elif pose in [6,7,8]: clip="reload"
 	elif pose==14: clip="crouch"
 	elif pose==17: clip="box_climb"
+	elif pose==18: clip="crawl" if move_speed>.15 else "prone"
 	if clip!=current_clip:
 		animation.play(clip,.12); current_clip=clip
 	elif not animation.is_playing() and clip=="fire": animation.play("aim",.08)
 	animation.speed_scale=clampf(move_speed/3.5,.55,1.4) if clip=="walk" else 1.0
 	turn.position.y=-.22 if clip=="crouch" else 0.0
+	# The rig lies along local -Z; yaw still follows movement.
+	rig.rotation.x=-PI/2 if pose==18 else 0.0
+	rig.position=Vector3(0,.32,.85) if pose==18 else Vector3.ZERO
 	if pose in [1,3]: rig.set_bone_pose_rotation(bones.head,Quaternion.from_euler(Vector3(0,-.45,0)))
 	var reloading: bool=clip=="reload" and animation.current_animation_position>.2 and animation.current_animation_position<.95
 	magazine.visible=not reloading; spare_magazine.visible=reloading

@@ -1,24 +1,20 @@
-# Chronicle Clash MG 3D — Build 04: environment camera and crate climbing
+# Chronicle Clash MG 3D — Build 05 preview
 
-Editable Godot 4.3 project, based on chronicle-clash-mg3d commit 34deef1. Only the MG gridded test room was changed. The separate castle-rpg-testbed project was not accessed or modified.
+Based on the web-fixed MG repo commit `ea6cc3e`. Intended for review on branch **build05** only; do not deploy or merge to main before independent review. The separate castle-rpg-testbed game is untouched.
 
-## Open on your Samsung in Godot
-1. Download and extract this ZIP.
-2. In the Godot Android editor, choose Import and select the extracted `chronicle-clash-mg3d/project.godot`.
-3. Open the project and tap the editor's Run Project/play button. In the game, tap TAP TO START, then PLAY.
-4. Use landscape orientation and the touchscreen controls. No keyboard is required.
+## New in this build
+- Restored Build 03 low-angle wall-hug camera outdoors and indoors: FOV 58, normal distance 5.5, height 2.8, trailing tangent distance 3, focus tangent 1.4, corner-peek focus 2. Side bias is active while sliding/peeking, recenters at rest. Environment transitions and collision safety remain.
+- CRAWL / STAND touch button: prone movement at 1.1 m/s, 0.6m capsule, half guard sight range. Standing is blocked under a low ceiling. CROUCH is still a separate action.
+- A 3.9m vent leads from the courtyard through the left side of the roofed room's front wall. Crawl in for first-person view. Move stick forward/back; right stick turns the view. Guards cannot fit or route through it.
+- Yellow scout drone: searchlight detection raises an alarm after approximately one second; two pistol hits bring it down.
+- Red attack drone: shoots for 8 damage at 1.2-second intervals when it sees you; three pistol hits bring it down.
+- Both drones are on the minimap, respect wall/roof/vent occlusion, and fall when defeated. Point the aim stick within 12 degrees of a visible drone's horizontal bearing for automatic elevation/target lock (18m maximum).
+- The merged grid geometry fix is retained. The room starts with 160 mesh instances, below the 300-object budget.
 
-This is source, not an APK. Run/import was verified with Godot 4.3 on Linux; this update has not been tested on physical Samsung hardware or exported to Android/Web. Previous APKs and the hosted website do not contain this update.
+## Open the editable project
+Extract the ZIP, import `chronicle-clash-mg3d/project.godot` into Godot 4.3, then run it. On Android use the editor's Run Project button and landscape orientation. Tap TAP TO START, then PLAY. This package is source, not an APK.
 
-## Try the new features
-- In the open area, the camera is overhead. Walk through the wide doorway on the right into the roofed room for centered follow view. Exit to return overhead.
-- Camera changes blend over 0.4 seconds when clear. Collision-blocked sweeps cut to the safe destination. Roof entry is debounced by 0.12 seconds; exit by 0.20 seconds plus a 0.24-unit boundary margin.
-- Inside, enter COVER against a wall and move sideways: the view opens ahead and the character shifts toward the trailing screen edge. Stop shuffling or leave cover to recenter. Ordinary movement has no reveal offset. Geometry may limit the reveal near obstructions.
-- Face a marked waist-high crate and tap CLIMB. The character lifts up and moves onto the top over 0.65 seconds. Release the movement stick before moving again, so held input cannot immediately run off the crate. There are two outdoor crates and one indoor crate.
-- Left stick moves; right stick aims and fires at its outer ring. FIRE also works as a separate hold button. COVER, CLIMB, RELOAD, KNOCK, CROUCH and REFILL are tap buttons.
-
-## Verified build status
-Godot 4.3 Compatibility renderer: 72 assertions passed (35 new feature checks, 24 room/combat checks, 13 touch regression checks). Actual rendered captures and logs are in `docs/`. `docs/BUILD04.md` is the current update specification and validation record; older milestone documents describe the baseline.
+The live website is not changed by this package. Physical Samsung testing remains pending. See `docs/BUILD05.md` for the exact validation record.
 
 ## One-room goal
 Enter cover, knock, defeat the single guard and reload the pistol. Then reach the green extraction ring. All four checklist items must be complete. Retry resets everything. The cyan console refills ammo.
@@ -32,13 +28,14 @@ Enter cover, knock, defeat the single guard and reload the pistol. Then reach th
 | Cover / leave | Space, or deliberately push into wall | COVER / LEAVE |
 | Shuffle / peek | Move sideways along wall to its edge | Move stick sideways |
 | Climb onto crate | B | CLIMB |
+| Crawl / stand | Z | CRAWL / STAND |
 | Knock in cover | K | KNOCK |
 | Reload | R | RELOAD |
 | Crouch | C | CROUCH |
 | Refill near console | F | REFILL |
 | Pause | Esc / P | PAUSE |
 
-Gamepad mappings: left stick move, right stick aim, RB fire, A cover, B crouch, X reload, Y climb, D-pad up refill, Start pause. Physical controller testing is pending.
+Gamepad mappings: left stick move, right stick aim, RB fire, A cover, B crouch, X reload, Y climb, left-stick click crawl, D-pad up refill, Start pause. Physical controller testing is pending.
 
 Aim at the guard's body, not the floor in front of it. Walls block bullets and vision. Reload transfers ammo only after the reload timer completes. The guard patrols, hears knocks, investigates, identifies the player, calls on the radio, and attacks. Reinforcement spawning is intentionally disabled for this single-guard test. Holding fire repeats pistol shots at a limited rate.
 
@@ -58,7 +55,7 @@ These are original **3D blockout characters**, assembled from simple meshes atta
 - `scripts/Guard.gd`: reusable guard behavior and 3D presentation.
 - `scripts/Game.gd`, `HUD.gd`, `Data.gd`, `Equipment.gd`: one-room configuration, input, pistol and HUD. Camera behavior is in `EnvironmentCamera.gd`.
 - `docs/PRD_3D_Milestone.md`: revised scope and acceptance gates.
-- `docs/VALIDATION.md`, `docs/test-results.txt`: exact checks and limitations.
+- `docs/BUILD05.md`: current scope, tests and limits. Older docs describe earlier builds.
 - `docs/screenshots/`: actual Godot captures.
 - `tests/room_test.gd`: run with `godot --path . --script res://tests/room_test.gd`.
 

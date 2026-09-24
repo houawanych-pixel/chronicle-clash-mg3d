@@ -7,6 +7,8 @@ const CAMERA_RADIUS: float=.20
 var game: Node3D
 var mode: String="overhead"
 var candidate: String="overhead"
+var view: String="overhead"
+var last_cover_side: float=1
 var candidate_time: float=0
 var initialized: bool=false
 var transition_time: float=SWITCH_TIME
@@ -21,7 +23,7 @@ var probe: SphereShape3D=SphereShape3D.new()
 func _init(owner_game: Node3D) -> void:
 	game=owner_game; probe.radius=CAMERA_RADIUS
 func reset() -> void:
-	initialized=false; reveal=Vector3.ZERO; candidate_time=0; switches=0; hard_cuts=0
+	initialized=false; view="overhead"; reveal=Vector3.ZERO; candidate_time=0; switches=0; hard_cuts=0
 func roof_at(point: Vector3) -> bool:
 	return not game.ray(point+Vector3.UP*1.95,point+Vector3.UP*40,17).is_empty()
 func covered() -> bool:
@@ -59,27 +61,33 @@ func update(delta: float) -> void:
 			mode=wanted_mode; candidate_time=0; switches+=1
 			transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
 	else: candidate=mode; candidate_time=0
-	var reveal_target: Vector3=Vector3.ZERO
-	if mode=="follow" and p.mode=="cover" and p.cover_motion.length()>.1:
-		reveal_target=p.cover_motion.normalized()*1.7
-	reveal=reveal.lerp(reveal_target,1-exp(-delta*12))
-	if reveal.length()<.002: reveal=Vector3.ZERO
-	var center: Vector3=p.global_position+Vector3.UP*1.05
+	var wanted_view: String="vent" if p.prone and game.in_vent(p.global_position) else ("cover" if p.mode=="cover" else mode)
+	if wanted_view!=view or (wanted_view=="cover" and p.cover_side!=last_cover_side):
+		view=wanted_view; last_cover_side=p.cover_side
+		transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
+	var center: Vector3=p.global_position+Vector3.UP*(.45 if p.prone else 1.05)
 	var focus: Vector3=center
 	var position: Vector3
 	var fov: float
-	if mode=="overhead":
-		position=center+Vector3(0,17,10); fov=52
+	reveal=Vector3.ZERO
+	if view=="vent":
+		position=p.global_position+Vector3.UP*.43
+		var forward: Vector3=p.facing; forward.y=0
+		focus=position+forward.normalized()*2; fov=75
+	elif view=="cover":
+		var normal: Vector3=Vector3(p.cover.normal.x,0,p.cover.normal.y)
+		var tangent: Vector3=Vector3(-normal.z,0,normal.x)*p.cover_side
+		# Restore Build 03's exact composition; only active wall movement/peek
+		# adds the side bias. Stationary cover retains its low-angle perspective.
+		var amount: float=1.0 if p.cover_motion.length()>.1 or p.peek.length()>.1 else 0.0
+		reveal=tangent*1.4*amount+p.peek*2
+		focus=p.global_position+Vector3.UP*1.2+reveal
+		position=safe_position(center,p.global_position+normal*5.5-tangent*3.0*amount+Vector3.UP*2.8)
+		fov=58
+	elif mode=="overhead":
+		position=safe_position(center,center+Vector3(0,17,10)); fov=52
 	else:
-		var back: Vector3=Vector3.BACK
-		if p.mode=="cover": back=Vector3(p.cover.normal.x,0,p.cover.normal.y)
-		focus=center+reveal
-		# Clip from the player first; never place a camera across an intervening wall.
-		position=safe_position(center,center+back*4.6+Vector3.UP*1.35+reveal)
-		fov=66
-		# If a reveal target itself reaches geometry, fall back to centered framing.
-		if not game.clear_sight(center,focus): focus=center
-	if mode=="overhead": position=safe_position(center,position)
+		position=safe_position(center,center+Vector3.BACK*4.6+Vector3.UP*1.35); fov=66
 	var target_basis: Basis=Transform3D.IDENTITY.looking_at(focus-position,Vector3.UP).basis
 	var target_rotation: Quaternion=target_basis.get_rotation_quaternion()
 	camera.projection=Camera3D.PROJECTION_PERSPECTIVE
@@ -100,4 +108,4 @@ func update(delta: float) -> void:
 		else:
 			camera.position=next; camera.quaternion=camera.quaternion.slerp(target_rotation,1-exp(-delta*10))
 		camera.fov=fov
-	p.avatar.visible=true
+	p.avatar.visible=view!="vent"

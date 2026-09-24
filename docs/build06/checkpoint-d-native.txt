@@ -1,0 +1,28 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS Frag throws projectile and consumes inventory
+PASS Frag follows gravity
+PASS Chaff throws separate payload
+PASS Chaff disables nearby drone
+PASS Disabled drone cannot detect or shoot
+PASS Chaff expires
+PASS Explosions damage drones
+PASS C4 places charge
+PASS Second C4 use detonates charge
+PASS Claymore places directional mine
+PASS Armed claymore detects forward guard
+PASS Ration consumes and restores health
+PASS Cloak toggles on
+PASS Cloak consumes energy
+PASS Cloak toggles off
+PASS Binoculars share first-person view
+PASS Optic zoom changes actual camera FOV
+PASS Rocket cannot lock through shelter wall
+PASS Rocket acquires visible target in aiming cone
+PASS Launcher transfers target to rocket
+PASS Heat seeker steers toward moving target
+PASS Console replenishes all equipment
+RESULT: 22 passed, 0 failed

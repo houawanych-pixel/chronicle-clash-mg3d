@@ -406,14 +406,20 @@ func spawn_projectile(kind: String,at: Vector3,speed: Vector3) -> void:
 func place_mine(kind: String) -> void:
 	var node: Node3D=MineScript.new(); node.game=self; node.kind=kind; node.facing=player.facing
 	stage.add_child(node); node.global_position=player.global_position+player.facing*.9; mines.append(node)
-	toast("Mine placed." if kind=="claymore" else "Remote charge placed. DETONATE / G when ready.")
+	toast("Mine placed." if kind=="claymore" else "C4 placed. Tap the C4 item again to detonate.")
 func blast(at: Vector3,radius: float,damage: float,kind: String) -> void:
+	if kind=="chaff":
+		for drone: Node3D in drones:
+			if drone.position.distance_to(at)<8 and clear_sight(at,drone.position): drone.disabled=8; drone.seeing=false
+		toast("CHAFF: nearby drones disabled for 8 seconds."); sound("bleep",-12); return
 	sound("explosion",-5); emit_noise(at,24)
 	var sphere: MeshInstance3D=V.box(stage,at,Vector3.ONE*.6,V.mat(Color("ffb467"),1))
 	var tween: Tween=sphere.create_tween(); tween.tween_property(sphere,"scale",Vector3.ONE*radius,.25)
 	effects.append({"node":sphere,"life":.32})
 	for guard: CharacterBody3D in guards:
 		if guard.global_position.distance_to(at)<radius and clear_sight(at,guard.global_position+Vector3.UP): guard.receive_hit(damage,kind,at)
+	for drone: Node3D in drones:
+		if drone.position.distance_to(at)<radius and clear_sight(at,drone.position): drone.receive_hit(damage,kind,at)
 	for target: StaticBody3D in targets:
 		if target.global_position.distance_to(at)<radius and clear_sight(at,target.global_position+Vector3.UP): target.receive_hit(damage,kind,at)
 	if player.global_position.distance_to(at)<radius and clear_sight(at,player.global_position+Vector3.UP): player.damage(damage*.3)

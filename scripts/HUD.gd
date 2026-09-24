@@ -68,6 +68,9 @@ func _draw() -> void:
 	var mc: Vector2=move_center if joy_id!=-99 else Vector2(165,575)
 	draw_circle(mc,78,Color(.02,.08,.12,.45)); draw_arc(mc,78,0,TAU,64,CYAN,2); draw_circle(mc+joystick*58,27,Color(CYAN,.7))
 	if game.lab.aim:
+		if game.lab.spectrum>0:
+			draw_rect(Rect2(0,0,1280,720),Color(.05,.6,.12,.13) if game.lab.spectrum==1 else Color(.65,.12,.05,.13))
+			label(Vector2(460,225),"NV FILTER" if game.lab.spectrum==1 else "THERMAL FILTER",28,CYAN)
 		draw_line(Vector2(622,360),Vector2(658,360),CYAN,2); draw_line(Vector2(640,342),Vector2(640,378),CYAN,2)
 		if game.lab.optic=="binoculars" or str(game.gear.current().id)=="sniper":
 			draw_arc(Vector2(640,360),205,0,TAU,80,CYAN,3)

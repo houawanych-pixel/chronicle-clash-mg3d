@@ -13,7 +13,7 @@ func _ready() -> void:
 func tick(delta: float) -> void:
 	arm_time -= delta
 	if dead or arm_time>0 or kind!="claymore": return
-	for guard: CharacterBody3D in game.guards:
+	for guard: CharacterBody3D in game.guards+game.drones:
 		if guard.health<=0: continue
 		var d: Vector3 = guard.global_position-global_position
 		if d.length()<3.0 and d.normalized().dot(facing)>.65 and game.clear_sight(global_position+Vector3.UP*.3,guard.global_position+Vector3.UP*.7):

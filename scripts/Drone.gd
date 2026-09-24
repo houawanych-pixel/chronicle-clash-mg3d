@@ -2,6 +2,7 @@ extends CharacterBody3D
 const V=preload("res://scripts/Visuals.gd")
 var game: Node3D
 var kind: String="scout"
+var disabled: float=0
 var health: float=70
 var state: String="PATROL"
 var suspicion: float=0
@@ -48,6 +49,8 @@ func tick(delta: float) -> void:
 		velocity.y-=9.8*delta; move_and_slide()
 		hull.rotation.z=lerpf(hull.rotation.z,1.1,minf(1,delta*3))
 		return
+	if disabled>0:
+		disabled=maxf(0,disabled-delta);seeing=false;state="DISABLED";label.text="CHAFF %.0f"%disabled;return
 	for rotor: Node3D in rotors: rotor.rotation.y+=delta*30
 	var to: Vector3=route[next_point]-position
 	if to.length()<.3: next_point=1-next_point

@@ -1,5 +1,6 @@
 extends RefCounted
 const Traversal=preload("res://scripts/Traversal.gd")
+var item_cooldown: float=0
 var combo: int=0
 var combo_timer: float=0
 var melee_timer: float=0
@@ -32,7 +33,7 @@ func _init(owner_game: Node3D) -> void:
 		var data: Variant=JSON.parse_string(FileAccess.get_file_as_string("res://tests/verified_features.json"))
 		if data is Dictionary: evidence=data
 func reset() -> void:
-	hostage=null; combo=0; melee_timer=0; aim=false; optic="gun"; drawn=true; stamina=100; oxygen=100; close_wheel()
+	item_cooldown=0; item_counts={"ration":5,"binoculars":1,"frag":8,"chaff":8,"c4":6,"claymore":6,"cloak":1}; hostage=null; combo=0; melee_timer=0; aim=false; optic="gun"; drawn=true; stamina=100; oxygen=100; close_wheel()
 func toggle_aim(kind: String="gun") -> void:
 	if drawn and str(game.gear.current().id)=="sword": parry_time=.5; return
 	if aim and optic==kind: aim=false; return
@@ -52,9 +53,28 @@ func choose_weapon(index: int) -> void:
 func choose_item(id: String) -> void:
 	item=id; close_wheel()
 func use_item() -> void:
+	if item_cooldown>0: return
 	if item=="binoculars": toggle_aim("binoculars"); return
-	if item=="ration" and item_counts.ration>0 and game.player.health<100:
-		game.player.health=minf(100,game.player.health+45); item_counts.ration-=1; game.mark_goal("ration")
+	if item=="cloak": game.player.toggle_cloak(); return
+	if item=="c4":
+		for mine: Node3D in game.mines:
+			if mine.kind=="remote": game.gear.detonate(); item_cooldown=.5; return
+	if int(item_counts.get(item,0))<=0: game.toast("Empty. Use the cyan console to resupply."); return
+	if item=="ration":
+		if game.player.health>=100: return
+		game.player.health=minf(100,game.player.health+45);game.mark_goal("ration")
+	elif item in ["frag","chaff"]:
+		var dir: Vector3=look_direction() if aim else game.player.facing
+		dir.y=0;dir=dir.normalized()
+		var from: Vector3=game.player.target_point()
+		if not game.ray(from,from+dir*.7,17).is_empty(): game.toast("Step clear before throwing."); return
+		game.spawn_projectile("grenade" if item=="frag" else "chaff",from+dir*.6,dir*7+Vector3.UP*6);game.mark_goal(item)
+	elif item in ["c4","claymore"]:
+		var from: Vector3=game.player.position+Vector3.UP*.3
+		if not game.ray(from,from+game.player.facing,17).is_empty(): game.toast("Step clear before placing a mine.");return
+		game.place_mine("remote" if item=="c4" else "claymore");game.mark_goal(item)
+	else: return
+	item_counts[item]-=1;item_cooldown=.5
 func fire() -> void:
 	if optic=="binoculars" and aim: game.mark_aimed_guard(); return
 	if drawn: game.gear.fire()
@@ -87,7 +107,7 @@ func action() -> void:
 		"CLIMB": game.player.climb_box()
 		"USE": game.use_console()
 func tick(delta: float) -> void:
-	melee_timer=maxf(0,melee_timer-delta); combo_timer=maxf(0,combo_timer-delta); parry_time=maxf(0,parry_time-delta)
+	item_cooldown=maxf(0,item_cooldown-delta); melee_timer=maxf(0,melee_timer-delta); combo_timer=maxf(0,combo_timer-delta); parry_time=maxf(0,parry_time-delta)
 	if combo_timer==0: combo=0
 	if is_instance_valid(hostage):
 		hostage.position=game.player.position-game.player.facing*.7; hostage.stun=1.0; game.mark_goal("drag")

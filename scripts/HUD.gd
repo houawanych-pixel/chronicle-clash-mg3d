@@ -53,8 +53,8 @@ func _draw() -> void:
 	label(Vector2(32,38),"CHRONICLE CLASH / 3D",15,CYAN,true)
 	label(Vector2(32,70),"%02d / %s"%[game.room+1,game.rooms[game.room].name],23,WHITE,true)
 	label(Vector2(385,36),"HP %d"%int(game.player.health),13,MUTE); meter(Vector2(385,45),110,game.player.health,Color("78d6a7"))
-	label(Vector2(515,36),"FULL 3D",13,CYAN)
-	label(Vector2(645,36),"TOUCH v03",13,MUTE)
+	label(Vector2(515,36),game.camera_controller.mode.to_upper(),13,CYAN)
+	label(Vector2(645,36),"VR v04",13,MUTE)
 	label(Vector2(385,74),"%02d:%02d   DATA %d/%d"%[int(game.elapsed)/60,int(game.elapsed)%60,game.collected,game.chips.size()],16,WHITE)
 	var alert: String="UNDETECTED"
 	for guard: CharacterBody3D in game.guards:
@@ -77,8 +77,8 @@ func _draw() -> void:
 	label(Vector2(225,579),"PISTOL  %d / %d"%[item.ammo,item.reserve],21,GOLD,true)
 	label(Vector2(490,579),"RELOADING" if game.gear.action_time>0 else "Push aim stick to its outer ring to fire",15,CYAN if game.gear.action_time>0 else MUTE)
 	button(Rect2(905,558,136,37),"REFILL","use",false,true)
-	var actions: Array=[["LEAVE COVER" if game.player.mode=="cover" else "COVER","brace"],["RELOAD","reload"],["FIRE","fire"],["KNOCK","knock"],["CROUCH","crouch"]]
-	for i in range(actions.size()): button(Rect2(225+i*165,610,156,75),actions[i][0],actions[i][1],(game.held("fire") if actions[i][1]=="fire" else (game.player.mode=="cover" if actions[i][1]=="brace" else game.player.crouched if actions[i][1]=="crouch" else false)),true)
+	var actions: Array=[["LEAVE COVER" if game.player.mode=="cover" else "COVER","brace"],["CLIMB","climb_box"],["RELOAD","reload"],["FIRE","fire"],["KNOCK","knock"],["CROUCH","crouch"]]
+	for i in range(actions.size()): button(Rect2(225+i*136,610,128,75),actions[i][0],actions[i][1],(game.held("fire") if actions[i][1]=="fire" else (game.player.mode=="cover" if actions[i][1]=="brace" else game.player.crouched if actions[i][1]=="crouch" else false)),true)
 	if game.notification_time>0:
 		panel(Rect2(185,511,1079,34),Color(.025,.055,.095,.95)); center(Vector2(724,534),game.toast_text,14,WHITE)
 	elif game.room==3 and is_instance_valid(game.titan) and game.titan.warning:
@@ -120,7 +120,7 @@ func map_point(at: Vector2,r: Rect2) -> Vector2: return r.position+(at+Vector2(1
 func draw_modal() -> void:
 	draw_rect(Rect2(-1000,-1000,4000,3000),Color(.015,.035,.06,.9)); buttons.clear()
 	panel(Rect2(135,100,1010,512),INK,Color("3b6475"))
-	label(Vector2(174,144),"CHRONICLE CLASH / 3D / TOUCH BUILD 03",15,CYAN,true)
+	label(Vector2(174,144),"CHRONICLE CLASH / 3D / CAMERA + CLIMB / BUILD 04",15,CYAN,true)
 	var title: String="3D COVER PROTOTYPE"
 	var sub: String="One room. Articulated 3D characters. Cover and pistol combat."
 	var primary: String="TAP TO START"
@@ -149,8 +149,8 @@ func draw_modal() -> void:
 		label(Vector2(174,440),"Cyan console: refill pistol ammo. Green ring: extraction.",16,MUTE)
 	else:
 		label(Vector2(174,284),"Left stick: MOVE • Right stick: AIM / FIRE",16,WHITE)
-		label(Vector2(174,317),"Tap COVER, then move sideways to peek. Tap KNOCK to distract.",16,WHITE)
-		label(Vector2(174,350),"Tap RELOAD for ammo. REFILL works near the cyan console.",16,WHITE)
+		label(Vector2(174,317),"Roof: follow-camera. Hug + move sideways: reveal the room.",16,WHITE)
+		label(Vector2(174,350),"Face a low crate and tap CLIMB to stand on top.",16,WHITE)
 		label(Vector2(174,393),"You can move and aim/fire with two thumbs.",15,MUTE)
 		label(Vector2(174,423),"Tap RESUME to continue or RETRY to restart.",15,MUTE)
 	button(Rect2(174,525,360,57),primary,"confirm",true)

@@ -1,4 +1,8 @@
 extends Node3D
+const EnvironmentCameraScript=preload("res://scripts/EnvironmentCamera.gd")
+var camera_controller: RefCounted
+var crates: Array=[]
+var roof_body: StaticBody3D
 const Data=preload("res://scripts/Data.gd")
 const V=preload("res://scripts/Visuals.gd")
 const Spatial=preload("res://scripts/StealthMath.gd")
@@ -68,6 +72,7 @@ func _ready() -> void:
 	light.rotation_degrees=Vector3(-60,-30,0); light.light_energy=1.2; light.shadow_enabled=true; add_child(light)
 	camera=Camera3D.new(); camera.projection=Camera3D.PROJECTION_ORTHOGONAL; camera.size=27
 	camera.far=100; camera.near=.1; add_child(camera); camera.current=true
+	camera_controller=EnvironmentCameraScript.new(self)
 	gear=GearScript.new(); gear.game=self; add_child(gear)
 	var layer: CanvasLayer=CanvasLayer.new(); add_child(layer)
 	hud=HUDScript.new(); hud.game=self; layer.add_child(hud)
@@ -78,12 +83,12 @@ func _ready() -> void:
 		if arg.begins_with("--demo="): demo_kind=arg.trim_prefix("--demo=")
 	if not demo_kind.is_empty(): setup_demo.call_deferred()
 func setup_input() -> void:
-	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"reload":[KEY_R],"hook":[KEY_E],"brace":[KEY_SPACE],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Q],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_Z]}
+	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_E],"brace":[KEY_SPACE],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Q],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_Z]}
 	for name: String in keys:
 		InputMap.add_action(name)
 		for code: int in keys[name]:
 			var event: InputEventKey=InputEventKey.new(); event.physical_keycode=code; InputMap.action_add_event(name,event)
-	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"scope":JOY_BUTTON_LEFT_SHOULDER,"brace":JOY_BUTTON_A,"crouch":JOY_BUTTON_B,"reload":JOY_BUTTON_X,"hook":JOY_BUTTON_Y,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
+	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"scope":JOY_BUTTON_LEFT_SHOULDER,"brace":JOY_BUTTON_A,"crouch":JOY_BUTTON_B,"climb_box":JOY_BUTTON_Y,"reload":JOY_BUTTON_X,"hook":JOY_BUTTON_Y,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
 	for name: String in pad:
 		var event: InputEventJoypadButton=InputEventJoypadButton.new(); event.button_index=pad[name]; InputMap.action_add_event(name,event)
 func setup_audio() -> void:
@@ -107,12 +112,27 @@ func load_room(index: int, brief: bool=true) -> void:
 	var data: Dictionary=rooms[room]
 	walls=data.walls.duplicate()
 	walls.append_array([Rect2(-16,-12,32,.4),Rect2(-16,11.6,32,.4),Rect2(-16,-12,.4,24),Rect2(15.6,-12,.4,24)])
+	# The north-east shelter has a 4m doorway facing the open courtyard.
+	var shelter_walls: Array=[Rect2(5,-10,.4,10),Rect2(13.6,-10,.4,10),Rect2(5,-10,9,.4),Rect2(5,-.4,3,.4),Rect2(12,-.4,2,.4)]
+	walls.append_array(shelter_walls)
 	stage=Node3D.new(); add_child(stage)
 	V.solid(stage,Vector3(0,-.3,0),Vector3(32,.6,24),Color("122a40"),true)
 	for rect: Rect2 in walls:
-		var h: float=2.5
+		var h: float=4.3 if rect in shelter_walls else 2.5
 		if rect.size.x>25 or rect.size.y>20: h=1.0
 		V.solid(stage,Vector3(rect.get_center().x,h/2,rect.get_center().y),Vector3(rect.size.x,h,rect.size.y),Color("2b435b"),true)
+	crates.clear()
+	for entry: Dictionary in data.crates:
+		var size: Vector3=entry.size
+		var body: StaticBody3D=V.solid(stage,entry.at+Vector3.UP*size.y*.5,size,Color("426476"),true)
+		body.set_meta("waist_crate",true); crates.append(body)
+		walls.append(Rect2(entry.at.x-size.x*.5,entry.at.z-size.z*.5,size.x,size.z))
+		V.label(stage,entry.at+Vector3.UP*(size.y+.4),"CLIMB",Color("ffd18b"),24)
+	var shelter: Rect2=data.shelter
+	roof_body=V.solid(stage,Vector3(shelter.get_center().x,4.45,shelter.get_center().y),Vector3(shelter.size.x,.3,shelter.size.y),Color("263d50"),true)
+	roof_body.set_meta("roof",true)
+	V.label(stage,Vector3(10,3.5,.12),"ROOFED / FOLLOW CAMERA",Color("74e6dd"),27)
+	V.label(stage,Vector3(-5,.08,9.4),"OPEN SKY / OVERHEAD",Color("74e6dd"),28)
 	build_navigation()
 	player=PlayerScript.new(); player.game=self; stage.add_child(player); player.position=data.start; player.last_safe=data.start
 	if room==2: player.health=65
@@ -138,6 +158,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	if room==3:
 		titan=TitanScript.new(); titan.game=self; stage.add_child(titan); titan.position=Vector3(0,0,-4)
 	camera.position=Vector3(0,30,23); camera.look_at(Vector3(0,0,0),Vector3.UP)
+	camera_controller.reset()
 	hud.release_controls(); notification_time=0
 func spawn_guard(route: Array) -> void:
 	var g: CharacterBody3D=GuardScript.new(); g.game=self; g.route=route; stage.add_child(g)
@@ -176,7 +197,7 @@ func held(action: String) -> bool:
 	return Input.is_action_pressed(action) or bool(hud.holds.get(action,false)) or (action=="fire" and (mouse_fire or hud.aim_firing))
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.echo: return
-	for action: String in ["reload","brace","crouch","knock","use","pause","confirm"]:
+	for action: String in ["reload","climb_box","brace","crouch","knock","use","pause","confirm"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
 	if action in ["hook","scope","cloak","drop","detonate","equipment","next","previous","zoom"]: return
@@ -203,6 +224,7 @@ func command(action: String) -> void:
 		"scope": gear.toggle_scope()
 		"zoom": gear.zoom=(gear.zoom+1)%3
 		"reload": gear.reload()
+		"climb_box": player.climb_box()
 		"hook": player.hook()
 		"brace":
 			if player.mode in ["ground","cover"]: player.toggle_cover()
@@ -255,9 +277,11 @@ func _physics_process(delta: float) -> void:
 			var back: Vector3=Vector3(-right.z,0,right.x)
 			var touch_move: Vector3=right*hud.joystick.x+back*hud.joystick.y
 			move=Vector2(touch_move.x,touch_move.z)
+		if demo_kind=="reveal_right": move=Vector2(1,0)
+		elif demo_kind=="reveal_left": move=Vector2(-1,0)
 		player.tick(delta,move)
 		gear.tick(delta)
-		if held("fire"):
+		if held("fire") and player.mode!="mantle":
 			if room==3 and player.mode=="climb": player.strike()
 			else: gear.fire()
 		for guard: CharacterBody3D in guards: guard.tick(delta)
@@ -275,46 +299,7 @@ func _physics_process(delta: float) -> void:
 	hud.queue_redraw()
 	if not capture_name.is_empty() and tick_count==100: capture.call_deferred()
 func update_camera(delta: float) -> void:
-	if not is_instance_valid(player): return
-	var center: Vector3=player.global_position
-	var pos: Vector3
-	var focus: Vector3
-	if gear.scope:
-		if not last_scope:
-			var d: Vector3=(aim_point-(center+Vector3.UP*1.55)).normalized()
-			scope_yaw=atan2(d.x,d.z); scope_pitch=asin(clampf(d.y,-1,1))
-		camera.projection=Camera3D.PROJECTION_PERSPECTIVE; camera.fov=[34.0,20.0,10.0][gear.zoom]
-		pos=center+Vector3.UP*1.55
-		focus=pos+Vector3(sin(scope_yaw)*cos(scope_pitch),sin(scope_pitch),cos(scope_yaw)*cos(scope_pitch))*20
-		camera.position=pos; camera.look_at(focus,Vector3.UP)
-		player.avatar.visible=false
-	elif player.mode=="cover":
-		camera.projection=Camera3D.PROJECTION_PERSPECTIVE; camera.fov=58
-		var n: Vector3=Vector3(player.cover.normal.x,0,player.cover.normal.y)
-		var tangent: Vector3=Vector3(-n.z,0,n.x)*player.cover_side
-		focus=center+Vector3.UP*1.2+tangent*1.4+player.peek*2
-		pos=center+n*5.5-tangent*3.0+Vector3.UP*2.8
-		var blocked: Dictionary=ray(focus,pos,17)
-		if not blocked.is_empty(): pos=blocked.position+blocked.normal*.3
-		camera.position=camera.position.lerp(pos,1-exp(-delta*9)); camera.look_at(focus,Vector3.UP)
-		player.avatar.visible=true
-	elif player.mode in ["grapple","climb"] or room==3:
-		camera.projection=Camera3D.PROJECTION_PERSPECTIVE; camera.fov=58
-		focus=center+Vector3.UP*1.0
-		if player.mode=="climb":
-			pos=focus+player.surface_normal*6.5+Vector3(3,3.5,2)
-		elif player.mode=="grapple": pos=focus+Vector3(7,5,9)
-		else: focus=Vector3(center.x*.3,3,1); pos=focus+Vector3(15,15,22)
-		var blocked: Dictionary=ray(focus,pos,17)
-		if not blocked.is_empty(): pos=blocked.position+blocked.normal*.5
-		camera.position=camera.position.lerp(pos,1-exp(-delta*5)); camera.look_at(focus,Vector3.UP)
-		player.avatar.visible=true
-	else:
-		camera.projection=Camera3D.PROJECTION_ORTHOGONAL; camera.size=22.0
-		focus=Vector3(center.x*.18,0,center.z*.10+.3); pos=focus+Vector3(0,30,22)
-		camera.position=camera.position.lerp(pos,1-exp(-delta*6)); camera.look_at(focus,Vector3.UP)
-		player.avatar.visible=true
-	last_scope=gear.scope
+	if is_instance_valid(player): camera_controller.update(delta)
 func update_objectives() -> void:
 	if mode!="play": return
 	for chip: Dictionary in chips:
@@ -400,6 +385,13 @@ func setup_demo() -> void:
 	elif demo_kind=="reload":
 		player.global_position=Vector3(-4,0,3.48); player.toggle_cover(); gear.items[0].ammo=3; gear.reload()
 	elif demo_kind=="overhead": player.global_position=Vector3(-4,0,5)
+	elif demo_kind=="indoor": player.global_position=Vector3(10,0,-3)
+	elif demo_kind in ["reveal_right","reveal_left"]:
+		player.global_position=Vector3(10,0,-9.1); player.toggle_cover()
+	elif demo_kind=="crate_top":
+		player.global_position=Vector3(-10,0,7.0); player.facing=Vector3.FORWARD
+		await get_tree().physics_frame
+		player.climb_box()
 func capture() -> void:
 	# Deterministic pose inspection, independent of software-renderer frame timing.
 	if demo_kind=="reload":

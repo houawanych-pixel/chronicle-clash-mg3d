@@ -102,6 +102,7 @@ func _ready() -> void:
 	make_clip(library,"cover",1.2,true,{"arm_r":Vector3(.65,0,-.22),"forearm_r":Vector3(.7,0,0),"arm_l":Vector3(.15,0,.35),"thigh_l":Vector3(.10,0,.08),"thigh_r":Vector3(-.1,0,-.08),"head":Vector3(0,.45,0)})
 	make_clip(library,"reload",1.3,false,{"arm_r":Vector3(.9,0,-.28),"forearm_r":Vector3(.6,0,-.2),"arm_l":Vector3(.3,0,-.25),"forearm_l":Vector3(.65,0,-.65),"head":Vector3(-.2,0,0)})
 	make_clip(library,"crouch",1.0,true,{"thigh_l":Vector3(-.7,0,0),"thigh_r":Vector3(-.7,0,0),"shin_l":Vector3(1.25,0,0),"shin_r":Vector3(1.25,0,0),"chest":Vector3(-.15,0,0),"arm_r":Vector3(.6,0,0)})
+	make_clip(library,"box_climb",.65,false,{"arm_r":Vector3(1.6,0,-.1),"arm_l":Vector3(1.6,0,.1),"forearm_r":Vector3(.35,0,0),"forearm_l":Vector3(.35,0,0),"thigh_l":Vector3(-.8,0,0),"shin_l":Vector3(1.0,0,0)})
 	animation.play("idle")
 func make_clip(library: AnimationLibrary,id: String,duration: float,loop: bool,poses: Dictionary,walking: bool=false) -> void:
 	var clip: Animation=Animation.new(); clip.length=duration
@@ -135,6 +136,7 @@ func tick(delta: float,_camera: Camera3D) -> void:
 	elif pose==5: clip="fire"
 	elif pose in [6,7,8]: clip="reload"
 	elif pose==14: clip="crouch"
+	elif pose==17: clip="box_climb"
 	if clip!=current_clip:
 		animation.play(clip,.12); current_clip=clip
 	elif not animation.is_playing() and clip=="fire": animation.play("aim",.08)

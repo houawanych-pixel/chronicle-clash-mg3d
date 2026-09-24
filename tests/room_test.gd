@@ -32,7 +32,7 @@ func run() -> void:
 	for i in range(110): game.player.tick(1.0/60,Vector2(1,0)); await physics_frame
 	check(game.player.peek.length()>.5,"Corner shuffle reaches peek")
 	game.player.toggle_cover(); game.update_camera(1)
-	check(game.camera.projection==Camera3D.PROJECTION_ORTHOGONAL,"Leaving cover restores overhead")
+	check(game.camera_controller.mode=="overhead","Leaving cover restores overhead")
 	game.player.position=Vector3(-1,0,0); game.player.mode="ground"
 	game.guards[0].position=Vector3(-1,0,-4)
 	await physics_frame; await physics_frame

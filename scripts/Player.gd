@@ -15,6 +15,12 @@ var facing: Vector3 = Vector3.FORWARD
 var mode: String = "ground"
 var cover: Dictionary = {}
 var peek: Vector3 = Vector3.ZERO
+var cover_motion: Vector3=Vector3.ZERO
+var mantle_time: float=0
+var mantle_from: Vector3
+var mantle_raised: Vector3
+var mantle_to: Vector3
+var climb_input_lock: bool=false
 var cover_side: float = 1
 var wall_pressure: float = 0
 var cover_cooldown: float = 0
@@ -101,6 +107,14 @@ func tick(delta: float, move: Vector2) -> void:
 	attack_time=maxf(0,attack_time-delta)
 	cover_cooldown=maxf(0,cover_cooldown-delta)
 	drop_cooldown=maxf(0,drop_cooldown-delta)
+	cover_motion=Vector3.ZERO
+	if mode=="mantle":
+		_tick_box_climb(delta)
+		_update_visual(delta)
+		return
+	if climb_input_lock:
+		if move.length()<.12: climb_input_lock=false
+		else: move=Vector2.ZERO
 	brace=game.held("brace")
 	if cloaked:
 		cloak_energy=maxf(0,cloak_energy-delta*6)
@@ -121,6 +135,7 @@ func tick(delta: float, move: Vector2) -> void:
 			if move.dot(n)>.7: toggle_cover()
 			else:
 				direction=Vector3(tangent.x,0,tangent.y)*move.dot(tangent)
+				cover_motion=direction
 				speed=1.8
 				var rect: Rect2=cover.wall
 				var axis: int=1 if absf(n.x)>.5 else 0
@@ -134,7 +149,10 @@ func tick(delta: float, move: Vector2) -> void:
 		velocity.z=direction.z*speed
 		velocity.y-=22*delta
 		var landing_speed: float=velocity.y
+		var before_move: Vector3=global_position
 		move_and_slide()
+		cover_motion=(global_position-before_move)/maxf(delta,.0001) if mode=="cover" else Vector3.ZERO
+		cover_motion.y=0
 		if is_on_floor():
 			if landing_speed < -14: damage(minf(25,(-landing_speed-14)*1.2))
 			grip=minf(100,grip+delta*22)
@@ -227,6 +245,7 @@ func _update_visual(delta: float) -> void:
 	if gear.action_time>0: avatar.pose=6
 	elif gear.muzzle_time>0: avatar.pose=5
 	elif game.aim_enabled and mode=="ground": avatar.pose=4; avatar.facing=(game.aim_point-global_position).normalized()
+	if mode=="mantle": avatar.pose=17
 	avatar.tick(delta,game.camera)
 	tether.visible=mode in ["climb","grapple"] and is_instance_valid(anchor_body)
 	if tether.visible:
@@ -246,3 +265,54 @@ func strike() -> void:
 	attack_time=.4
 	grip=maxf(0,grip-5)
 	if is_instance_valid(game.titan): game.titan.strike(global_position+Vector3.UP)
+
+func box_climb_target() -> Dictionary:
+	if not mode in ["ground","cover"]: return {}
+	var floor_hit: Dictionary=game.ray(global_position+Vector3.UP*.12,global_position-Vector3.UP*.15,17,[get_rid()])
+	if not is_on_floor() and floor_hit.is_empty(): return {}
+	var direction: Vector3=facing; direction.y=0
+	if mode=="cover": direction=-Vector3(cover.normal.x,0,cover.normal.y)
+	if direction.length()<.2: return {}
+	direction=direction.normalized()
+	var hit: Dictionary=game.ray(global_position+Vector3.UP*.55,global_position+Vector3.UP*.55+direction*1.35,17,[get_rid()])
+	if hit.is_empty() or not hit.collider.has_meta("waist_crate") or absf(hit.normal.y)>.1: return {}
+	var body: Node3D=hit.collider
+	var size: Vector3=body.get_meta("size")
+	var top: float=body.global_position.y+size.y*.5
+	var rise: float=top-global_position.y
+	if rise<.55 or rise>1.45: return {}
+	var landing: Vector3=hit.position-hit.normal*.62
+	landing.y=top+.04
+	var raised: Vector3=Vector3(global_position.x,landing.y,global_position.z)
+	var capsule: CapsuleShape3D=CapsuleShape3D.new(); capsule.radius=.31; capsule.height=1.6
+	var q: PhysicsShapeQueryParameters3D=PhysicsShapeQueryParameters3D.new()
+	q.shape=capsule; q.transform=Transform3D(Basis.IDENTITY,landing+Vector3.UP*.81); q.collision_mask=21
+	q.exclude=[get_rid()]
+	if not get_world_3d().direct_space_state.intersect_shape(q,1).is_empty(): return {}
+	if test_move(global_transform,raised-global_position): return {}
+	if test_move(Transform3D(global_basis,raised),landing-raised): return {}
+	return {"landing":landing,"raised":raised,"direction":direction}
+func climb_box() -> void:
+	var target: Dictionary=box_climb_target()
+	if target.is_empty(): game.toast("Face a nearby waist-high crate with clear space above it."); return
+	mantle_from=global_position; mantle_raised=target.raised; mantle_to=target.landing
+	facing=target.direction; mode="mantle"; mantle_time=0; velocity=Vector3.ZERO
+	cover.clear(); peek=Vector3.ZERO; cover_motion=Vector3.ZERO; crouched=false
+	game.sound("cover"); game.toast("Climbing onto the crate.")
+func _tick_box_climb(delta: float) -> void:
+	mantle_time=minf(.65,mantle_time+delta)
+	var t: float
+	var wanted: Vector3
+	if mantle_time<.35:
+		t=mantle_time/.35; t=t*t*(3-2*t)
+		wanted=mantle_from.lerp(mantle_raised,t)
+	else:
+		t=(mantle_time-.35)/.30; t=t*t*(3-2*t)
+		wanted=mantle_raised.lerp(mantle_to,t)
+	var collision: KinematicCollision3D=move_and_collide(wanted-global_position)
+	if collision:
+		mode="ground"; velocity=Vector3.ZERO; cover_cooldown=.6
+		game.toast("Climb blocked. Move to a clear side of the crate."); return
+	if mantle_time>=.65:
+		mode="ground"; velocity=Vector3.ZERO; cover_cooldown=.8; climb_input_lock=true
+		game.toast("On top. Release the movement stick, then move to step off.")

@@ -1,0 +1,19 @@
+Godot Engine v4.3.stable.official.77dcf97d8 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 20.1.2, 256 bits)
+
+PASS Touch start opens briefing
+PASS Touch Play starts room
+PASS Independent movement and aim sticks
+PASS Inner aim ring does not fire
+PASS Outer aim ring fires with two thumbs
+PASS Aim stick directs world aim
+PASS Aim release preserves separate fire and movement
+PASS Last fire release stops shooting
+PASS Reload is a tap action
+PASS Cover is a tap action
+PASS Pause clears all touch state
+PASS Scaled phone coordinates map to stick correctly
+PASS Scaled touch release stops movement
+RESULT: 13 passed, 0 failed

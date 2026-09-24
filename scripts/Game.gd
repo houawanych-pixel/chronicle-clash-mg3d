@@ -1,4 +1,7 @@
 extends Node3D
+const LabScript=preload("res://scripts/Lab.gd")
+var lab: RefCounted
+var key_hold: Dictionary={}
 const EnvironmentCameraScript=preload("res://scripts/EnvironmentCamera.gd")
 var camera_controller: RefCounted
 var crates: Array=[]
@@ -64,6 +67,7 @@ var capture_name: String=""
 var demo_kind: String=""
 var verify_web: bool=false
 func _ready() -> void:
+	lab=LabScript.new(self)
 	setup_input()
 	setup_audio()
 	load_scores()
@@ -89,12 +93,12 @@ func _ready() -> void:
 		if arg.begins_with("--demo="): demo_kind=arg.trim_prefix("--demo=")
 	if not demo_kind.is_empty(): setup_demo.call_deferred()
 func setup_input() -> void:
-	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"crawl":[KEY_Z],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_E],"brace":[KEY_SPACE],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Q],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_V]}
+	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"run":[KEY_SHIFT],"sneak":[KEY_ALT],"action":[KEY_SPACE],"aim":[KEY_V],"weapon_slot":[KEY_E],"item_slot":[KEY_Q],"crawl":[KEY_Z],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_H],"brace":[KEY_T],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Y],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_V]}
 	for name: String in keys:
 		InputMap.add_action(name)
 		for code: int in keys[name]:
 			var event: InputEventKey=InputEventKey.new(); event.physical_keycode=code; InputMap.action_add_event(name,event)
-	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"scope":JOY_BUTTON_LEFT_SHOULDER,"brace":JOY_BUTTON_A,"crouch":JOY_BUTTON_B,"climb_box":JOY_BUTTON_Y,"reload":JOY_BUTTON_X,"crawl":JOY_BUTTON_LEFT_STICK,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
+	var pad: Dictionary={"fire":JOY_BUTTON_RIGHT_SHOULDER,"action":JOY_BUTTON_A,"aim":JOY_BUTTON_LEFT_SHOULDER,"weapon_slot":JOY_BUTTON_RIGHT_STICK,"crouch":JOY_BUTTON_B,"climb_box":JOY_BUTTON_Y,"reload":JOY_BUTTON_X,"item_slot":JOY_BUTTON_LEFT_STICK,"equipment":JOY_BUTTON_BACK,"pause":JOY_BUTTON_START,"next":JOY_BUTTON_DPAD_RIGHT,"previous":JOY_BUTTON_DPAD_LEFT,"use":JOY_BUTTON_DPAD_UP,"drop":JOY_BUTTON_DPAD_DOWN}
 	for name: String in pad:
 		var event: InputEventJoypadButton=InputEventJoypadButton.new(); event.button_index=pad[name]; InputMap.action_add_event(name,event)
 func setup_audio() -> void:
@@ -114,7 +118,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	room=index; mode="brief" if brief else "title"
 	guards.clear(); drones.clear(); locked_drone=null; chips.clear(); targets.clear(); projectiles.clear(); mines.clear(); effects.clear(); goals.clear()
 	titan=null; collected=0; alarms=0; elapsed=0; support_count=0; support_cooldown=0; lab_drill=0
-	gear.reset(); last_scope=false; aim_enabled=false
+	gear.reset(); lab.reset(); last_scope=false; aim_enabled=false
 	var data: Dictionary=rooms[room]
 	walls=data.walls.duplicate()
 	walls.append_array([Rect2(-16,-12,32,.4),Rect2(-16,11.6,32,.4),Rect2(-16,-12,.4,24),Rect2(15.6,-12,.4,24)])
@@ -212,16 +216,29 @@ func held(action: String) -> bool:
 	return Input.is_action_pressed(action) or bool(hud.holds.get(action,false)) or (action=="fire" and (mouse_fire or hud.aim_firing))
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.echo: return
-	for action: String in ["reload","climb_box","crawl","brace","crouch","knock","use","pause","confirm"]:
+	for action: String in ["weapon_slot","item_slot"]:
+		if event.is_action_pressed(action): key_hold[action]=Time.get_ticks_msec()
+		elif event.is_action_released(action) and key_hold.has(action):
+			var held_time: int=Time.get_ticks_msec()-int(key_hold[action]); key_hold.erase(action)
+			if held_time>=450: lab.open_wheel("weapon" if action=="weapon_slot" else "item")
+			elif action=="weapon_slot": lab.drawn=not lab.drawn
+			else: lab.use_item()
+	for action: String in ["reload","action","aim","crouch","pause","confirm"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
 	if action in ["hook","scope","cloak","drop","detonate","equipment","next","previous","zoom"]: return
 	if action.begins_with("room_"): load_room(int(action.trim_prefix("room_"))); return
-	if action.begins_with("equip_"): gear.equip(int(action.trim_prefix("equip_"))); mode="play"; hud.release_controls(); return
+	if action.begins_with("equip_"): lab.choose_weapon(int(action.trim_prefix("equip_"))); return
+	if action.begins_with("item_"): lab.choose_item(action.trim_prefix("item_")); return
+	if action=="wheel_close": lab.close_wheel(); return
+	if action in ["wheel_next","wheel_prev"]:
+		lab.wheel_page=posmod(lab.wheel_page+(1 if action=="wheel_next" else -1),maxi(1,ceili((lab.item_counts.size() if lab.wheel=="item" else gear.items.size())/6.0))); return
+	if action=="objectives": lab.objective_expanded=not lab.objective_expanded; return
 	if action=="mute": muted=not muted; music.volume_db=-80 if muted else -24; return
-	if action=="menu": mode="title"; hud.release_controls(); return
+	if action=="menu": lab.close_wheel(); mode="title"; hud.release_controls(); return
 	if action=="retry": load_room(room); return
 	if action=="pause":
+		lab.close_wheel()
 		if mode=="play": mode="paused"
 		elif mode in ["paused","equipment"]: mode="play"
 		hud.release_controls(); return
@@ -233,6 +250,11 @@ func command(action: String) -> void:
 		hud.release_controls(); return
 	if mode!="play": return
 	match action:
+		"action": lab.action()
+		"aim": lab.toggle_aim()
+		"zoom_in": lab.zoom=mini(2,lab.zoom+1)
+		"zoom_out": lab.zoom=maxi(0,lab.zoom-1)
+		"spectrum": lab.spectrum=(lab.spectrum+1)%3
 		"equipment": mode="equipment"; hud.release_controls()
 		"next": gear.equip(gear.selected+1)
 		"previous": gear.equip(gear.selected-1)
@@ -257,7 +279,9 @@ func update_aim(screen: Vector2) -> void:
 func refresh_aim() -> void:
 	var from: Vector3
 	var direction: Vector3
-	if hud.touch_aim_active:
+	if lab.aim:
+		from=player.target_point(); direction=lab.look_direction()
+	elif hud.touch_aim_active:
 		from=player.target_point()
 		var right: Vector3=camera.global_basis.x; right.y=0; right=right.normalized()
 		var back: Vector3=Vector3(-right.z,0,right.x)
@@ -274,7 +298,7 @@ func refresh_aim() -> void:
 		if is_instance_valid(locked_drone): direction=(locked_drone.global_position-from).normalized()
 	aim_hit=ray(from,from+direction*80,29,[player.get_rid()])
 	aim_point=aim_hit.get("position",from+direction*28)
-	if aim_enabled or gear.scope:
+	if lab.aim or aim_enabled or gear.scope:
 		var face: Vector3=aim_point-player.global_position; face.y=0
 		if face.length()>.3 and player.mode=="ground": player.facing=face.normalized()
 func _physics_process(delta: float) -> void:
@@ -284,6 +308,7 @@ func _physics_process(delta: float) -> void:
 		elapsed+=delta; notification_time=maxf(0,notification_time-delta); support_cooldown=maxf(0,support_cooldown-delta); noise_cooldown=maxf(0,noise_cooldown-delta)
 		if player.prone and in_vent(player.global_position) and hud.touch_aim_active:
 			player.facing=player.facing.rotated(Vector3.UP,-hud.aim_stick.x*delta*1.5)
+		lab.tick(delta)
 		refresh_aim()
 		var move: Vector2=Input.get_vector("left","right","up","down")
 		if not Input.get_connected_joypads().is_empty():
@@ -305,7 +330,7 @@ func _physics_process(delta: float) -> void:
 		gear.tick(delta)
 		if held("fire") and player.mode!="mantle":
 			if room==3 and player.mode=="climb": player.strike()
-			else: gear.fire()
+			else: lab.fire()
 		for guard: CharacterBody3D in guards: guard.tick(delta)
 		for drone: CharacterBody3D in drones: drone.tick(delta)
 		for projectile: Node3D in projectiles.duplicate(): if is_instance_valid(projectile): projectile.tick(delta)
@@ -321,7 +346,7 @@ func _physics_process(delta: float) -> void:
 		if fx.life<=0: fx.node.queue_free(); effects.remove_at(i)
 	hud.queue_redraw()
 	if verify_web and tick_count%60==0:
-		print("MG05_STATE "+JSON.stringify({"mode":mode,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size()}))
+		print("MG05_STATE "+JSON.stringify({"mode":mode,"room":room,"aim":lab.aim,"wheel":lab.wheel,"stamina":lab.stamina,"view":camera_controller.view,"prone":player.prone,"position":[player.position.x,player.position.y,player.position.z],"meshes":find_children("*","MeshInstance3D",true,false).size(),"drones":drones.size()}))
 	if not capture_name.is_empty() and tick_count==100: capture.call_deferred()
 func update_camera(delta: float) -> void:
 	if is_instance_valid(player): camera_controller.update(delta)

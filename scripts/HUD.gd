@@ -1,240 +1,177 @@
 extends Control
-const Spatial=preload("res://scripts/StealthMath.gd")
 const FONT=preload("res://assets/ui.ttf")
 const BOLD=preload("res://assets/ui_bold.ttf")
-const INK=Color("081726")
-const WHITE=Color("e1eef8")
-const MUTE=Color("91a7bb")
-const CYAN=Color("66e9df")
-const GOLD=Color("ffd386")
+const CYAN=Color("72e9df")
+const WHITE=Color("edf4fa")
+const GOLD=Color("ffce83")
+const INK=Color(.02,.055,.085,.90)
 var game: Node
 var buttons: Array=[]
+var text_sizes: Array[int]=[]
 var holds: Dictionary={}
 var fingers: Dictionary={}
 var joystick: Vector2=Vector2.ZERO
-const MOVE_CENTER=Vector2(115,620)
-const AIM_CENTER=Vector2(1155,620)
-const STICK_RADIUS=62.0
+var move_center: Vector2=Vector2(165,575)
+var joy_id: int=-99
+var aim_id: int=-99
+var last_look: Vector2
+var scale_ui: float=1
+var offset_ui: Vector2=Vector2.ZERO
+# Legacy aim fields retained for external regression fixtures, not touch controls.
 var aim_stick: Vector2=Vector2.ZERO
 var aim_direction: Vector2=Vector2(0,-1)
 var touch_aim_active: bool=false
 var aim_firing: bool=false
-var aim_stick_id: int=-99
-var joy_id: int=-99
-var aim_id: int=-99
-var scale_ui: float=1
-var offset_ui: Vector2=Vector2.ZERO
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter=Control.MOUSE_FILTER_IGNORE
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); mouse_filter=Control.MOUSE_FILTER_IGNORE
 func release_controls() -> void:
-	holds.clear(); fingers.clear(); joystick=Vector2.ZERO; joy_id=-99; aim_id=-99
-	aim_stick=Vector2.ZERO; aim_stick_id=-99; aim_firing=false; touch_aim_active=false
-	game.mouse_fire=false
-func label(at: Vector2,text: String,size_px: int=16,color: Color=WHITE,bold: bool=false) -> void:
-	draw_string(BOLD if bold else FONT,at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,size_px,color)
-func center(at: Vector2,text: String,size_px: int=16,color: Color=WHITE) -> void:
-	label(at-Vector2(FONT.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,size_px).x/2,0),text,size_px,color)
-func panel(rect: Rect2,color: Color=INK,edge: Color=Color("284252")) -> void:
-	var style: StyleBoxFlat=StyleBoxFlat.new(); style.bg_color=color; style.border_color=edge; style.set_border_width_all(1); style.set_corner_radius_all(7)
-	draw_style_box(style,rect)
-func button(rect: Rect2,text: String,action: String,on: bool=false,small: bool=false) -> void:
-	panel(rect,Color("16433f") if on else Color("142b3c"),CYAN if on else Color("436274"))
-	center(rect.get_center()+Vector2(0,6),text,14 if small else 17,CYAN if on else WHITE)
+	holds.clear(); fingers.clear(); joystick=Vector2.ZERO; joy_id=-99; aim_id=-99; touch_aim_active=false; aim_firing=false; game.mouse_fire=false
+func _process(_delta: float) -> void:
+	for id: int in fingers.keys():
+		var f: Dictionary=fingers[id]
+		if f.action in ["weapon_slot","item_slot"] and not f.long and Time.get_ticks_msec()-f.start>=450:
+			f.long=true; game.lab.open_wheel("weapon" if f.action=="weapon_slot" else "item"); break
+func label(at: Vector2,value: String,size_px: int=28,color: Color=WHITE,bold: bool=false) -> void:
+	text_sizes.append(size_px); draw_string(BOLD if bold else FONT,at,value,HORIZONTAL_ALIGNMENT_LEFT,-1,size_px,color)
+func center(at: Vector2,value: String,size_px: int=28,color: Color=WHITE,bold: bool=false) -> void:
+	var font: Font=BOLD if bold else FONT
+	label(at-Vector2(font.get_string_size(value,HORIZONTAL_ALIGNMENT_LEFT,-1,size_px).x/2,0),value,size_px,color,bold)
+func panel(rect: Rect2,color: Color=INK) -> void:
+	var s: StyleBoxFlat=StyleBoxFlat.new(); s.bg_color=color; s.border_color=Color("426778"); s.set_border_width_all(2); s.set_corner_radius_all(12); draw_style_box(s,rect)
+func button(rect: Rect2,value: String,action: String,on: bool=false) -> void:
+	panel(rect,Color(.08,.28,.30,.95) if on else INK); center(rect.get_center()+Vector2(0,9),value,22,CYAN if on else WHITE,true)
 	buttons.append({"rect":rect,"action":action})
-func meter(at: Vector2,width: float,value: float,color: Color) -> void:
-	draw_rect(Rect2(at,Vector2(width,5)),Color("2d4658")); draw_rect(Rect2(at,Vector2(width*clampf(value/100,0,1),5)),color)
+func round_button(at: Vector2,radius: float,value: String,action: String,on: bool=false) -> void:
+	draw_circle(at,radius,Color(.07,.23,.26,.8) if on else INK); draw_arc(at,radius,0,TAU,64,CYAN if on else Color("9daebc"),3)
+	center(at+Vector2(0,8),value,22,CYAN if on else WHITE,true)
+	buttons.append({"rect":Rect2(at-Vector2.ONE*radius,Vector2.ONE*radius*2),"circle":at,"radius":radius,"action":action})
+func bar(at: Vector2,value: float,title: String,color: Color) -> void:
+	label(at,title+"  "+str(int(value)),28,WHITE,true)
+	draw_rect(Rect2(at+Vector2(155,-20),Vector2(205,22)),Color("203848")); draw_rect(Rect2(at+Vector2(155,-20),Vector2(205*clampf(value/100,0,1),22)),color)
 func _draw() -> void:
-	var viewport: Vector2=get_viewport_rect().size
-	scale_ui=minf(viewport.x/1280,viewport.y/720); offset_ui=(viewport-Vector2(1280,720)*scale_ui)/2
-	draw_set_transform(offset_ui,0,Vector2.ONE*scale_ui); buttons.clear()
+	var size: Vector2=get_viewport_rect().size
+	# Insets on all sides also keep controls clear of rounded corners and notches.
+	scale_ui=minf(size.x/1280,size.y/720); offset_ui=(size-Vector2(1280,720)*scale_ui)*.5
+	draw_set_transform(offset_ui,0,Vector2.ONE*scale_ui); buttons.clear(); text_sizes.clear()
 	if not is_instance_valid(game.player): return
-	panel(Rect2(16,14,974,73),Color(.025,.055,.095,.97))
-	label(Vector2(32,38),"CHRONICLE CLASH / 3D",15,CYAN,true)
-	label(Vector2(32,70),"%02d / %s"%[game.room+1,game.rooms[game.room].name],23,WHITE,true)
-	label(Vector2(385,36),"HP %d"%int(game.player.health),13,MUTE); meter(Vector2(385,45),110,game.player.health,Color("78d6a7"))
-	label(Vector2(515,36),game.camera_controller.view.to_upper(),13,CYAN)
-	label(Vector2(645,36),"VR v05",13,MUTE)
-	label(Vector2(385,74),"%02d:%02d   DATA %d/%d"%[int(game.elapsed)/60,int(game.elapsed)%60,game.collected,game.chips.size()],16,WHITE)
-	var alert: String="UNDETECTED"
-	for guard: CharacterBody3D in game.guards:
-		if guard.state in ["CALL","CHASE"]: alert="ALERT / EVADE"; break
-		if guard.state in ["INVESTIGATE","SEARCH"]: alert="SEARCHING"
-	for drone: Node3D in game.drones:
-		if drone.state=="ALERT": alert="ALERT / EVADE"
-	label(Vector2(647,74),alert,14,Color("ff8b87") if alert=="ALERT / EVADE" else GOLD)
-	button(Rect2(880,21,98,58),"PAUSE","pause",false,true)
-	draw_radar(Rect2(1004,14,260,183))
-	if game.mode=="play":
-		panel(Rect2(16,99,245,42+game.rooms[game.room].goals.size()*22),Color(.025,.055,.095,.9))
-		label(Vector2(29,122),"ONE-ROOM CHECKLIST",12,CYAN,true)
-		var names: Dictionary={"cover":"Enter wall cover","guard_down":"Defeat the guard","knock":"Knock while in cover","binoculars":"Use binoculars","cloak":"Activate camouflage","target_pistol":"Pistol target","target_rifle":"Rifle target","target_sniper":"Sniper target","target_rocket":"Rocket target","reload":"Reload a weapon","grenade":"Throw a grenade","claymore":"Place a claymore","detonate":"Detonate a remote mine","ration":"Use a ration","titan_shoulder":"Disable shoulder target","titan_head":"Disable head target"}
-		for i in range(game.rooms[game.room].goals.size()):
-			var goal: String=game.rooms[game.room].goals[i]
-			label(Vector2(29,147+i*22),("✓ " if game.goals.has(goal) else "○ ")+str(names.get(goal,goal)),13,CYAN if game.goals.has(goal) else WHITE)
-	var item: Dictionary=game.gear.current()
-	panel(Rect2(16,548,1248,156),Color(.025,.055,.095,.97))
-	draw_stick(MOVE_CENTER,joystick,"MOVE",false)
-	draw_stick(AIM_CENTER,aim_stick,"AIM / FIRE",aim_firing)
-	label(Vector2(225,579),"PISTOL  %d / %d"%[item.ammo,item.reserve],21,GOLD,true)
-	label(Vector2(490,579),"RELOADING" if game.gear.action_time>0 else ("DRONE LOCK" if is_instance_valid(game.locked_drone) else "Aim outwards to fire"),15,CYAN if game.gear.action_time>0 else MUTE)
-	button(Rect2(905,558,136,37),"REFILL","use",false,true)
-	var actions: Array=[["LEAVE COVER" if game.player.mode=="cover" else "COVER","brace"],["CLIMB","climb_box"],["RELOAD","reload"],["FIRE","fire"],["KNOCK","knock"],["CROUCH","crouch"],["STAND" if game.player.prone else "CRAWL","crawl"]]
-	for i in range(actions.size()): button(Rect2(225+i*115,610,107,75),actions[i][0],actions[i][1],(game.held("fire") if actions[i][1]=="fire" else (game.player.mode=="cover" if actions[i][1]=="brace" else game.player.crouched if actions[i][1]=="crouch" else game.player.prone if actions[i][1]=="crawl" else false)),true)
+	panel(Rect2(24,18,406,116)); bar(Vector2(42,58),game.player.health,"HP",Color("ed767b")); bar(Vector2(42,108),game.lab.stamina,"STA",CYAN)
+	panel(Rect2(24,150,830,52)); center(Vector2(439,186),game.lab.objective(),28)
+	buttons.append({"rect":Rect2(24,150,830,52),"action":"objectives"})
+	draw_radar(Rect2(1010,20,230,175)); round_button(Vector2(932,68),40,"II","pause")
+	button(Rect2(910,225,216,68),str(game.gear.current().name)+" "+str(game.gear.current().ammo),"weapon_slot",game.lab.drawn)
+	round_button(Vector2(1196,260),43,"LOAD","reload")
+	button(Rect2(910,316,330,62),game.lab.item.to_upper()+"  "+str(game.lab.item_counts.get(game.lab.item,0)),"item_slot")
+	round_button(Vector2(1160,612),90,"FIRE" if game.lab.drawn else "STRIKE","fire",game.held("fire"))
+	round_button(Vector2(930,618),60,game.lab.context(),"action")
+	round_button(Vector2(935,455),60,"STAND" if game.player.prone or game.player.crouched else "CROUCH","crouch",game.player.crouched or game.player.prone)
+	round_button(Vector2(1110,455),55,"AIM","aim",game.lab.aim)
+	var mc: Vector2=move_center if joy_id!=-99 else Vector2(165,575)
+	draw_circle(mc,78,Color(.02,.08,.12,.45)); draw_arc(mc,78,0,TAU,64,CYAN,2); draw_circle(mc+joystick*58,27,Color(CYAN,.7))
+	if game.lab.aim:
+		draw_line(Vector2(622,360),Vector2(658,360),CYAN,2); draw_line(Vector2(640,342),Vector2(640,378),CYAN,2)
+		if game.lab.optic=="binoculars" or str(game.gear.current().id)=="sniper":
+			draw_arc(Vector2(640,360),205,0,TAU,80,CYAN,3)
+			button(Rect2(520,592,72,66),"−","zoom_out"); button(Rect2(614,592,72,66),"+","zoom_in"); button(Rect2(710,592,142,66),["DAY","NVG","THERMAL"][game.lab.spectrum],"spectrum")
+			center(Vector2(640,235),"×%d   %dm"%[[2,4,8][game.lab.zoom],int(game.player.position.distance_to(game.aim_point))],28)
+	if game.lab.oxygen<100: bar(Vector2(42,254),game.lab.oxygen,"O2",Color("79b4ec"))
 	if game.notification_time>0:
-		panel(Rect2(185,511,1079,34),Color(.025,.055,.095,.95)); center(Vector2(724,534),game.toast_text,14,WHITE)
-	elif game.room==3 and is_instance_valid(game.titan) and game.titan.warning:
-		panel(Rect2(360,472,560,50),Color("532c26"),GOLD); center(Vector2(640,503),"SHAKE INCOMING — HOLD BRACE",21,GOLD)
-	else:
-		center(Vector2(640,542),"Left stick: move • Right stick: aim; push farther to fire • Tap buttons for actions",13,MUTE)
-	if game.gear.selected==4 and game.mode=="play": draw_throw_arc()
-	if game.gear.scope: draw_scope()
-	elif game.aim_enabled and not game.camera.is_position_behind(game.aim_point):
-		var p: Vector2=(game.camera.unproject_position(game.aim_point)-offset_ui)/scale_ui
-		draw_arc(p,10,0,TAU,24,CYAN,1.5); draw_line(p-Vector2(15,0),p+Vector2(15,0),CYAN); draw_line(p-Vector2(0,15),p+Vector2(0,15),CYAN)
-	if game.mode!="play": draw_modal()
-func draw_scope() -> void:
-	draw_arc(Vector2(640,360),145,0,TAU,80,Color("73eadb"),2)
-	draw_line(Vector2(480,360),Vector2(800,360),Color("b7ddd8"),1)
-	draw_line(Vector2(640,90),Vector2(640,510),Color("b7ddd8"),1)
-	center(Vector2(640,112),"OPTICS  ×%d"%[2,4,8][game.gear.zoom],16,CYAN)
-	center(Vector2(640,492),"Drag to look • USE to fire / mark • SCOPE to leave",13,WHITE)
+		panel(Rect2(452,24,426,100)); var words: PackedStringArray=game.toast_text.split(" "); var line: String=""; var y: int=60
+		for word: String in words:
+			if FONT.get_string_size(line+word,HORIZONTAL_ALIGNMENT_LEFT,-1,28).x>390:
+				label(Vector2(466,y),line,28,GOLD); line=""; y+=33
+				if y>100: break
+			line+=word+" "
+		if y<=100: label(Vector2(466,y),line,28,GOLD)
+	if not game.lab.wheel.is_empty(): draw_wheel()
+	elif game.lab.objective_expanded: draw_objectives()
+	elif game.mode!="play": draw_modal()
 func draw_radar(rect: Rect2) -> void:
-	panel(rect); label(rect.position+Vector2(12,20),"TACTICAL GRID",12,CYAN,true)
-	var r: Rect2=Rect2(rect.position+Vector2(12,30),rect.size-Vector2(24,41))
-	for wall: Rect2 in game.walls: draw_rect(Rect2(map_point(wall.position,r),wall.size/Vector2(32,24)*r.size),Color("445d72"))
-	for guard: CharacterBody3D in game.guards:
-		if guard.health<=0: continue
-		var at: Vector2=map_point(guard.point(),r)
-		var color: Color=Color("ff7c7c") if guard.state in ["CALL","CHASE"] else GOLD
-		draw_circle(at,3.4,color)
-		if guard.mark_time>0: draw_arc(at,6,0,TAU,15,CYAN,1)
-		var face: Vector2=Vector2(guard.facing.x,guard.facing.z)
-		var points: PackedVector2Array=PackedVector2Array([at])
-		for i in range(9): points.append(map_point(Spatial.clip_ray(guard.point(),guard.point()+face.rotated(lerpf(-.7,.7,i/8.0))*8.8,game.walls),r))
-		draw_colored_polygon(points,Color(color,.13))
+	panel(rect)
+	var r: Rect2=rect.grow(-12)
+	for wall: Rect2 in game.walls: draw_rect(Rect2(map_point(wall.position,r),wall.size/Vector2(32,24)*r.size),Color("496475"))
+	for guard: Node3D in game.guards:
+		if guard.health>0:
+			var p: Vector2=map_point(guard.point(),r); draw_circle(p,4,GOLD)
+			var f: Vector2=Vector2(guard.facing.x,guard.facing.z)
+			draw_colored_polygon(PackedVector2Array([p,p+f.rotated(-.65)*26,p+f.rotated(.65)*26]),Color(1,.6,.2,.2))
 	for drone: Node3D in game.drones:
-		if drone.health<=0: continue
-		var at: Vector2=map_point(drone.point(),r)
-		var color: Color=GOLD if drone.kind=="scout" else Color("ff7c7c")
-		draw_rect(Rect2(at-Vector2(3,3),Vector2(6,6)),color)
-		if drone.state=="ALERT": draw_arc(at,7,0,TAU,16,color,1)
-	for chip: Dictionary in game.chips:
-		if not chip.taken: draw_circle(map_point(Vector2(chip.at.x,chip.at.z),r),2.4,GOLD)
-	var exit: Vector3=game.rooms[game.room].exit
-	draw_arc(map_point(Vector2(exit.x,exit.z),r),4,0,TAU,16,Color("71eab1"),1)
-	draw_circle(map_point(game.player.point(),r),4,CYAN)
+		if drone.health>0: draw_rect(Rect2(map_point(drone.point(),r)-Vector2(3,3),Vector2(6,6)),GOLD if drone.kind=="scout" else Color("ff7878"))
+	for mine: Node3D in game.mines:
+		if mine.kind=="claymore":
+			var p: Vector2=map_point(Vector2(mine.position.x,mine.position.z),r);var d: Vector2=Vector2(mine.facing.x,mine.facing.z)
+			draw_colored_polygon(PackedVector2Array([p,p+d.rotated(-.7)*20,p+d.rotated(.7)*20]),Color(.9,.3,.2,.3))
+	draw_circle(map_point(game.player.point(),r),5,CYAN)
 func map_point(at: Vector2,r: Rect2) -> Vector2: return r.position+(at+Vector2(16,12))/Vector2(32,24)*r.size
+func draw_wheel() -> void:
+	panel(Rect2(235,120,670,565)); buttons.clear();center(Vector2(570,170),game.lab.wheel.to_upper()+" SELECT",34,WHITE,true)
+	var names: Array=game.lab.item_counts.keys() if game.lab.wheel=="item" else game.gear.items.map(func(x: Dictionary): return x.name)
+	for i in range(mini(6,names.size()-game.lab.wheel_page*6)):
+		var index: int=i+game.lab.wheel_page*6; var angle: float=TAU*i/6-PI/2
+		var at: Vector2=Vector2(570,398)+Vector2(cos(angle)*220,sin(angle)*170)
+		button(Rect2(at-Vector2(100,32),Vector2(200,64)),str(names[index]).to_upper(),("item_"+str(names[index])) if game.lab.wheel=="item" else "equip_"+str(index))
+	button(Rect2(280,608,155,55),"PREV","wheel_prev");button(Rect2(480,608,165,55),"CLOSE","wheel_close");button(Rect2(700,608,155,55),"NEXT","wheel_next")
+func draw_objectives() -> void:
+	panel(Rect2(155,210,700,380)); buttons.clear();label(Vector2(185,260),"OBJECTIVES",34,WHITE,true)
+	var y: int=315
+	for g: String in game.rooms[game.room].goals:
+		label(Vector2(185,y),("✓ " if game.goals.has(g) else "○ ")+g.replace("_"," "),28);y+=44
+	button(Rect2(620,514,185,56),"CLOSE","objectives")
 func draw_modal() -> void:
-	draw_rect(Rect2(-1000,-1000,4000,3000),Color(.015,.035,.06,.9)); buttons.clear()
-	panel(Rect2(135,100,1010,512),INK,Color("3b6475"))
-	label(Vector2(174,144),"CHRONICLE CLASH / 3D / COVER / CRAWL / DRONES / BUILD 05",15,CYAN,true)
-	var title: String="3D COVER PROTOTYPE"
-	var sub: String="One room. Articulated 3D characters. Cover and pistol combat."
-	var primary: String="TAP TO START"
-	if game.mode=="equipment":
-		label(Vector2(174,196),"EQUIPMENT",30,WHITE,true)
-		for i in range(game.gear.items.size()):
-			var item: Dictionary=game.gear.items[i]
-			button(Rect2(174+(i%3)*303,224+int(i/3)*82,287,64),str(item.name),"equip_"+str(i),i==game.gear.selected,true)
-		button(Rect2(174,530,265,48),"BACK TO TRAINING","pause",true)
-		label(Vector2(470,561),"HOOK, CLOAK and BRACE always available.",15,MUTE)
-		return
-	if game.mode=="brief": title="%02d / %s"%[game.room+1,game.rooms[game.room].name]; sub=game.rooms[game.room].tag; primary="PLAY"
-	elif game.mode=="paused": title="SIMULATION PAUSED"; sub="Review the controls or retry this room."; primary="RESUME"
-	elif game.mode=="failed": title="SIGNAL LOST"; sub="Try again. Use cover and interrupt the guard before it fires."; primary="RETRY ROOM"
-	elif game.mode=="complete": title="TRAINING COMPLETE"; sub="Room cleared in %.1fs / %d alerts / best %d"%[game.elapsed,game.alarms,int(game.scores.get(str(game.room),0))]; primary="REPLAY TEST ROOM"
-	label(Vector2(174,199),title,30,WHITE,true); label(Vector2(174,236),sub,18,GOLD)
-	if game.mode=="title":
-		for i in range(1):
-			button(Rect2(174+i*230,275,214,67),"COVER TEST","room_"+str(i),i==game.room,true)
-		label(Vector2(174,386),"3D skeleton • Walk / aim / reload • Wall camera • One guard",17,WHITE)
-		label(Vector2(174,421),"Character models are blockouts for testing movement and camera contact.",16,MUTE)
-	elif game.mode=="brief":
-		var lines: PackedStringArray=game.rooms[game.room].brief.split("\n")
-		for i in range(lines.size()): label(Vector2(174,288+i*32),lines[i],18,WHITE)
-		label(Vector2(174,410),"Left stick moves. Right stick aims; push to its edge to fire.",16,MUTE)
-		label(Vector2(174,440),"Cyan console: refill pistol ammo. Green ring: extraction.",16,MUTE)
-	else:
-		label(Vector2(174,284),"Left stick: MOVE • Right stick: AIM / FIRE",16,WHITE)
-		label(Vector2(174,317),"Roof: follow-camera. Hug + move sideways: reveal the room.",16,WHITE)
-		label(Vector2(174,350),"Face a low crate and tap CLIMB to stand on top.",16,WHITE)
-		label(Vector2(174,393),"You can move and aim/fire with two thumbs.",15,MUTE)
-		label(Vector2(174,423),"Tap RESUME to continue or RETRY to restart.",15,MUTE)
-	button(Rect2(174,525,360,57),primary,"confirm",true)
-	button(Rect2(554,525,170,57),"SOUND "+("OFF" if game.muted else "ON"),"mute",false,true)
-	button(Rect2(744,525,170,57),"RETRY","retry",false,true)
-	button(Rect2(934,525,170,57),"MENU","menu",false,true)
-func draw_stick(at: Vector2,value: Vector2,title: String,firing: bool) -> void:
-	var color: Color=GOLD if firing else CYAN
-	draw_circle(at,STICK_RADIUS,Color("152e40"))
-	draw_arc(at,STICK_RADIUS,0,TAU,64,color,2.5)
-	if title=="AIM / FIRE": draw_arc(at,STICK_RADIUS*.82,0,TAU,64,Color("76694d"),1)
-	draw_circle(at+value*43,22,color)
-	center(at+Vector2(0,78),title,14,color)
-func stick_value(at: Vector2,center_at: Vector2) -> Vector2:
-	var value: Vector2=((at-offset_ui)/scale_ui-center_at)/STICK_RADIUS
-	return Vector2.ZERO if value.length()<.12 else value.limit_length()
-func update_aim_stick(at: Vector2) -> void:
-	aim_stick=stick_value(at,AIM_CENTER)
-	aim_firing=aim_stick.length()>=.82
-	if aim_stick.length()>.12:
-		aim_direction=aim_stick.normalized(); touch_aim_active=true; game.aim_enabled=true
+	draw_rect(Rect2(0,0,1280,720),Color(.01,.025,.04,.95)); buttons.clear()
+	label(Vector2(70,88),"CHRONICLE CLASH / VR LAB",40,CYAN,true)
+	var title: String={"title":"INTEGRATED TESTBED","brief":"READY: "+game.rooms[game.room].name,"paused":"PAUSED","complete":"EXTRACTION COMPLETE","failed":"RETRY THE SIMULATION"}.get(game.mode,game.mode.to_upper())
+	label(Vector2(70,150),title,34,WHITE,true)
+	label(Vector2(70,220),"Hold WEAPON or ITEM to choose equipment.",28)
+	label(Vector2(70,265),"Push a wall for cover. ACTION changes with context.",28)
+	label(Vector2(70,310),"Tap AIM; drag the right side to look. FIRE to shoot.",28)
+	label(Vector2(70,355),"Tap CROUCH, then move to crawl. Tap again to stand.",28)
+	label(Vector2(70,420),game.rooms[game.room].tag,28,GOLD)
+	button(Rect2(70,536,295,80),"PLAY" if game.mode in ["title","brief"] else "RESUME" if game.mode=="paused" else "RETRY","confirm")
+	button(Rect2(395,536,220,80),"RETRY","retry");button(Rect2(645,536,220,80),"MENU","menu");button(Rect2(895,536,280,80),"SOUND","mute")
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed: press(event.position,event.index)
 		else: release(event.index)
-	elif event is InputEventScreenDrag:
-		drag(event.position,event.index)
-	elif event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
-		if event.pressed: press(event.position,-1)
-		else: release(-1); game.mouse_fire=false
+	elif event is InputEventScreenDrag: drag(event.position,event.index)
+	elif event is InputEventMouseButton:
+		if event.button_index==MOUSE_BUTTON_LEFT:
+			if event.pressed: press(event.position,-1)
+			else: release(-1)
+		elif event.button_index==MOUSE_BUTTON_RIGHT and event.pressed: game.command("aim")
 	elif event is InputEventMouseMotion:
-		if joy_id==-1 or aim_stick_id==-1: drag(event.position,-1)
-		elif game.mode=="play" and event.position.y<(548*scale_ui+offset_ui.y): game.update_aim(event.position)
-func drag(at: Vector2,id: int) -> void:
-	if id==joy_id: joystick=stick_value(at,MOVE_CENTER)
-	elif id==aim_stick_id: update_aim_stick(at)
-	elif id==aim_id: game.update_aim(at)
+		if aim_id==-1: drag(event.position,-1)
 func press(at: Vector2,id: int) -> void:
 	var p: Vector2=(at-offset_ui)/scale_ui
-	for entry: Dictionary in buttons:
-		if entry.rect.has_point(p):
-			var action: String=entry.action
-			if action=="fire": holds.fire=true; fingers[id]="fire"
-			game.command(action)
+	for b: Dictionary in buttons:
+		var hit: bool=p.distance_to(b.circle)<=b.radius+6 if b.has("circle") else b.rect.grow(6).has_point(p)
+		if hit:
+			var a: String=b.action; fingers[id]={"action":a,"start":Time.get_ticks_msec(),"long":false}
+			if a=="fire": holds.fire=true
+			elif not a in ["weapon_slot","item_slot"]: game.command(a)
 			get_viewport().set_input_as_handled(); return
-	if game.mode!="play": return
-	if p.distance_to(MOVE_CENTER)<STICK_RADIUS+15 and joy_id==-99:
-		joy_id=id; joystick=stick_value(at,MOVE_CENTER); fingers[id]="move"
-	elif p.distance_to(AIM_CENTER)<STICK_RADIUS+15 and aim_stick_id==-99:
-		aim_stick_id=id; fingers[id]="aim_stick"; update_aim_stick(at)
-	elif p.y>90 and p.y<510 and aim_id==-99:
-		aim_id=id; game.update_aim(at); fingers[id]="aim"
-		if id==-1: game.mouse_fire=true
+	if game.mode!="play" or not game.lab.wheel.is_empty() or game.lab.objective_expanded: return
+	if p.x<640 and p.y>215 and joy_id==-99 and id!=-1:
+		joy_id=id; move_center=p.clamp(Vector2(90,220),Vector2(585,625)); joystick=Vector2.ZERO; fingers[id]={"action":"move"}
+	elif p.x>=640 and aim_id==-99 and (game.lab.aim or game.camera_controller.view=="vent"):
+		aim_id=id; last_look=p; fingers[id]={"action":"look"}
+		if not game.lab.aim: game.lab.yaw=atan2(-game.player.facing.x,-game.player.facing.z); game.lab.pitch=0
+	elif id==-1: holds.fire=true; fingers[id]={"action":"fire"}
 	get_viewport().set_input_as_handled()
+func drag(at: Vector2,id: int) -> void:
+	var p: Vector2=(at-offset_ui)/scale_ui
+	if id==joy_id:
+		joystick=((p-move_center)/78).limit_length()
+		if joystick.length()<.1: joystick=Vector2.ZERO
+	elif id==aim_id:
+		game.lab.look(p-last_look); last_look=p
+		if not game.lab.aim: game.player.facing=Vector3(-sin(game.lab.yaw),0,-cos(game.lab.yaw))
 func release(id: int) -> void:
 	if fingers.has(id):
-		var action: String=fingers[id]; fingers.erase(id)
-		if action=="fire": holds.fire=fingers.values().has("fire")
+		var f: Dictionary=fingers[id]; fingers.erase(id)
+		if f.action=="weapon_slot" and not f.long: game.lab.drawn=not game.lab.drawn
+		elif f.action=="item_slot" and not f.long: game.lab.use_item()
+		holds.fire=false
+		for other: Dictionary in fingers.values():
+			if other.action=="fire": holds.fire=true
 	if id==joy_id: joy_id=-99; joystick=Vector2.ZERO
 	if id==aim_id: aim_id=-99
-	if id==aim_stick_id: aim_stick_id=-99; aim_stick=Vector2.ZERO; aim_firing=false
-
-func draw_throw_arc() -> void:
-	var origin: Vector3=game.player.global_position+Vector3.UP
-	var flat: Vector3=game.aim_point-origin; flat.y=0
-	flat=flat.normalized()
-	var velocity: Vector3=flat*clampf(origin.distance_to(game.aim_point),3,12)+Vector3.UP*7
-	var at: Vector3=origin+flat*.6
-	var previous: Vector2=(game.camera.unproject_position(at)-offset_ui)/scale_ui
-	for i in range(22):
-		velocity.y-=16*.07
-		var next: Vector3=at+velocity*.07
-		var hit: Dictionary=game.ray(at,next,29)
-		if not hit.is_empty(): next=hit.position
-		if game.camera.is_position_behind(next): break
-		var screen: Vector2=(game.camera.unproject_position(next)-offset_ui)/scale_ui
-		draw_line(previous,screen,Color(1,.8,.4,.65),2)
-		previous=screen; at=next
-		if not hit.is_empty(): draw_arc(screen,8,0,TAU,20,GOLD,2); break

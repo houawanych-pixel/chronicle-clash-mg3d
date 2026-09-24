@@ -1,0 +1,7 @@
+PASS desktop real touch start and rendered room; 160 meshes
+PASS desktop AIM first person
+PASS desktop AIM exit
+PASS phone real touch start and rendered room; 160 meshes
+PASS phone AIM first person
+PASS phone AIM exit
+RESULT: 6 browser checks passed, no script/page errors. Inspect saved images for 3D rendering.

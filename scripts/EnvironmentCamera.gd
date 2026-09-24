@@ -61,7 +61,7 @@ func update(delta: float) -> void:
 			mode=wanted_mode; candidate_time=0; switches+=1
 			transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
 	else: candidate=mode; candidate_time=0
-	var wanted_view: String="vent" if p.prone and game.in_vent(p.global_position) else ("cover" if p.mode=="cover" else mode)
+	var wanted_view: String="aim" if game.lab.aim else "vent" if p.prone and game.in_vent(p.global_position) else ("cover" if p.mode=="cover" else mode)
 	if wanted_view!=view or (wanted_view=="cover" and p.cover_side!=last_cover_side):
 		view=wanted_view; last_cover_side=p.cover_side
 		transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
@@ -70,7 +70,10 @@ func update(delta: float) -> void:
 	var position: Vector3
 	var fov: float
 	reveal=Vector3.ZERO
-	if view=="vent":
+	if view=="aim":
+		position=p.target_point(); focus=position+game.lab.look_direction()*5
+		fov=[40.0,22.0,12.0][game.lab.zoom] if game.lab.optic=="binoculars" or str(game.gear.current().id)=="sniper" else 70
+	elif view=="vent":
 		position=p.global_position+Vector3.UP*.43
 		var forward: Vector3=p.facing; forward.y=0
 		focus=position+forward.normalized()*2; fov=75
@@ -108,4 +111,4 @@ func update(delta: float) -> void:
 		else:
 			camera.position=next; camera.quaternion=camera.quaternion.slerp(target_rotation,1-exp(-delta*10))
 		camera.fov=fov
-	p.avatar.visible=view!="vent"
+	p.avatar.visible=not view in ["vent","aim"]

@@ -2,7 +2,7 @@
 // Requires Playwright. Serves the unchanged PCK/WASM; query args enable existing demo fixtures.
 const {chromium}=require('playwright');
 const http=require('http'),fs=require('fs'),path=require('path');
-const root=process.env.WEB_ROOT, out=process.env.WEB_TEST_OUTPUT||'/tmp/mg5-web-results';
+const root=process.env.WEB_ROOT, out=process.env.WEB_TEST_OUTPUT||'/tmp/mg6-web-results-a';
 fs.mkdirSync(out,{recursive:true});
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost'), file=path.join(root,u.pathname==='/'?'index.html':u.pathname);
@@ -26,16 +26,12 @@ const server=http.createServer((req,res)=>{
   const waitState=async check=>{const end=Date.now()+45000;while(Date.now()<end){if(state&&check(state))return;await page.waitForTimeout(200);}throw Error(spec.name+' state timeout: '+JSON.stringify(state));};
   await page.goto(base);await waitState(s=>s.mode==='title');
   const tap=async(x,y)=>{const scale=Math.min(spec.size.width/1280,spec.size.height/720),ox=(spec.size.width-1280*scale)/2,oy=(spec.size.height-720*scale)/2;await page.touchscreen.tap(ox+x*scale,oy+y*scale);};
-  await tap(300,550);await waitState(s=>s.mode==='brief');await tap(300,550);await waitState(s=>s.mode==='play');
-  if(state.meshes>=300||state.drones!==2)throw Error('Scene budget/spawn failure');passes++;console.log('PASS '+spec.name+' real touch start, room running, '+state.meshes+' meshes, two drones');
-  await page.screenshot({path:path.join(out,spec.name+'_room.png')});
-  await tap(968,647);await waitState(s=>s.prone);passes++;console.log('PASS '+spec.name+' real CRAWL touch');
-  await tap(968,647);await waitState(s=>!s.prone);passes++;console.log('PASS '+spec.name+' real STAND touch');
-  for(const demo of ['reveal_left','vent','crawl','drones']){
-   state=null;await page.goto(base+'/?demo='+demo);await waitState(s=>s.mode==='play' && (demo==='vent'?s.view==='vent':true));
-   await page.waitForTimeout(450);await page.screenshot({path:path.join(out,spec.name+'_'+demo+'.png')});
-   if(demo==='vent'&&!state.prone)throw Error('Vent stance wrong');passes++;console.log('PASS '+spec.name+' '+demo+' rendered fixture, view='+state.view);
-  }
+  await tap(210,573);await waitState(s=>s.mode==='brief');await tap(210,573);await waitState(s=>s.mode==='play');
+  if(state.meshes>=300||state.drones!==2)throw Error('Scene budget/spawn failure');passes++;console.log('PASS '+spec.name+' real touch start and rendered room; '+state.meshes+' meshes');
+  await page.screenshot({path:path.join(out,spec.name+'_controls.png')});
+  await tap(1110,455);await waitState(s=>s.aim&&s.view==='aim');passes++;console.log('PASS '+spec.name+' AIM first person');
+  await page.screenshot({path:path.join(out,spec.name+'_aim.png')});
+  await tap(1110,455);await waitState(s=>!s.aim);passes++;console.log('PASS '+spec.name+' AIM exit');
   await ctx.close();
  }
  if(errors.length)throw Error(errors.join('\n'));

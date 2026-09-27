@@ -1,3 +1,5 @@
+> HISTORICAL BUILD 06 RECORD. Control instructions below are SUPERSEDED for new Stage 01 work by HOVAGI Controls v1.0: `docs/HOVAGI_CONTROLS_CURRENT.md`. This document still describes the unchanged Build 06 runtime and its historical results; it does not certify v1.0.
+
 # Chronicle Clash MG 3D — Build 06 review testbed
 
 Godot **4.3**, original 3D blockout models, touch-first landscape controls. One project contains **7 unlocked labs and 11 training stages**. This is a mechanics prototype, not the finished facility campaign.

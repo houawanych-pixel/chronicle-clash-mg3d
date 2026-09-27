@@ -1,3 +1,5 @@
+> HISTORICAL BUILD 06 RECORD. Control instructions below are SUPERSEDED for new Stage 01 work by HOVAGI Controls v1.0: `docs/HOVAGI_CONTROLS_CURRENT.md`. This document still describes the unchanged Build 06 runtime and its historical results; it does not certify v1.0.
+
 # Build06 handoff to reviewer / deploy bot
 
 Repository: **houawanych-pixel/chronicle-clash-mg3d only**.

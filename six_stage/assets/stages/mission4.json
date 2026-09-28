@@ -1,0 +1,96 @@
+{
+  "name": "RESEARCH / DEVELOPMENT",
+  "tag": "STEAL THE RESEARCH",
+  "brief": [
+    "The archive is interlocked with a three-valve cooling system.",
+    "Balance the circuit, authenticate with Level 2, and recover the data."
+  ],
+  "start": [
+    -17.25,
+    5.308,
+    7.75
+  ],
+  "points": [
+    {
+      "id": "cooling",
+      "name": "COOLANT VALVES",
+      "kind": "valves",
+      "at": [
+        -18.25,
+        6.365,
+        -11.25
+      ],
+      "requires": []
+    },
+    {
+      "id": "archive",
+      "name": "RESEARCH ARCHIVE",
+      "kind": "data",
+      "at": [
+        6.75,
+        6.419,
+        -10.25
+      ],
+      "requires": [
+        "cooling"
+      ]
+    },
+    {
+      "id": "exit4",
+      "name": "ASSEMBLY LIFT",
+      "kind": "exit",
+      "at": [
+        13.75,
+        4.376,
+        10.75
+      ],
+      "requires": [
+        "archive"
+      ]
+    }
+  ],
+  "routes": [
+    [
+      [
+        -20.25,
+        6.331,
+        -2.25
+      ],
+      [
+        -9.25,
+        6.344,
+        -1.75
+      ]
+    ],
+    [
+      [
+        4.75,
+        6.397,
+        -10.25
+      ],
+      [
+        10.75,
+        6.598,
+        -10.25
+      ]
+    ],
+    [
+      [
+        6.75,
+        5.243,
+        11.75
+      ],
+      [
+        15.75,
+        4.361,
+        11.75
+      ]
+    ]
+  ],
+  "goals": [
+    "cooling",
+    "archive",
+    "exit4"
+  ],
+  "asset": "res://assets/stages/HOVAGI_GRAYBOX_S04_RESEARCH_DEVELOPMENT_STRUCTURE_SIMPLIFIED_v1.0.glb"
+}

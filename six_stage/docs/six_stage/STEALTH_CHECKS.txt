@@ -1,0 +1,7 @@
+PASS Visible player triggers interruptible radio call
+PASS Hit interrupts radio call
+PASS Nonlethal takedown removes enemy threat
+PASS Wall cover works above ground level
+PASS Cover ACTION can make a noise distraction
+PASS Player can leave cover
+STEALTH_RESULT {"checks":6,"failures":[]}

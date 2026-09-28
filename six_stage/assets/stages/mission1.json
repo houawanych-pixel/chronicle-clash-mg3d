@@ -1,0 +1,98 @@
+{
+  "name": "EXTERIOR INFILTRATION",
+  "tag": "LAND WITHOUT A TRACE",
+  "brief": [
+    "A maintenance fault has opened a route into the facility.",
+    "Cut the perimeter scanner, recover Level 1 access, then enter security."
+  ],
+  "start": [
+    -18.25,
+    2.868,
+    7.75
+  ],
+  "points": [
+    {
+      "id": "perimeter",
+      "name": "SCANNER POWER",
+      "kind": "switch",
+      "at": [
+        11.75,
+        4.754,
+        9.75
+      ],
+      "requires": []
+    },
+    {
+      "id": "card1",
+      "name": "LEVEL 1 KEYCARD",
+      "kind": "card1",
+      "at": [
+        -6.25,
+        6.785,
+        -7.25
+      ],
+      "requires": [
+        "perimeter"
+      ]
+    },
+    {
+      "id": "gate1",
+      "name": "SECURITY ACCESS",
+      "kind": "door",
+      "at": [
+        16.75,
+        8.061,
+        -5.25
+      ],
+      "requires": [
+        "card1"
+      ]
+    },
+    {
+      "id": "exit1",
+      "name": "SECURITY LIFT",
+      "kind": "exit",
+      "at": [
+        22.75,
+        5.97,
+        -7.25
+      ],
+      "requires": [
+        "gate1"
+      ]
+    }
+  ],
+  "routes": [
+    [
+      [
+        10.25,
+        4.754,
+        9.75
+      ],
+      [
+        13.25,
+        8.554,
+        5.75
+      ]
+    ],
+    [
+      [
+        0.75,
+        8.05,
+        -6.25
+      ],
+      [
+        13.75,
+        8.056,
+        -6.25
+      ]
+    ]
+  ],
+  "goals": [
+    "perimeter",
+    "card1",
+    "gate1",
+    "exit1"
+  ],
+  "asset": "res://assets/stages/HOVAGI_GRAYBOX_S01_EXTERIOR_INFILTRATION_STRUCTURE_SIMPLIFIED_v1.0.glb"
+}

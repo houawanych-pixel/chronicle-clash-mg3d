@@ -1,0 +1,9 @@
+PASS Aim-stick movement never fires
+PASS Deliberate FIRE shoots once
+PASS Held pistol FIRE does not repeat
+PASS AIM release does not fire
+PASS Focus/pause clears touch ownership
+PASS Checkpoint reload preserves stage and Level 2 card
+PASS Retry resets current stage objectives and retains prior cards
+PASS Health depletion reaches failure screen
+CONTROLS_RESULT {"checks":8,"failures":[]}

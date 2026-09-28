@@ -1,0 +1,110 @@
+{
+  "name": "SECURITY HUB",
+  "tag": "BREAK THE WATCH",
+  "brief": [
+    "The security hub controls the internal laser grid.",
+    "Read the maintenance log. Isolate its circuits in the correct order."
+  ],
+  "start": [
+    -13.25,
+    2.103,
+    4.75
+  ],
+  "points": [
+    {
+      "id": "log",
+      "name": "MAINTENANCE LOG",
+      "kind": "note",
+      "at": [
+        -20.25,
+        3.58,
+        -9.25
+      ],
+      "requires": []
+    },
+    {
+      "id": "grid",
+      "name": "CIRCUIT PANEL",
+      "kind": "sequence",
+      "at": [
+        -5.25,
+        6.028,
+        -8.25
+      ],
+      "requires": [
+        "log"
+      ]
+    },
+    {
+      "id": "security",
+      "name": "LASER GRID ISOLATOR",
+      "kind": "switch",
+      "at": [
+        9.75,
+        6.441,
+        -15.25
+      ],
+      "requires": [
+        "grid"
+      ]
+    },
+    {
+      "id": "exit2",
+      "name": "BARRACKS LIFT",
+      "kind": "exit",
+      "at": [
+        24.25,
+        5.55,
+        -7.25
+      ],
+      "requires": [
+        "security"
+      ]
+    }
+  ],
+  "routes": [
+    [
+      [
+        -13.25,
+        2.103,
+        4.75
+      ],
+      [
+        -7.25,
+        2.083,
+        4.75
+      ]
+    ],
+    [
+      [
+        -8.25,
+        6.046,
+        -10.25
+      ],
+      [
+        0.75,
+        6.102,
+        -9.75
+      ]
+    ],
+    [
+      [
+        20.25,
+        5.565,
+        -6.25
+      ],
+      [
+        25.75,
+        5.568,
+        -4.75
+      ]
+    ]
+  ],
+  "goals": [
+    "log",
+    "grid",
+    "security",
+    "exit2"
+  ],
+  "asset": "res://assets/stages/HOVAGI_GRAYBOX_S02_SECURITY_HUB_STRUCTURE_SIMPLIFIED_v1.0.glb"
+}

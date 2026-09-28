@@ -1,0 +1,98 @@
+{
+  "name": "LIVING QUARTERS",
+  "tag": "FIND THE MISSING SCIENTIST",
+  "brief": [
+    "The barracks hold a Level 2 credential and the detention transfer record.",
+    "Search the duty desk, open the officer locker, and trace the prisoner."
+  ],
+  "start": [
+    -13.25,
+    2.48,
+    9.25
+  ],
+  "points": [
+    {
+      "id": "duty",
+      "name": "DUTY DESK",
+      "kind": "note",
+      "at": [
+        -20.25,
+        2.48,
+        -0.25
+      ],
+      "requires": []
+    },
+    {
+      "id": "card2",
+      "name": "OFFICER LOCKER / L2",
+      "kind": "card2",
+      "at": [
+        -13.25,
+        6.468,
+        -12.25
+      ],
+      "requires": [
+        "duty"
+      ]
+    },
+    {
+      "id": "transfer",
+      "name": "PRISONER TRANSFER LOG",
+      "kind": "note",
+      "at": [
+        12.75,
+        6.464,
+        -11.25
+      ],
+      "requires": [
+        "card2"
+      ]
+    },
+    {
+      "id": "exit3",
+      "name": "RESEARCH LIFT",
+      "kind": "exit",
+      "at": [
+        14.75,
+        2.992,
+        9.75
+      ],
+      "requires": [
+        "transfer"
+      ]
+    }
+  ],
+  "routes": [
+    [
+      [
+        -20.25,
+        6.464,
+        -12.25
+      ],
+      [
+        -7.75,
+        6.464,
+        -11.25
+      ]
+    ],
+    [
+      [
+        8.75,
+        6.484,
+        -7.25
+      ],
+      [
+        16.75,
+        6.47,
+        -7.25
+      ]
+    ]
+  ],
+  "goals": [
+    "duty",
+    "card2",
+    "transfer",
+    "exit3"
+  ],
+  "asset": "res://assets/stages/HOVAGI_GRAYBOX_S03_LIVING_QUARTERS_STRUCTURE_SIMPLIFIED_v1.0.glb"
+}

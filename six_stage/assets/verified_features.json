@@ -1,0 +1,102 @@
+{
+  "Controls and HUD": {
+    "status": "WORKING",
+    "test": "controls_test / touch_test"
+  },
+  "Environment and cover cameras": {
+    "status": "WORKING",
+    "test": "update_test / build05_test"
+  },
+  "Pressure movement": {
+    "status": "WORKING",
+    "test": "movement_test"
+  },
+  "Crawl and vent": {
+    "status": "WORKING",
+    "test": "build05_test"
+  },
+  "Climb and jump": {
+    "status": "WORKING",
+    "test": "update_test / movement_test"
+  },
+  "Hanging and shimmy": {
+    "status": "WORKING",
+    "test": "movement_test"
+  },
+  "Pipe climbing": {
+    "status": "WORKING",
+    "test": "movement_test"
+  },
+  "Push and pull crates": {
+    "status": "WORKING",
+    "test": "movement_test"
+  },
+  "Shooting and reloading": {
+    "status": "WORKING",
+    "test": "combat_test / equipment_test"
+  },
+  "CQC and dragging": {
+    "status": "WORKING",
+    "test": "combat_test"
+  },
+  "Dagger and sword": {
+    "status": "WORKING",
+    "test": "combat_test"
+  },
+  "Weapons and item wheels": {
+    "status": "WORKING",
+    "test": "controls_test"
+  },
+  "Grenades and chaff": {
+    "status": "WORKING",
+    "test": "equipment_test"
+  },
+  "C4 and claymores": {
+    "status": "WORKING",
+    "test": "equipment_test"
+  },
+  "Heat-seeking rockets": {
+    "status": "WORKING",
+    "test": "equipment_test"
+  },
+  "Cloak and rations": {
+    "status": "WORKING",
+    "test": "equipment_test"
+  },
+  "Guard awareness and shadows": {
+    "status": "WORKING",
+    "test": "build05_test / enemies_test"
+  },
+  "Card-table backup": {
+    "status": "WORKING",
+    "test": "enemies_test"
+  },
+  "Aerial drones": {
+    "status": "WORKING",
+    "test": "build05_test"
+  },
+  "Drone dogs and kamikaze": {
+    "status": "WORKING",
+    "test": "enemies_test"
+  },
+  "Lockers and concealment": {
+    "status": "WORKING",
+    "test": "enemies_test"
+  },
+  "Swimming and oxygen": {
+    "status": "WORKING",
+    "test": "swim_test"
+  },
+  "Training and persistence": {
+    "status": "WORKING",
+    "test": "enemies_test"
+  },
+  "First-person optics": {
+    "status": "UNFINISHED",
+    "test": "Aim/zoom pass; sensor filters are cosmetic"
+  },
+  "Drone Master": {
+    "status": "UNFINISHED",
+    "test": "Basic firing/defeat pass; boss phases absent"
+  }
+}

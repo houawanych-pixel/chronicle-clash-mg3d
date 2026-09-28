@@ -1,0 +1,71 @@
+PASS Stage 1 transition
+PASS Stage 1 exit rejects missing objective
+PASS Stage 1 physical route to perimeter
+PASS Objective completes: perimeter
+PASS Stage 1 physical route to card1
+PASS Objective completes: card1
+PASS Stage 1 physical route to gate1
+PASS Objective completes: gate1
+PASS Stage 1 physical route to exit1
+PASS Objective completes: exit1
+PASS Stage 1 complete state
+PASS Stage 2 transition
+PASS Keycard persists into stage 2
+PASS Stage 2 exit rejects missing objective
+PASS Stage 2 physical route to log
+PASS Objective completes: log
+PASS Stage 2 physical route to grid
+PASS Wrong circuit order resets without softlock
+PASS Objective completes: grid
+PASS Stage 2 physical route to security
+PASS Objective completes: security
+PASS Stage 2 physical route to exit2
+PASS Objective completes: exit2
+PASS Stage 2 complete state
+PASS Stage 3 transition
+PASS Keycard persists into stage 3
+PASS Stage 3 exit rejects missing objective
+PASS Stage 3 physical route to duty
+PASS Objective completes: duty
+PASS Stage 3 physical route to card2
+PASS Objective completes: card2
+PASS Stage 3 physical route to transfer
+PASS Objective completes: transfer
+PASS Stage 3 physical route to exit3
+PASS Objective completes: exit3
+PASS Stage 3 complete state
+PASS Stage 4 transition
+PASS Keycard persists into stage 4
+PASS Stage 4 exit rejects missing objective
+PASS Stage 4 physical route to cooling
+PASS Objective completes: cooling
+PASS Stage 4 physical route to archive
+PASS Level 1 cannot open research archive
+PASS Objective completes: archive
+PASS Stage 4 physical route to exit4
+PASS Objective completes: exit4
+PASS Stage 4 complete state
+PASS Stage 5 transition
+PASS Keycard persists into stage 5
+PASS Stage 5 exit rejects missing objective
+PASS Stage 5 physical route to conveyor
+PASS Conveyor rejects unsafe timing
+PASS Objective completes: conveyor
+PASS Stage 5 physical route to rescue
+PASS Scientist spawns
+PASS Objective completes: rescue
+PASS Stage 5 physical route to exit5
+PASS Objective completes: exit5
+PASS Stage 5 complete state
+PASS Stage 6 transition
+PASS Keycard persists into stage 6
+PASS Stage 6 exit rejects missing objective
+PASS Stage 6 physical route to emitter
+PASS Objective completes: emitter
+PASS Stage 6 physical route to beacon
+PASS Objective completes: beacon
+PASS Stage 6 physical route to exit6
+PASS Extraction waits for pickup timer
+PASS Objective completes: exit6
+PASS Stage 6 complete state
+CAMPAIGN_RESULT {"checks":70,"failures":[]}

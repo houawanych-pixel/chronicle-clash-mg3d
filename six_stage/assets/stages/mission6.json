@@ -1,0 +1,84 @@
+{
+  "name": "EXTRACTION",
+  "tag": "GET EVERYONE OUT",
+  "brief": [
+    "The helipad defense grid is still active.",
+    "Disable its emitter, send the extraction signal, and survive until pickup."
+  ],
+  "start": [
+    -19.25,
+    5.502,
+    -3.25
+  ],
+  "points": [
+    {
+      "id": "emitter",
+      "name": "AA EMITTER",
+      "kind": "switch",
+      "at": [
+        -20.25,
+        4.838,
+        -6.75
+      ],
+      "requires": []
+    },
+    {
+      "id": "beacon",
+      "name": "EXTRACTION RADIO",
+      "kind": "beacon",
+      "at": [
+        4.75,
+        7.872,
+        -6.25
+      ],
+      "requires": [
+        "emitter"
+      ]
+    },
+    {
+      "id": "exit6",
+      "name": "HELICOPTER",
+      "kind": "finish",
+      "at": [
+        21.75,
+        8.706,
+        6.75
+      ],
+      "requires": [
+        "beacon"
+      ]
+    }
+  ],
+  "routes": [
+    [
+      [
+        -9.25,
+        3.746,
+        5.75
+      ],
+      [
+        4.75,
+        3.752,
+        4.75
+      ]
+    ],
+    [
+      [
+        15.75,
+        8.71,
+        6.75
+      ],
+      [
+        23.75,
+        8.706,
+        6.75
+      ]
+    ]
+  ],
+  "goals": [
+    "emitter",
+    "beacon",
+    "exit6"
+  ],
+  "asset": "res://assets/stages/HOVAGI_GRAYBOX_S06_EXTRACTION_STRUCTURE_SIMPLIFIED_v1.0.glb"
+}

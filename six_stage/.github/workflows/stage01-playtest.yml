@@ -1,0 +1,41 @@
+name: Stage 01 Playtest
+on:
+  push:
+    branches: [build07-1-stage01]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import and export
+        run: |
+          godot --headless --editor --import --quit
+          mkdir -p build/web docs/stage01
+          godot --headless --export-release Web build/web/index.html
+      - name: Native gameplay tests
+        run: |
+          godot --headless --script res://tests/stage01_test.gd > docs/stage01/native-results.txt 2>&1
+          grep 'RESULT:' docs/stage01/native-results.txt
+          ! grep -E 'FAIL:|SCRIPT ERROR' docs/stage01/native-results.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install test browser
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Phone touch and screenshot tests
+        env:
+          PLAYWRIGHT_MODULE: playwright
+        run: node tests/stage01_web.cjs > docs/stage01/browser-results.txt 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HOVAGI-Stage01-playtest
+          path: |
+            docs/stage01
+            build/web

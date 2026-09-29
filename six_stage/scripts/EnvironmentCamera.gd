@@ -20,10 +20,16 @@ var last_hard_cut: bool=false
 var hard_cuts: int=0
 var switches: int=0
 var probe: SphereShape3D=SphereShape3D.new()
+## Chase camera: sits behind and above the player and swings round lazily as they turn.
+const CHASE_DISTANCE: float=6.2
+const CHASE_HEIGHT: float=4.4
+const CHASE_FOV: float=60
+var chase_yaw: float=0
 func _init(owner_game: Node3D) -> void:
 	game=owner_game; probe.radius=CAMERA_RADIUS
 func reset() -> void:
 	initialized=false; view="overhead"; reveal=Vector3.ZERO; candidate_time=0; switches=0; hard_cuts=0
+	if is_instance_valid(game.player): chase_yaw=atan2(game.player.facing.x,game.player.facing.z)
 func roof_at(point: Vector3) -> bool:
 	return not game.ray(point+Vector3.UP*1.95,point+Vector3.UP*40,17).is_empty()
 func covered() -> bool:
@@ -88,7 +94,14 @@ func update(delta: float) -> void:
 		position=safe_position(center,p.global_position+normal*5.5-tangent*3.0*amount+Vector3.UP*2.8)
 		fov=58
 	elif mode=="overhead":
-		position=center+Vector3(0,19,11); fov=52
+		var moving: Vector3=Vector3(p.velocity.x,0,p.velocity.z)
+		if moving.length()>.6 and p.mode=="ground":
+			var diff: float=wrapf(atan2(moving.x,moving.z)-chase_yaw,-PI,PI)
+			# Moving back towards the camera does not spin it round; sideways/forward eases it behind.
+			if absf(diff)<2.2: chase_yaw+=diff*(1-exp(-delta*1.6))
+		var ahead: Vector3=Vector3(sin(chase_yaw),0,cos(chase_yaw))
+		position=center-ahead*CHASE_DISTANCE+Vector3.UP*CHASE_HEIGHT
+		focus=center+ahead*1.6+Vector3.UP*.2; fov=CHASE_FOV
 	else:
 		position=safe_position(center,center+Vector3.BACK*4.6+Vector3.UP*1.35); fov=66
 	var target_basis: Basis=Transform3D.IDENTITY.looking_at(focus-position,Vector3.UP).basis
@@ -96,7 +109,7 @@ func update(delta: float) -> void:
 	camera.projection=Camera3D.PROJECTION_PERSPECTIVE
 	if transition_time<SWITCH_TIME:
 		# Test the complete intended camera sweep, not just the next tiny frame step.
-		if path_blocked(camera.position,position):
+		if view!="overhead" and path_blocked(camera.position,position):
 			camera.position=position; camera.quaternion=target_rotation; camera.fov=fov
 			transition_time=SWITCH_TIME; last_hard_cut=true; hard_cuts+=1
 		else:
@@ -106,9 +119,10 @@ func update(delta: float) -> void:
 			camera.quaternion=start_rotation.slerp(target_rotation,t); camera.fov=lerpf(start_fov,fov,t)
 	else:
 		var next: Vector3=camera.position.lerp(position,1-exp(-delta*10))
-		if path_blocked(camera.position,next):
+		if view!="overhead" and path_blocked(camera.position,next):
 			camera.position=position; camera.quaternion=target_rotation; last_hard_cut=true; hard_cuts+=1
 		else:
 			camera.position=next; camera.quaternion=camera.quaternion.slerp(target_rotation,1-exp(-delta*10))
 		camera.fov=fov
 	p.avatar.visible=not view in ["vent","aim"] and not game.lab.missions.hidden
+	game.stage01.update_cutaway(camera.global_position,center,p.global_position.y,not view in ["aim","vent"])

@@ -66,9 +66,10 @@ func _draw() -> void:
 	round_button(Vector2(1160,612),90,"FIRE" if game.lab.drawn else "STRIKE","fire",game.held("fire"))
 	round_button(Vector2(930,618),60,game.lab.context(),"action")
 	round_button(Vector2(935,455),60,"STAND" if game.player.prone or game.player.crouched else "CROUCH","crouch",game.player.crouched or game.player.prone)
-	round_button(Vector2(1110,455),55,"AIM","aim",game.lab.aim)
+	round_button(Vector2(1110,455),55,"LOWER" if game.lab.aim else "AIM","aim",game.lab.aim)
 	var mc: Vector2=move_center if joy_id!=-99 else Vector2(165,575)
 	draw_circle(mc,78,Color(.02,.08,.12,.45)); draw_arc(mc,78,0,TAU,64,CYAN,2); draw_circle(mc+joystick*58,27,Color(CYAN,.7))
+	draw_guide()
 	if game.lab.aim:
 		if game.lab.spectrum>0:
 			draw_rect(Rect2(0,0,1280,720),Color(.05,.6,.12,.13) if game.lab.spectrum==1 else Color(.65,.12,.05,.13))
@@ -129,40 +130,33 @@ func draw_objectives() -> void:
 	for g: String in game.rooms[game.room].goals:
 		label(Vector2(185,y),("✓ " if game.goals.has(g) else "○ ")+g.replace("_"," "),28);y+=44
 	button(Rect2(620,514,185,56),"CLOSE","objectives")
+func big_button(rect: Rect2,value: String,action: String,size_px: int=54) -> void:
+	var s: StyleBoxFlat=StyleBoxFlat.new(); s.bg_color=Color("1f8f58"); s.border_color=Color("7dffb0"); s.set_border_width_all(4); s.set_corner_radius_all(22)
+	draw_style_box(s,rect); center(rect.get_center()+Vector2(0,size_px*.36),value,size_px,WHITE,true)
+	buttons.append({"rect":rect,"action":action})
 func draw_modal() -> void:
 	draw_rect(Rect2(0,0,1280,720),Color(.015,.035,.05,.94)); buttons.clear()
-	label(Vector2(70,85),"HOVAGI",48,CYAN,true)
-	label(Vector2(285,82),"SIX-STAGE INFILTRATION  /  PROTOTYPE 01",20,WHITE)
-	var title: String={"title":"ONE FACILITY. SIX STAGES. ONE WAY OUT.","brief":"%02d / %s"%[game.room+1,game.rooms[game.room].name],"paused":"MISSION PAUSED","complete":"STAGE SECURED","victory":"MISSION COMPLETE","failed":"SIGNAL LOST"}.get(game.mode,game.mode.to_upper())
-	label(Vector2(70,156),title,32,WHITE,true)
 	if game.mode=="title":
-		label(Vector2(70,224),"Recover the research. Rescue the scientist. Reach extraction.",27)
-		label(Vector2(70,274),"Observe patrols, break their sightline, and use cover.",25,GOLD)
-		label(Vector2(70,322),"Two access levels. Circuit puzzles. Persistent mission progress.",25)
-		label(Vector2(70,380),"Hold AIM + left stick to aim. Tap FIRE deliberately.",25,CYAN)
-		label(Vector2(70,420),"Hold WEAPON / ITEM to choose. ACTION uses nearby objects.",25)
-		button(Rect2(70,505,340,76),"CONTINUE" if game.stage01.saved else "START MISSION","continue")
-		button(Rect2(440,505,290,76),"NEW MISSION","new_game")
-	elif game.mode in ["brief","paused"]:
-		label(Vector2(70,230),game.rooms[game.room].tag,30,GOLD,true)
-		for i in range(game.rooms[game.room].brief.size()):label(Vector2(70,286+i*44),game.rooms[game.room].brief[i],25)
-		label(Vector2(70,402),"Checkpoint: start of this stage. Keycards carry forward.",24,CYAN)
-		label(Vector2(70,443),"WASD move · Shift run · V aim · J fire · Space action · R reload",23)
-		button(Rect2(70,505,300,76),"INFILTRATE" if game.mode=="brief" else "RESUME","confirm")
-		button(Rect2(400,505,320,76),"RETRY CHECKPOINT","retry")
+		center(Vector2(640,250),"HOVAGI",120,CYAN,true)
+		big_button(Rect2(400,340,480,150),"START","continue",72)
+		if game.stage01.saved: button(Rect2(70,600,260,70),"NEW GAME","new_game")
+	elif game.mode=="brief":
+		center(Vector2(640,200),"STAGE %02d"%(game.room+1),40,GOLD,true)
+		center(Vector2(640,270),game.rooms[game.room].name,52,WHITE,true)
+		center(Vector2(640,330),"Follow the green light.",34,Color("7dffb0"),true)
+		big_button(Rect2(440,390,400,130),"GO","confirm",64)
+	elif game.mode=="paused":
+		center(Vector2(640,220),"PAUSED",64,WHITE,true)
+		big_button(Rect2(440,290,400,120),"RESUME","confirm",52)
+		button(Rect2(480,450,320,76),"RETRY CHECKPOINT","retry")
 	elif game.mode in ["complete","victory"]:
-		label(Vector2(70,235),"Research recovered. Scientist extracted." if game.mode=="victory" else game.rooms[game.room].name+" complete.",28,GOLD)
-		label(Vector2(70,297),"STAGE TIME  %d:%02d    ALERTS  %d"%[int(game.elapsed)/60,int(game.elapsed)%60,game.alarms],27)
-		label(Vector2(70,356),"MISSION TIME  %d:%02d    TOTAL ALERTS  %d"%[int(game.stage01.state.total_time)/60,int(game.stage01.state.total_time)%60,int(game.stage01.state.total_alarms)],25,CYAN)
-		label(Vector2(70,415),"Rank: GHOST" if int(game.stage01.state.total_alarms)==0 else "Rank: SURVIVOR",28,WHITE,true)
-		button(Rect2(70,505,370,76),"NEXT STAGE" if game.mode=="complete" else "NEW MISSION","confirm")
+		center(Vector2(640,200),"MISSION COMPLETE" if game.mode=="victory" else "STAGE CLEAR",64,Color("7dffb0"),true)
+		center(Vector2(640,270),"TIME  %d:%02d     ALERTS  %d"%[int(game.elapsed)/60,int(game.elapsed)%60,game.alarms],32,WHITE)
+		big_button(Rect2(440,330,400,130),"NEXT" if game.mode=="complete" else "PLAY AGAIN","confirm",56)
 	else:
-		label(Vector2(70,236),"Retry from this stage's checkpoint.",30,GOLD)
-		label(Vector2(70,292),"Watch the yellow vision cones. Red means the enemy has identified you.",24)
-		label(Vector2(70,340),"Interrupt a radio call, break sight, or use a ration from ITEM.",25)
-		button(Rect2(70,505,370,76),"RETRY CHECKPOINT","retry")
-	button(Rect2(930,505,250,76),"SOUND OFF" if not game.muted else "SOUND ON","mute")
-	label(Vector2(70,659),"Landscape touch + keyboard   ·   Godot 4.3   ·   Your six stage models",20,Color("89a9b6"))
+		center(Vector2(640,220),"CAUGHT",72,Color("ff7a7a"),true)
+		big_button(Rect2(440,290,400,130),"TRY AGAIN","retry",52)
+	button(Rect2(1030,600,200,70),"SOUND OFF" if not game.muted else "SOUND ON","mute")
 func draw_puzzle() -> void:
 	draw_rect(Rect2(0,0,1280,720),Color(.015,.035,.05,.96));buttons.clear()
 	var c: RefCounted=game.stage01
@@ -204,9 +198,9 @@ func press(at: Vector2,id: int) -> void:
 		if hit:
 			var a: String=b.action; fingers[id]={"action":a,"start":Time.get_ticks_msec(),"long":false}
 			if a=="fire":
-				holds.fire=true
+				holds.fire=true; game.fire_tapped=true
 				if game.lab.aim and not game.aim_acquired: game.fire_blocked=true
-			elif a=="aim": game.set_precision(true)
+			elif a=="aim": game.toggle_aim()
 			elif not a in ["weapon_slot","item_slot"]: game.command(a)
 			get_viewport().set_input_as_handled(); return
 	if game.mode!="play" or not game.lab.wheel.is_empty() or game.lab.objective_expanded: return
@@ -230,7 +224,6 @@ func drag(at: Vector2,id: int) -> void:
 func release(id: int) -> void:
 	if fingers.has(id):
 		var f: Dictionary=fingers[id]; fingers.erase(id)
-		if f.action=="aim": game.set_precision(false)
 		if f.action=="weapon_slot" and not f.long: game.lab.drawn=not game.lab.drawn
 		elif f.action=="item_slot" and not f.long: game.lab.use_item()
 		holds.fire=false
@@ -257,3 +250,27 @@ func draw_checklist() -> void:
 		label(Vector2(65,130+i*91),feature,28,WHITE,true)
 		label(Vector2(65,166+i*91),str(entry.get("status","UNFINISHED"))+" / "+str(entry.get("test","No passing test recorded")),24,CYAN if entry.get("status","")=="WORKING" else GOLD)
 	button(Rect2(70,610,270,70),"PREVIOUS","features_prev");button(Rect2(380,610,270,70),"MENU","menu");button(Rect2(690,610,270,70),"NEXT","features_next")
+## Green marker on the next objective; an arrow at the screen edge when it is out of view.
+func draw_guide() -> void:
+	if game.mode!="play" or game.lab.aim or not is_instance_valid(game.camera): return
+	var target: Vector3=game.stage01.guide_point()+Vector3.UP*1.3
+	if game.stage01.done(game.stage01.current_point().id): return
+	var green: Color=Color("3dff7a")
+	var behind: bool=game.camera.is_position_behind(target)
+	var p: Vector2=(game.camera.unproject_position(target)-offset_ui)/scale_ui
+	var metres: int=int(Vector2(game.player.global_position.x-target.x,game.player.global_position.z-target.z).length())
+	var area: Rect2=Rect2(70,90,1140,540)
+	if not behind and area.has_point(p):
+		var d: PackedVector2Array=[p+Vector2(0,-20),p+Vector2(16,0),p+Vector2(0,20),p+Vector2(-16,0)]
+		draw_colored_polygon(d,Color(green,.85)); draw_polyline(d+PackedVector2Array([d[0]]),Color.WHITE,2)
+		center(p+Vector2(0,48),"%d m"%metres,24,green,true)
+		return
+	# Off screen: arrow on an oval around the middle of the screen, clear of the buttons.
+	var c: Vector2=Vector2(640,380); var dir: Vector2=(p-c)
+	if behind: dir=-dir
+	if dir.length()<1: dir=Vector2(0,-1)
+	dir=dir.normalized()
+	var tip: Vector2=c+Vector2(dir.x*200,dir.y*150); var side: Vector2=Vector2(-dir.y,dir.x)
+	var arrow: PackedVector2Array=[tip,tip-dir*46+side*26,tip-dir*46-side*26]
+	draw_colored_polygon(arrow,Color(green,.9)); draw_polyline(arrow+PackedVector2Array([arrow[0]]),Color.WHITE,2)
+	center(tip-dir*80+Vector2(0,8),"%d m"%metres,24,green,true)

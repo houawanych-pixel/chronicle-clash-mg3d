@@ -24,12 +24,13 @@ func speed(move: Vector2) -> float:
 	var p=game.player
 	if p.prone: tier="crawl"; return 1.1
 	if game.lab.aim: tier="aim"; return 1.3
-	if p.crouched: tier="sneak"; return 1.4
+	if p.crouched: tier="sneak"; return 1.3
 	var m: float=move.length()
 	var keyboard: bool=game.hud.joy_id==-99 and Input.get_connected_joypads().is_empty()
 	tier="sneak" if m<.5 or Input.is_action_pressed("sneak") else "run" if (m>.87 and not keyboard) or Input.is_action_pressed("run") else "walk"
 	if tier=="run" and (game.lab.stamina<2 or exhausted>0): tier="walk"; exhausted=maxf(exhausted,1.0) if game.lab.stamina<2 else exhausted
-	return 6.4 if tier=="run" else 2.3 if tier=="sneak" else 3.6
+	# Matched to the animation cycles (sneak = walk clip, walk = jog, run = sprint).
+	return 4.4 if tier=="run" else 1.4 if tier=="sneak" else 2.6
 func nearest_grab() -> Dictionary:
 	var p=game.player
 	for g: Dictionary in grabbers:

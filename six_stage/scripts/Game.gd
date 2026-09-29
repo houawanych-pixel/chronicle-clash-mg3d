@@ -4,6 +4,7 @@ var lab: RefCounted
 var stage01: RefCounted
 var fire_was_down: bool=false
 var fire_blocked: bool=false
+var fire_tapped: bool=false
 var aim_acquired: bool=false
 var key_hold: Dictionary={}
 const EnvironmentCameraScript=preload("res://scripts/EnvironmentCamera.gd")
@@ -157,8 +158,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif held_time>=450: lab.open_wheel("weapon" if action=="weapon_slot" else "item")
 			elif action=="weapon_slot": lab.drawn=not lab.drawn
 			else: lab.use_item()
-	if event.is_action_pressed("aim"): set_precision(true)
-	if event.is_action_released("aim"): set_precision(false)
+	if event.is_action_pressed("aim"): toggle_aim()
 	for action: String in ["reload","action","crouch","pause","confirm"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
@@ -200,7 +200,7 @@ func command(action: String) -> void:
 	if mode!="play": return
 	match action:
 		"action": lab.action()
-		"aim": set_precision(true)
+		"aim": toggle_aim()
 		"zoom_in": lab.zoom=mini(2,lab.zoom+1)
 		"zoom_out": lab.zoom=maxi(0,lab.zoom-1)
 		"spectrum": lab.spectrum=(lab.spectrum+1)%3
@@ -276,6 +276,11 @@ func _physics_process(delta: float) -> void:
 				if lab.aim: lab.look(look*delta*250)
 				elif gear.scope: scope_yaw-=look.x*delta*1.8; scope_pitch=clampf(scope_pitch-look.y*delta*1.3,-1.1,1.1)
 				else: aim_screen+=look*delta*400; aim_screen=aim_screen.clamp(Vector2.ZERO,get_viewport().get_visible_rect().size); aim_enabled=true
+		if move.length()>.05 and not lab.aim:
+			var cam_right: Vector3=camera.global_basis.x; cam_right.y=0; cam_right=cam_right.normalized()
+			var cam_back: Vector3=Vector3(-cam_right.z,0,cam_right.x)
+			var world_move: Vector3=cam_right*move.x+cam_back*move.y
+			move=Vector2(world_move.x,world_move.z)
 		if hud.joystick.length()>.08:
 			var right: Vector3=camera.global_basis.x; right.y=0; right=right.normalized()
 			var back: Vector3=Vector3(-right.z,0,right.x)
@@ -293,10 +298,14 @@ func _physics_process(delta: float) -> void:
 		if not lab.wheel.is_empty() or lab.missions.hidden: move=Vector2.ZERO
 		player.tick(delta,move)
 		gear.tick(delta)
-		var fire_down: bool=held("fire")
+		# A tap shorter than one frame still counts (latched by the HUD on touch-down).
+		var fire_down: bool=held("fire") or fire_tapped
+		fire_tapped=false
 		if not fire_down: fire_blocked=false
 		var automatic: bool=str(gear.current().id) in ["rifle","smg"]
-		if fire_down and not fire_blocked and (automatic or not fire_was_down) and player.mode!="mantle" and (not lab.aim or aim_acquired) and not (lab.aim and lab.optic=="binoculars"):
+		var can_shoot: bool=lab.aim or not lab.drawn or gear.scope
+		if fire_down and not fire_was_down and not can_shoot and not fire_blocked: toast("Tap AIM first, then FIRE.")
+		if fire_down and can_shoot and not fire_blocked and (automatic or not fire_was_down) and player.mode!="mantle" and (not lab.aim or aim_acquired) and not (lab.aim and lab.optic=="binoculars"):
 			lab.fire()
 		fire_was_down=fire_down
 		stage01.tick(delta)
@@ -453,6 +462,13 @@ func assist_drone(direction: Vector3) -> Node3D:
 			best=drone; best_angle=angle
 	return best
 
+## AIM is a toggle: tap AIM to raise the weapon (button then reads LOWER), tap LOWER to put it away.
+func toggle_aim() -> void:
+	if mode!="play": return
+	if lab.aim: set_precision(false)
+	else:
+		set_precision(true)
+		if lab.aim: aim_acquired=true; fire_blocked=false
 func set_precision(active: bool) -> void:
 	if active:
 		if mode!="play" or lab.aim: return

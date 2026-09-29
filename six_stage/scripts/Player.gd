@@ -189,7 +189,7 @@ func tick(delta: float, move: Vector2) -> void:
 				if wall_pressure>.22: toggle_cover(); wall_pressure=0
 			else: wall_pressure=0
 		foot_time-=delta
-		if velocity.length()>2.6 and is_on_floor() and foot_time<=0:
+		if velocity.length()>2.0 and is_on_floor() and foot_time<=0:
 			foot_time=.42; game.sound("step",-21); game.emit_noise(global_position,8.0 if game.lab.motion.tier=="run" else 3.0)
 	if grip<=0 and mode in ["climb","grapple"]: drop(true)
 	if global_position.y< -4:

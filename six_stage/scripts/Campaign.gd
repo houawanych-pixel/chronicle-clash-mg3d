@@ -1,6 +1,8 @@
 extends RefCounted
 const V=preload("res://scripts/Visuals.gd")
 const SAVE="user://hovagi_six_stage_v1.json"
+const GO=Color("3dff7a")
+const CUTAWAY=preload("res://scripts/cutaway.gdshader")
 var game: Node3D
 var state: Dictionary={"card":0,"done":{},"room":0,"records":[],"total_time":0.0,"total_alarms":0}
 var checkpoint: Dictionary={}
@@ -24,6 +26,10 @@ var card: bool=false
 var power: bool=true
 var gate_open: bool=false
 var vent: AABB=AABB()
+var clean: bool=false
+var chunks: Array=[]
+var beacon: Node3D
+var cut_materials: Array=[]
 func _init(g: Node3D) -> void:
 	game=g
 	for i in range(1,7):
@@ -53,11 +59,30 @@ func build() -> void:
 	game.lab.water.enabled=false;game.lab.test_mode=false;game.lab.missions.hidden=false;game.lab.missions.backup_guards=[];game.lab.missions.active=false
 	game.lab.missions.locker=Vector3(999,999,999);game.lab.missions.shadow=Rect2(999,999,1,1)
 	game.lab.motion.grabbers=[];game.lab.motion.airborne=0;game.lab.motion.anchor={};game.lab.motion.pushed=null
-	var model: Node3D=load(data[game.room].asset).instantiate();game.stage.add_child(model);model.scale=Vector3.ONE*64
+	var model: Node3D=load(data[game.room].asset).instantiate();game.stage.add_child(model)
+	clean=str(data[game.room].asset).contains("_clean")
+	if not clean: model.scale=Vector3.ONE*64
+	# Clean stages are split into 8 m chunks: off-screen chunks are culled and chunks between
+	# the camera and the player are cut away (Facility Map Bible v3 budgets).
+	chunks=[]
+	if clean:
+		for chunk: MeshInstance3D in model.find_children("*","MeshInstance3D",true,false):
+			chunk.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunks.append({"node":chunk,"box":chunk.global_transform*chunk.get_aabb()})
+	cut_materials=[]
+	var shared: Dictionary={}
 	for mesh: MeshInstance3D in model.find_children("*","MeshInstance3D",true,false):
 		for k in range(mesh.mesh.get_surface_count()):
 			var mat: Material=mesh.get_active_material(k)
-			if mat is StandardMaterial3D:
+			if mat is StandardMaterial3D and clean:
+				var key: String=mat.albedo_color.to_html()
+				if not shared.has(key):
+					var cut: ShaderMaterial=ShaderMaterial.new();cut.shader=CUTAWAY
+					cut.set_shader_parameter("albedo",mat.albedo_color)
+					cut.set_shader_parameter("emission_strength",.6 if mat.albedo_color.g>mat.albedo_color.r*2.5 else 0.0)
+					shared[key]=cut;cut_materials.append(cut)
+				mesh.set_surface_override_material(k,shared[key])
+			elif mat is StandardMaterial3D:
 				var copy: StandardMaterial3D=mat.duplicate();copy.roughness=.94;copy.metallic=.05;mesh.set_surface_override_material(k,copy)
 	map_data=JSON.parse_string(FileAccess.get_file_as_string("res://assets/stages/nav%d.json"%(game.room+1)))
 	build_navigation()
@@ -98,11 +123,14 @@ func build() -> void:
 	game.gear.items=game.gear.items.filter(func(w: Dictionary):return str(w.id) in ["pistol","rifle","sniper","dagger"])
 	game.gear.selected=0
 	card=int(state.card)>0;power=not done("perimeter");gate_open=done("gate1")
+	build_beacon()
 	game.camera_controller.reset();game.hud.release_controls();game.notification_time=0
 
 func ramp(a: Vector3,b: Vector3) -> void:
-	var length: float=a.distance_to(b);var mesh: MeshInstance3D=V.box(game.stage,(a+b)*.5+Vector3.UP*.04,Vector3(2.4,.08,length),V.mat(Color("354b50")))
-	mesh.look_at(b,Vector3.UP)
+	var length: float=a.distance_to(b)
+	if not clean:
+		var mesh: MeshInstance3D=V.box(game.stage,(a+b)*.5+Vector3.UP*.04,Vector3(2.4,.08,length),V.mat(Color("354b50")))
+		mesh.look_at(b,Vector3.UP)
 	var flat: Vector3=b-a;flat.y=0;var side: Vector3=flat.normalized().cross(Vector3.UP)*1.15
 	V.line(game.stage,a+side+Vector3.UP*.12,b+side+Vector3.UP*.12,Color("7fb6a3"),.06)
 	V.line(game.stage,a-side+Vector3.UP*.12,b-side+Vector3.UP*.12,Color("7fb6a3"),.06)
@@ -111,9 +139,17 @@ func build_navigation() -> void:
 	for c: Array in map_data.cells:
 		var id: int=nodes.size();var key: Vector2i=Vector2i(int(c[0]),int(c[1]));var at: Vector3=Vector3(float(map_data.offset)+key.x*.5,float(c[2]),float(map_data.offset)+key.y*.5)
 		cells[key]=id;nodes.append(at);nav_graph.add_point(id,at)
+	if clean:
+		# Keep routes off ledges and cliff edges: edge cells cost more, so paths use the middle.
+		for key: Vector2i in cells:
+			for d: Vector2i in [Vector2i(1,0),Vector2i(-1,0),Vector2i(0,1),Vector2i(0,-1)]:
+				if not cells.has(key+d) or absf(nodes[cells[key]].y-nodes[cells[key+d]].y)>.9:
+					nav_graph.set_point_weight_scale(cells[key],4.0); break
 	for key: Vector2i in cells:
 		for d: Vector2i in [Vector2i(1,0),Vector2i(0,1),Vector2i(1,1),Vector2i(1,-1)]:
 			if cells.has(key+d) and (d.x==0 or d.y==0 or (cells.has(key+Vector2i(d.x,0)) and cells.has(key+Vector2i(0,d.y)))):
+				# Clean stages have real vertical cliffs: routes must use the stairs and ramps.
+				if clean and absf(nodes[cells[key]].y-nodes[cells[key+d]].y)>.9: continue
 				nav_graph.connect_points(cells[key],cells[key+d])
 func near_node(at: Vector3) -> int: return nav_graph.get_closest_point(at)
 func path(from: Vector3,to: Vector3) -> PackedVector3Array: return nav_graph.get_point_path(near_node(from),near_node(to))
@@ -122,17 +158,17 @@ func floor_y(at: Vector3) -> float:
 	return nodes[cells[key]].y if cells.has(key) else -100
 func build_point(p: Dictionary) -> void:
 	var n: Node3D=Node3D.new();game.stage.add_child(n);n.position=p.at;objective_nodes[p.id]=n
-	var color: Color=Color("ffbd62") if p.kind in ["card1","card2","door"] else Color("66edcd")
-	V.ring(n,Vector3(0,.04,0),.85,color)
+	var color: Color=Color("8fa3ad")
+	var base_ring: MeshInstance3D=V.ring(n,Vector3(0,.04,0),.85,color);base_ring.name="Ring"
 	if p.kind in ["exit","finish"]:
 		V.box(n,Vector3(0,.025,0),Vector3(1.7,.04,1.7),V.mat(Color("245a50")))
 	else:
 		V.box(n,Vector3(0,.55,0),Vector3(.6,1.1,.5),V.mat(Color("263943")))
 		V.box(n,Vector3(0,.97,.26),Vector3(.5,.3,.02),V.mat(color,.4))
-	var title: Label3D=V.label(n,Vector3(0,1.8,0),p.name,color,25);title.name="Title"
+	var title: Label3D=V.label(n,Vector3(0,1.8,0),p.name,GO,25);title.name="Title";title.visible=false
 	if p.kind in ["door","data"]:
 		var gate: StaticBody3D=V.solid(game.stage,p.at+Vector3(2,1.4,0),Vector3(.25,2.8,3.5),Color("915733") if p.kind=="door" else Color("963f4b"),true)
-		doors.append({"body":gate,"id":p.id})
+		doors.append({"body":gate,"id":p.id,"base":Color("915733") if p.kind=="door" else Color("963f4b")})
 	if done(p.id):n.visible=false
 func current_point() -> Dictionary:
 	for p: Dictionary in data[game.room].points:
@@ -205,6 +241,7 @@ func create_survivor(at: Vector3) -> void:
 	V.label(survivor,Vector3(0,2.2,0),"SCIENTIST",Color("7cffc5"),24)
 func tick(delta: float) -> void:
 	clock+=delta
+	update_guide(delta)
 	if extraction>0:extraction=maxf(0,extraction-delta)
 	for laser: Dictionary in lasers:
 		var active: bool=not done(laser.off) and fmod(clock,4.5)<3.0
@@ -227,3 +264,40 @@ func finish_stage() -> void:
 func next_stage() -> void:
 	if game.room<5:
 		state.room=game.room+1;checkpoint=state.duplicate(true);game.load_room(game.room+1);save_checkpoint()
+
+## Green "go here" guide: a light column + pulsing ring on the current objective only.
+func build_beacon() -> void:
+	beacon=Node3D.new();beacon.name="ObjectiveBeacon";game.stage.add_child(beacon)
+	var column: MeshInstance3D=MeshInstance3D.new();var cylinder: CylinderMesh=CylinderMesh.new()
+	cylinder.top_radius=.55;cylinder.bottom_radius=.55;cylinder.height=16;cylinder.radial_segments=12;cylinder.rings=1;cylinder.cap_top=false;cylinder.cap_bottom=false
+	column.mesh=cylinder;column.position=Vector3(0,8,0);column.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var glow: StandardMaterial3D=StandardMaterial3D.new();glow.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA;glow.albedo_color=Color(GO,.22);glow.cull_mode=BaseMaterial3D.CULL_DISABLED;glow.no_depth_test=false
+	column.material_override=glow;beacon.add_child(column)
+	var ring: MeshInstance3D=V.ring(beacon,Vector3(0,.07,0),1.05,GO);ring.name="Pulse"
+	var inner: MeshInstance3D=V.ring(beacon,Vector3(0,.07,0),.6,GO)
+	update_guide(0)
+func update_guide(delta: float) -> void:
+	if not is_instance_valid(beacon):return
+	var p: Dictionary=current_point()
+	beacon.visible=not done(p.id)
+	beacon.position=beacon.position.lerp(p.at,1.0 if delta==0 else 1-exp(-delta*8))
+	var pulse: float=1.0+.25*sin(clock*4.0)
+	beacon.get_node("Pulse").scale=Vector3(pulse,1,pulse)
+	for id: String in objective_nodes:
+		var n: Node3D=objective_nodes[id]
+		if not is_instance_valid(n) or not n.visible:continue
+		n.get_node("Title").visible=id==p.id
+		var ring: MeshInstance3D=n.get_node("Ring");ring.material_override=V.mat(GO if id==p.id else Color("8fa3ad"),.9 if id==p.id else .3)
+	for door: Dictionary in doors:
+		if not is_instance_valid(door.body):continue
+		var current: bool=door.id==p.id
+		var panel: MeshInstance3D=door.body.find_children("*","MeshInstance3D",true,false)[0]
+		panel.material_override=V.mat(GO,1.1) if current else V.mat(door.base)
+func guide_point() -> Vector3:
+	return beacon.global_position if is_instance_valid(beacon) else current_point().at
+func update_cutaway(camera_at: Vector3,focus: Vector3,feet: float,active: bool) -> void:
+	for m: ShaderMaterial in cut_materials:
+		m.set_shader_parameter("camera_pos",camera_at)
+		m.set_shader_parameter("focus_pos",focus if active else Vector3(0,-1000,0))
+		m.set_shader_parameter("feet_y",feet)

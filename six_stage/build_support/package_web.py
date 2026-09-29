@@ -1,7 +1,8 @@
 from pathlib import Path
 import shutil,json,re,struct
 from PIL import Image,ImageDraw,ImageFont
-r=Path(__file__).resolve().parents[1];target=r.parent/'hovagi-six-stage-site/dist'
+import os
+r=Path(__file__).resolve().parents[1];target=Path(os.environ.get('SITE_DIR',str(r.parent/'hovagi-six-stage-site/dist')))
 for p in (r/'build/web').iterdir():
  if p.suffix not in ['.pck','.wasm']:shutil.copy2(p,target/p.name)
 manifest={}

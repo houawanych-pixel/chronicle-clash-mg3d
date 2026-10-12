@@ -39,6 +39,9 @@ Blonde Lance is the hunter: longer, wider vision and he spots you in grass from 
 
 Code: `scripts/citadel/Forest.gd` builds the stage and runs the hunter, reinforcements and lost-contact rules. `Citadel.gd` switches stages with `restart_with(hero, stage)`.
 
+## Look and hit effects
+Close over-the-shoulder camera (2.75 m, hero lower-left, pulls in when a wall is behind you), with extra contrast and saturation. Sword hits draw a crescent slash arc, an impact star with a light flash, spark streaks and a short freeze on hit (heavier on the combo finisher, plunge and dash). A combo counter shows on the right, and damage numbers pop bigger, with hits of 40+ in gold. Getting hit flashes red slash marks and a red screen edge. Parries get a big star, sparks and a longer freeze. Effects live in `scripts/citadel/Fx.gd`; `tools/fx_test.gd` renders them on a light and a dark floor.
+
 ## Characters
 `assets/characters/` holds the owner's Tripo GLBs, reduced from ~2M to ~38k triangles with 1024 textures (`knight_lite` is ~17k for the minions). They have a 78-bone rig and no animation clips yet, so `scripts/citadel/Rig.gd` + `Poses.gd` pose the bones procedurally. The owner's Animation Library packs (Drive) use the same rig and can replace these poses once attached.
 

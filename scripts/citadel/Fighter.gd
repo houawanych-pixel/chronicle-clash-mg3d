@@ -223,6 +223,9 @@ func animate(dt: float) -> void:
 			drop = -0.3
 		rig.rotation.x = lerpf(rig.rotation.x, tilt, 1.0 - exp(-10.0 * dt))
 		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
+	# Anyone the close camera would clip through fades out of the way.
+	if kind != "hero" and game.camera:
+		rig.visible = game.camera.global_position.distance_to(global_position + Vector3.UP * height * 0.5) > 1.3
 	rig.apply(pose, dt, rate)
 	rig.update_trail()
 	var tint: float = flash
@@ -409,10 +412,11 @@ func boss_tick(dt: float) -> void:
 func ally_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.hero
 	heal_cd -= dt
-	var spot: Vector3 = hero.global_position + Vector3(1.6, 0, 2.4)
+	# Stay at Lance's left shoulder, out of the over-the-shoulder camera's view line.
+	var spot: Vector3 = hero.global_position - game.cam_right() * 1.8 + game.cam_forward() * 0.4
 	if game.stage == "forest":
-		# Stay right behind Lance so his cover is her cover.
-		spot = hero.global_position - hero.forward() * 1.3 + Vector3(0.35, 0, 0)
+		# Closer in the forest so his cover is her cover.
+		spot = hero.global_position - game.cam_right() * 1.1 - game.cam_forward() * 0.6
 	var to: Vector3 = spot - global_position
 	to.y = 0
 	if to.length() > 14.0 or global_position.y < hero.global_position.y - 4.0:

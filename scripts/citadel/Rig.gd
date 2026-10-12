@@ -72,7 +72,7 @@ func build_sword(glow_base: float) -> void:
 	add_child(sword)
 	blade = MeshInstance3D.new()
 	var bm: BoxMesh = BoxMesh.new()
-	bm.size = Vector3(0.075, blade_len, 0.02)
+	bm.size = Vector3(0.095, blade_len, 0.025)
 	blade.mesh = bm
 	blade.position = Vector3(0, blade_len * 0.5 + 0.13, 0)
 	blade_mat = StandardMaterial3D.new()
@@ -188,7 +188,7 @@ func base_world() -> Vector3:
 
 func update_trail() -> void:
 	tip_history.push_front([base_world(), tip_world()])
-	while tip_history.size() > 9:
+	while tip_history.size() > 12:
 		tip_history.pop_back()
 	trail_mesh.clear_surfaces()
 	if not trail_on or tip_history.size() < 3:
@@ -197,13 +197,16 @@ func update_trail() -> void:
 	var n: int = tip_history.size()
 	for i in n:
 		var a: float = 1.0 - float(i) / float(n)
-		var c: Color = blade_color
-		c.a = a * 0.85
+		var tip: Vector3 = tip_history[i][1]
+		var base: Vector3 = tip_history[i][0]
+		var c: Color = blade_color.lerp(Color.WHITE, 0.6 * a)
+		c.a = a
 		trail_mesh.surface_set_color(c)
-		trail_mesh.surface_add_vertex(tip_history[i][1])
+		trail_mesh.surface_add_vertex(tip + (tip - base) * 0.25)
+		c = blade_color
 		c.a = 0.0
 		trail_mesh.surface_set_color(c)
-		trail_mesh.surface_add_vertex(tip_history[i][0])
+		trail_mesh.surface_add_vertex(base.lerp(tip, 0.15))
 	trail_mesh.surface_end()
 
 func set_flash(amount: float, color: Color) -> void:

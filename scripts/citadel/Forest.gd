@@ -266,7 +266,7 @@ func spawn_cast() -> void:
 	escaped = false
 	thresholds = [0.66, 0.33, 0.1]
 	var hero_def: Dictionary = game.HEROES["lance"]
-	game.hero = game.make_fighter("hero", hero_def.model, 1.8, hero_def.blade, 1.05, SECTIONS[0].spawn)
+	game.hero = game.make_fighter("hero", hero_def.model, 1.8, hero_def.blade, 1.25, SECTIONS[0].spawn)
 	game.hero.max_hp = 100
 	game.hero.hp = 100
 	game.ally = game.make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, SECTIONS[0].spawn + Vector3(0.8, 0, 1.6))

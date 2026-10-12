@@ -7,6 +7,7 @@ const HUDScript = preload("res://scripts/citadel/CitadelHUD.gd")
 const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
 const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
 const ForestScript = preload("res://scripts/citadel/Forest.gd")
+const FxScript = preload("res://scripts/citadel/Fx.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
 
@@ -25,6 +26,7 @@ var stage: String = "citadel"
 var sections: Array = SECTIONS
 var map_zones: Array = CITADEL_ZONES
 var forest: RefCounted
+var fx: RefCounted
 var env_res: Environment
 var sun: DirectionalLight3D
 var grass: Array = []
@@ -70,7 +72,7 @@ var marks: Array = []
 var bolts: Array = []
 var burst_window: float = 0.0
 var cam_yaw: float = 0.0
-var cam_pitch: float = 0.42
+var cam_pitch: float = 0.2
 var air_dash_used: bool = false
 var dodge_dir: Vector3 = Vector3.ZERO
 var chain: Array = []
@@ -108,6 +110,7 @@ var cover_look: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	patrol = PatrolScript.new(self)
 	forest = ForestScript.new(self)
+	fx = FxScript.new(self)
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
 		audio_bank[cue] = load("res://audio/%s.wav" % cue)
@@ -116,7 +119,7 @@ func _ready() -> void:
 	add_child(world)
 	build_stage()
 	camera = Camera3D.new()
-	camera.fov = 58
+	camera.fov = 54
 	camera.far = 600
 	add_child(camera)
 	camera.current = true
@@ -185,7 +188,7 @@ func build_environment() -> void:
 	e.ambient_light_energy = 0.6
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 0.9
+	e.tonemap_exposure = 0.82
 	e.fog_enabled = true
 	e.fog_light_color = Color("cfe0ff")
 	e.fog_density = 0.0022
@@ -194,6 +197,10 @@ func build_environment() -> void:
 	e.glow_intensity = 0.35
 	e.glow_bloom = 0.0
 	e.glow_hdr_threshold = 1.3
+	# Richer, less washed-out colour like the concept screens.
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.12
+	e.adjustment_saturation = 1.3
 	env.environment = e
 	add_child(env)
 	env_res = e
@@ -633,7 +640,7 @@ func spawn_cast() -> void:
 		return
 	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
-	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.05, sections[0].spawn)
+	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.25, sections[0].spawn)
 	hero.max_hp = 100
 	hero.hp = 100
 	ally = make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, sections[0].spawn + Vector3(1.6, 0, 2.4))
@@ -710,7 +717,7 @@ func restart_with(key: String, new_stage: String = "") -> void:
 			b.node.queue_free()
 	bolts.clear()
 	cam_yaw = 0.0
-	cam_pitch = 0.42
+	cam_pitch = 0.2
 	crouched = false
 	prone = false
 	cover.clear()
@@ -756,15 +763,17 @@ func update_camera(dt: float) -> void:
 	if mode == "play":
 		var look_d: Vector2 = hud.take_look()
 		cam_yaw -= look_d.x * 0.0065
-		cam_pitch = clampf(cam_pitch + look_d.y * 0.004, 0.12, 1.15)
-	var dist: float = 6.6
-	if section >= 3 and hero.global_position.z < -130:
-		dist = 9.2
-	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 1.2)
+		cam_pitch = clampf(cam_pitch + look_d.y * 0.004, 0.02, 1.1)
+	# Close over-the-shoulder view like the concept screens: the hero fills
+	# the lower-left, the fight reads in the centre.
+	var dist: float = 2.75
+	if stage == "citadel" and section >= 3 and hero.global_position.z < -130:
+		dist = 4.4
+	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * 0.62
 	cam_pos = cam_pos.lerp(hero.global_position, 1.0 - exp(-7.0 * dt))
 	var jitter: Vector3 = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.25
 	shake = maxf(0.0, shake - dt * 3.0)
-	var look: Vector3 = cam_pos + Vector3(0, 1.3, 0) + cam_forward() * 2.2
+	var look: Vector3 = cam_pos + Vector3(0, 1.3, 0) + cam_forward() * 3.0 + cam_right() * 0.3
 	var eye: Vector3 = cam_pos + back
 	if prone:
 		eye.y -= 1.0
@@ -790,6 +799,11 @@ func update_camera(dt: float) -> void:
 	else:
 		cover_eye = Vector3.ZERO
 		cover_look = Vector3.ZERO
+	# Keep the camera out of walls and pillars.
+	var head: Vector3 = hero.global_position + Vector3.UP * 1.4
+	var block: Dictionary = ray(head, eye)
+	if not block.is_empty():
+		eye = (block.position as Vector3) + (head - eye).normalized() * 0.3
 	camera.look_at_from_position(eye + jitter, look + jitter)
 
 func move_input() -> Vector2:
@@ -937,6 +951,8 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 				f.rig.trail_on = false
 				hero_strike(f, 38.0, 3.4, -1.0, 0.8)
 				ring(f.global_position + Vector3.UP * 0.1, 3.4, Color("8fe9ff"), 0.35)
+				fx.impact(f.global_position + Vector3.UP * 0.4, f.rig.blade_color, 2.6)
+				fx.sparks(f.global_position + Vector3.UP * 0.2, f.rig.blade_color, 30, 10.0)
 				shake = 0.8
 				sound("explosion", -14)
 				f.set_state("hurt", 0.28)
@@ -1021,16 +1037,18 @@ func hero_strike(f: CharacterBody3D, dmg: float, reach: float, arc_cos: float, s
 			# Unaware guard: one silent hit, like the old takedowns.
 			e.damage(e.hp + 1.0, f.global_position, 0.0)
 			takedowns += 1
+			fx.sword_hit(f, e, Color("7dffcf"), true, 2)
 			hud.popup("SILENT TAKEDOWN", Color("7dffcf"))
 			hit_any = true
 			continue
 		wake(e)
+		var heavy: bool = stagger >= 0.6
 		e.damage(dmg, f.global_position, stagger)
-		burst(e.global_position + Vector3.UP * e.height * 0.55, Color("bff4ff"), 14, 4.0)
+		fx.sword_hit(f, e, f.rig.blade_color, heavy, f.combo if f.state == "attack" else 2)
 		hit_any = true
 	if hit_any:
 		sound("hit", -6)
-		shake = maxf(shake, 0.35)
+		shake = maxf(shake, 0.55 if stagger >= 0.6 else 0.35)
 	else:
 		sound("step", -16)
 
@@ -1063,7 +1081,9 @@ func enemy_hits(attacker: CharacterBody3D, dmg: float, reach: float, arc_cos: fl
 			attacker.set_state("stagger", 1.4 if attacker.kind != "boss" else 1.1)
 			attacker.flash = 1.0
 			attacker.flash_color = Color(0.5, 0.9, 1.0)
-			burst(f.rig.tip_world(), Color("ffffff"), 26, 6.0)
+			fx.impact(f.rig.tip_world(), Color("8fe9ff"), 2.2)
+			fx.sparks(f.rig.tip_world(), Color("ffffff"), 34, 11.0)
+			fx.hitstop(0.12)
 			ring(f.global_position + Vector3.UP * 1.1, 1.6, Color("8fe9ff"), 0.25)
 			hud.popup("PARRY!", Color("8fe9ff"))
 			sound("guard_down", -4)
@@ -1072,7 +1092,8 @@ func enemy_hits(attacker: CharacterBody3D, dmg: float, reach: float, arc_cos: fl
 				give_token(attacker)
 			return
 		stamina -= dmg * 2.2
-		burst(f.rig.tip_world(), Color("ffe08a"), 10, 3.0)
+		fx.impact(f.rig.tip_world(), Color("ffe08a"), 0.9, false)
+		fx.sparks(f.rig.tip_world(), Color("ffe08a"), 16, 7.0, -to.normalized() + Vector3.UP * 0.5)
 		sound("knock", -6)
 		f.velocity += to.normalized() * 3.0
 		if stamina <= 0:
@@ -1083,6 +1104,9 @@ func enemy_hits(attacker: CharacterBody3D, dmg: float, reach: float, arc_cos: fl
 		return
 	f.damage(dmg, attacker.global_position, 0.32)
 	f.flash_color = Color(1, 0.3, 0.3)
+	fx.slash(f.global_position + Vector3.UP * 1.1, f.global_position - attacker.global_position, Color("ff3346"), 1.4, 0.9)
+	fx.sparks(f.global_position + Vector3.UP * 1.1, Color("ff6a5a"), 14, 6.0)
+	hud.hurt_flash = 1.0
 	sound("hurt", -6)
 	shake = maxf(shake, 0.6)
 
@@ -1332,6 +1356,7 @@ func update_effects(dt: float) -> void:
 		return
 	update_bolts(dt)
 	update_throws(dt)
+	fx.tick(dt)
 	for fx: Dictionary in effects.duplicate():
 		fx.t += dt
 		var k: float = fx.t / fx.life
@@ -1477,7 +1502,7 @@ func chain_tick(f: CharacterBody3D, dt: float) -> void:
 			var e: CharacterBody3D = t
 			wake(e)
 			e.damage(dmg, f.global_position, 0.6)
-			burst(e.global_position + Vector3.UP * e.height * 0.55, Color("ffe08a"), 20, 5.0)
+			fx.sword_hit(f, e, Color("ffe08a"), true, chain_i % 3)
 			sound("hit", -4)
 			shake = 0.6
 		else:
@@ -1577,7 +1602,9 @@ func update_bolts(dt: float) -> void:
 			var e: CharacterBody3D = t
 			wake(e)
 			e.damage(b.dmg, node.global_position, 0.35)
-			burst(node.global_position, Color("d9c2ff"), 18, 4.0)
+			fx.impact(node.global_position, Color("b48cff"), 1.4)
+			fx.sparks(node.global_position, Color("d9c2ff"), 18, 6.0)
+			fx.count_hit()
 			sound("hit", -8)
 			node.queue_free()
 			bolts.erase(b)

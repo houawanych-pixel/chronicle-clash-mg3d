@@ -61,8 +61,9 @@ func run() -> void:
 	k.active = true
 	k.attack_cd = 9.0
 	game.hud.pressed["attack"] = true
-	await wait(0.25)
+	await wait(0.19)
 	await shot("02_attack")
+	await wait(0.06)
 	await wait(0.35)
 	check("attack damages a knight", k.hp < k.max_hp, "hp=%d" % k.hp)
 	# Block: held block soaks the hit.

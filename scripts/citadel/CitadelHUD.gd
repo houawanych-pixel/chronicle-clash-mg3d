@@ -60,6 +60,7 @@ var numbers: Array = []
 var portraits: Dictionary = {}
 var title_tex: Texture2D
 var clock: float = 0.0
+var hurt_flash: float = 0.0
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -262,6 +263,7 @@ func number(pos: Vector3, text_s: String, color: Color) -> void:
 
 func _process(dt: float) -> void:
 	clock += dt
+	hurt_flash = maxf(0.0, hurt_flash - dt * 2.5)
 	if game.mode == "play" or game.mode == "dead":
 		if lines.size() > 0:
 			line_t += dt
@@ -386,6 +388,20 @@ func _draw() -> void:
 		draw_title()
 		return
 	draw_world_marks()
+	if hurt_flash > 0.0:
+		# Red edge flash when the hero is hit.
+		for i in 6:
+			var w2: float = 18.0 + i * 16.0
+			var a3: float = hurt_flash * 0.12 * (1.0 - i / 6.0)
+			draw_rect(Rect2(0, 0, W, w2), Color(1, 0.1, 0.15, a3))
+			draw_rect(Rect2(0, 720 - w2, W, w2), Color(1, 0.1, 0.15, a3))
+			draw_rect(Rect2(0, 0, w2, 720), Color(1, 0.1, 0.15, a3))
+			draw_rect(Rect2(W - w2, 0, w2, 720), Color(1, 0.1, 0.15, a3))
+	if game.fx.combo_hits >= 2 and game.mode == "play":
+		var cx: float = W - 280
+		var pulse: float = 1.0 + 0.25 * clampf((game.fx.combo_t - 1.35) * 4.0, 0, 1)
+		text(Vector2(cx, 268), str(game.fx.combo_hits), int(64 * pulse), Color("ffd27a"), true, 1)
+		text(Vector2(cx + 8, 262), "HITS", 24, WHITE, true, -1)
 	group(dx_c)
 	draw_stats()
 	draw_map(Rect2(545, 588, 190, 120))
@@ -587,7 +603,9 @@ func draw_world_marks() -> void:
 		if p.x < -100:
 			continue
 		var a2: float = 1.0 - clampf((n.t - 0.5) / 0.4, 0, 1)
-		text(p + Vector2(0, -n.t * 60), n.text, 34, Color(n.color, a2))
+		var pop: float = 1.0 + 0.5 * clampf(1.0 - n.t * 8.0, 0, 1)
+		var big: bool = n.text.is_valid_int() and int(n.text) >= 40
+		text(p + Vector2(0, -n.t * 70), n.text, int((52 if big else 42) * pop), Color(Color("ffd27a") if big else n.color, a2))
 	if game.charge > 0.0:
 		var hp2: Vector2 = project(game.hero.global_position + Vector3.UP * 2.3)
 		draw_arc(hp2, 26, -PI / 2, -PI / 2 + TAU * game.charge, 40, Color("ffcf6a"), 6, true)

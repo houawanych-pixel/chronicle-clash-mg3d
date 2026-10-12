@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cx2iy1m0xyhh0"
+path="res://.godot/imported/eliza_Color_655ce677-b881-42b2-8fb5-026712b6a343.jpg-76c214701da4efa32e66807878cf2e93.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "bdb35b3a2da0679a053931f461e5aa6e"
+}
+
+[deps]
+
+source_file="res://assets/characters/eliza_Color_655ce677-b881-42b2-8fb5-026712b6a343.jpg"
+dest_files=["res://.godot/imported/eliza_Color_655ce677-b881-42b2-8fb5-026712b6a343.jpg-76c214701da4efa32e66807878cf2e93.ctex"]
+
+[params]
+
+compress/mode=1
+compress/high_quality=false
+compress/lossy_quality=0.8
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

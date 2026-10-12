@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://b705btjq53qjc"
+path="res://.godot/imported/knight_lite_ORM_1b327262-dbe7-4be6-b59c-75714ce2f07f.jpg-edc87b76e60e4c2e5d3587c353f0bada.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "6d9ec8ad67d78c4661afcdd35c986416"
+}
+
+[deps]
+
+source_file="res://assets/characters/knight_lite_ORM_1b327262-dbe7-4be6-b59c-75714ce2f07f.jpg"
+dest_files=["res://.godot/imported/knight_lite_ORM_1b327262-dbe7-4be6-b59c-75714ce2f07f.jpg-edc87b76e60e4c2e5d3587c353f0bada.ctex"]
+
+[params]
+
+compress/mode=1
+compress/high_quality=false
+compress/lossy_quality=0.8
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

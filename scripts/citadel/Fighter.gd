@@ -1,0 +1,397 @@
+extends CharacterBody3D
+## Hero, ally, knight and boss share this body. The game drives the hero
+## from input; everyone else runs a small state machine here.
+const RigScript = preload("res://scripts/citadel/Rig.gd")
+const P = preload("res://scripts/citadel/Poses.gd")
+const GRAVITY: float = 26.0
+
+var game: Node
+var kind: String = "knight"
+var rig: Node3D
+var hp: float = 100.0
+var max_hp: float = 100.0
+var yaw: float = 0.0
+var state: String = "idle"
+var state_t: float = 0.0
+var state_len: float = 0.0
+var anim_t: float = 0.0
+var run_phase: float = 0.0
+var speed_now: float = 0.0
+var flash: float = 0.0
+var flash_color: Color = Color.WHITE
+var combo: int = 0
+var hit_done: bool = false
+var attack_cd: float = 1.0
+var dmg: float = 12.0
+var move_speed: float = 3.6
+var reach: float = 2.3
+var active: bool = false
+var section: int = 0
+var home: Vector3
+var dead_t: float = 0.0
+var plunge_t: float = 0.0
+var slam_count: int = 0
+var heal_cd: float = 6.0
+var hurt_cd: float = 0.0
+var height: float = 1.8
+
+func setup(g: Node, k: String, model: String, h: float, blade: Color, blade_len: float) -> void:
+	game = g
+	kind = k
+	height = h
+	var shape: CollisionShape3D = CollisionShape3D.new()
+	var cap: CapsuleShape3D = CapsuleShape3D.new()
+	cap.radius = 0.38 * h / 1.8
+	cap.height = h
+	shape.shape = cap
+	shape.position.y = h * 0.5
+	add_child(shape)
+	collision_layer = 2
+	collision_mask = 1
+	floor_snap_length = 0.4
+	floor_max_angle = deg_to_rad(50)
+	rig = Node3D.new()
+	rig.set_script(RigScript)
+	add_child(rig)
+	rig.setup(model, h, blade, blade_len, 0.8 if k in ["hero", "boss"] else 0.15)
+	home = global_position
+
+func forward() -> Vector3:
+	return Vector3(-sin(yaw), 0, -cos(yaw))
+
+func face_toward(p: Vector3, dt: float, rate: float = 10.0) -> void:
+	var to: Vector3 = p - global_position
+	to.y = 0
+	if to.length() < 0.01:
+		return
+	var want: float = atan2(-to.x, -to.z)
+	yaw = lerp_angle(yaw, want, 1.0 - exp(-rate * dt))
+
+func set_state(s: String, length: float = 0.0) -> void:
+	state = s
+	state_t = 0.0
+	state_len = length
+	hit_done = false
+
+func alive() -> bool:
+	return state != "dead"
+
+func busy() -> bool:
+	return state in ["attack", "plunge", "hurt", "stagger", "windup", "strike", "recover", "leap", "slam", "cast"]
+
+func damage(amount: float, from: Vector3, stagger_time: float = 0.25) -> void:
+	if not alive():
+		return
+	hp -= amount
+	flash = 1.0
+	flash_color = Color(1, 0.95, 0.85)
+	var push: Vector3 = global_position - from
+	push.y = 0
+	if push.length() > 0.01:
+		velocity += push.normalized() * (2.5 if kind != "boss" else 0.6)
+	game.spawn_number(global_position + Vector3.UP * height * 1.05, amount, kind == "hero")
+	if hp <= 0:
+		hp = 0
+		set_state("dead")
+		dead_t = 0.0
+		rig.trail_on = false
+		game.on_death(self)
+		return
+	if kind == "boss":
+		if state in ["recover", "idle", "chase"] and stagger_time > 0.6:
+			set_state("stagger", stagger_time)
+		return
+	if stagger_time > 0.0:
+		set_state("stagger" if stagger_time > 0.5 else "hurt", stagger_time)
+
+func _physics_process(dt: float) -> void:
+	if game == null or game.paused():
+		return
+	state_t += dt
+	anim_t += dt
+	flash = maxf(0.0, flash - dt * 4.0)
+	if not is_on_floor():
+		velocity.y -= GRAVITY * dt
+	match kind:
+		"hero":
+			game.hero_tick(self, dt)
+		"ally":
+			ally_tick(dt)
+		"boss":
+			boss_tick(dt)
+		_:
+			knight_tick(dt)
+	if state == "dead":
+		velocity.x = move_toward(velocity.x, 0, 20 * dt)
+		velocity.z = move_toward(velocity.z, 0, 20 * dt)
+	move_and_slide()
+	animate(dt)
+
+func animate(dt: float) -> void:
+	var pose: Dictionary
+	var rate: float = 14.0
+	var t: float = clampf(state_t / maxf(state_len, 0.001), 0.0, 1.0)
+	match state:
+		"attack":
+			pose = P.slash(combo, t)
+			rate = 30.0
+		"plunge":
+			pose = P.plunge(clampf(state_t * 3.0, 0, 1))
+			rate = 25.0
+		"dodge":
+			pose = P.run(state_t * 26.0, 1.0)
+			pose["Spine01"] = P.lean(0.45)
+			rate = 30.0
+		"dashchain":
+			pose = P.slash(combo, clampf(0.25 + plunge_t / 0.24 * 0.75, 0, 1))
+			rate = 40.0
+		"block":
+			pose = P.block(anim_t)
+			rate = 24.0
+		"windup", "leap":
+			pose = P.windup(t)
+			rate = 16.0
+		"strike", "slam":
+			pose = P.strike(t)
+			rate = 34.0
+		"recover":
+			pose = P.idle(anim_t, false)
+		"hurt":
+			pose = P.hurt(t)
+			rate = 20.0
+		"stagger":
+			pose = P.stagger(state_t)
+			rate = 18.0
+		"dead":
+			pose = P.dead()
+			rate = 8.0
+		"cast":
+			pose = P.cast(anim_t)
+		_:
+			var hs: float = Vector2(velocity.x, velocity.z).length()
+			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
+			if not is_on_floor() and kind == "hero":
+				pose = P.airborne(velocity.y)
+			elif speed_now > 0.08:
+				run_phase += dt * (5.0 + 6.5 * speed_now)
+				pose = P.run(run_phase, speed_now)
+			else:
+				pose = P.idle(anim_t, kind != "ally")
+	rig.rotation.y = yaw
+	if state == "dead":
+		dead_t += dt
+		rig.rotation.x = lerpf(rig.rotation.x, PI / 2.0 * 0.92, 1.0 - exp(-6.0 * dt))
+		rig.position.y = lerpf(rig.position.y, 0.25, 1.0 - exp(-6.0 * dt))
+		if kind != "hero" and dead_t > 2.2:
+			rig.position.y -= dt * 0.6
+			if dead_t > 3.6:
+				visible = false
+	else:
+		rig.rotation.x = lerpf(rig.rotation.x, 0.0, 1.0 - exp(-10.0 * dt))
+		rig.position.y = 0.0
+	rig.apply(pose, dt, rate)
+	rig.update_trail()
+	var tint: float = flash
+	var col: Color = flash_color
+	if state == "windup" or state == "leap":
+		tint = maxf(tint, 0.25 + 0.25 * sin(state_t * 30.0))
+		col = Color(1, 0.15, 0.1)
+	rig.glow = 1.0 if state in ["attack", "plunge", "strike", "slam", "dashchain"] else (0.6 if state in ["windup", "leap"] else 0.0)
+	if kind == "hero" and game.charge > 0.0:
+		rig.glow = maxf(rig.glow, game.charge * 1.6)
+		tint = maxf(tint, game.charge * 0.25 * (0.6 + 0.4 * sin(anim_t * 20.0)))
+		col = Color(1.0, 0.85, 0.4)
+	rig.set_flash(tint * 0.5, col)
+
+## Knights: chase, telegraph, strike, recover. A shared token keeps at most
+## two of them swinging at once so the player can read the fight.
+func knight_tick(dt: float) -> void:
+	var hero: CharacterBody3D = game.hero
+	if not alive():
+		return
+	attack_cd -= dt
+	var to: Vector3 = hero.global_position - global_position
+	to.y = 0
+	var dist: float = to.length()
+	if not active:
+		velocity.x = 0
+		velocity.z = 0
+		if section <= game.section and dist < 13.0:
+			active = true
+			game.sound("alarm", -18)
+		return
+	match state:
+		"idle", "chase":
+			face_toward(hero.global_position, dt)
+			var sep: Vector3 = game.separation(self)
+			if dist > reach * 0.85 and hero.alive():
+				var v: Vector3 = to.normalized() * move_speed + sep * 2.0
+				velocity.x = v.x
+				velocity.z = v.z
+				state = "chase"
+			else:
+				velocity.x = sep.x * 2.0
+				velocity.z = sep.z * 2.0
+				state = "idle"
+				if attack_cd <= 0 and hero.alive() and game.take_token(self):
+					set_state("windup", 0.62)
+					velocity.x = 0
+					velocity.z = 0
+		"windup":
+			face_toward(hero.global_position, dt, 6.0)
+			velocity.x = 0
+			velocity.z = 0
+			if state_t >= state_len:
+				set_state("strike", 0.24)
+				velocity += forward() * 4.0
+				game.sound("knock", -10)
+		"strike":
+			velocity.x = move_toward(velocity.x, 0, 30 * dt)
+			velocity.z = move_toward(velocity.z, 0, 30 * dt)
+			if not hit_done and state_t > 0.08:
+				hit_done = true
+				game.enemy_hits(self, dmg, reach + 0.4, 0.55)
+			if state_t >= state_len:
+				set_state("recover", 0.55)
+				game.give_token(self)
+		"recover":
+			velocity.x = 0
+			velocity.z = 0
+			if state_t >= state_len:
+				state = "idle"
+				attack_cd = randf_range(0.9, 1.9)
+		"hurt", "stagger":
+			velocity.x = move_toward(velocity.x, 0, 12 * dt)
+			velocity.z = move_toward(velocity.z, 0, 12 * dt)
+			game.give_token(self)
+			if state_t >= state_len:
+				state = "idle"
+				attack_cd = maxf(attack_cd, 0.5)
+
+## The Dark Knight: three-cut combo, and a leaping slam whose shockwave
+## can only be avoided by jumping over it.
+func boss_tick(dt: float) -> void:
+	var hero: CharacterBody3D = game.hero
+	if not alive():
+		return
+	attack_cd -= dt
+	var to: Vector3 = hero.global_position - global_position
+	to.y = 0
+	var dist: float = to.length()
+	var rage: bool = hp < max_hp * 0.5
+	if not active:
+		velocity.x = 0
+		velocity.z = 0
+		return
+	match state:
+		"idle", "chase":
+			face_toward(hero.global_position, dt, 6.0)
+			if attack_cd <= 0 and hero.alive():
+				if dist > 5.5 or (randf() < 0.3 and slam_count < 2):
+					set_state("leap", 0.75 if not rage else 0.55)
+					slam_count += 1
+				elif dist < reach + 0.6:
+					combo = 0
+					slam_count = 0
+					set_state("windup", 0.55 if not rage else 0.4)
+				else:
+					velocity.x = to.normalized().x * move_speed
+					velocity.z = to.normalized().z * move_speed
+			elif dist > reach * 0.8:
+				velocity.x = to.normalized().x * move_speed
+				velocity.z = to.normalized().z * move_speed
+				state = "chase"
+			else:
+				velocity.x = 0
+				velocity.z = 0
+		"windup":
+			velocity.x = 0
+			velocity.z = 0
+			face_toward(hero.global_position, dt, 8.0)
+			if state_t >= state_len:
+				set_state("strike", 0.26)
+				velocity += forward() * 6.0
+				game.sound("knock", -6)
+		"strike":
+			velocity.x = move_toward(velocity.x, 0, 35 * dt)
+			velocity.z = move_toward(velocity.z, 0, 35 * dt)
+			if not hit_done and state_t > 0.08:
+				hit_done = true
+				game.enemy_hits(self, dmg, reach + 0.6, 0.45)
+			if state_t >= state_len:
+				combo += 1
+				if combo < 3:
+					set_state("windup", (0.3 if combo == 1 else 0.42) * (0.8 if rage else 1.0))
+				else:
+					set_state("recover", 1.1 if not rage else 0.8)
+		"leap":
+			velocity.x = 0
+			velocity.z = 0
+			face_toward(hero.global_position, dt, 8.0)
+			if state_t >= state_len:
+				var target: Vector3 = hero.global_position
+				var flat: Vector3 = target - global_position
+				flat.y = 0
+				var air: float = 0.8
+				velocity = flat / air
+				velocity.y = GRAVITY * air * 0.5
+				set_state("slam", 1.2)
+				game.sound("hook", -6)
+		"slam":
+			if state_t > 0.15 and is_on_floor():
+				velocity.x = 0
+				velocity.z = 0
+				game.shockwave(global_position, rage)
+				set_state("recover", 1.0 if not rage else 0.7)
+				attack_cd = 0.6
+			elif state_t > 2.0:
+				set_state("recover", 0.6)
+		"recover":
+			velocity.x = 0
+			velocity.z = 0
+			if state_t >= state_len:
+				state = "idle"
+				attack_cd = randf_range(0.5, 1.2) if rage else randf_range(0.9, 1.6)
+		"stagger":
+			velocity.x = move_toward(velocity.x, 0, 10 * dt)
+			velocity.z = move_toward(velocity.z, 0, 10 * dt)
+			if state_t >= state_len:
+				state = "idle"
+				attack_cd = 0.4
+
+## Eliza follows the hero and heals once the hero is hurt.
+func ally_tick(dt: float) -> void:
+	var hero: CharacterBody3D = game.hero
+	heal_cd -= dt
+	var spot: Vector3 = hero.global_position + Vector3(1.6, 0, 2.4)
+	var to: Vector3 = spot - global_position
+	to.y = 0
+	if to.length() > 14.0 or global_position.y < hero.global_position.y - 4.0:
+		global_position = spot + Vector3.UP * 0.5
+		velocity = Vector3.ZERO
+		return
+	if state == "cast":
+		velocity.x = 0
+		velocity.z = 0
+		face_toward(hero.global_position, dt)
+		if state_t > 0.5 and not hit_done:
+			hit_done = true
+			game.ally_heal(self)
+		if state_t >= state_len:
+			state = "idle"
+		return
+	if hero.alive() and hero.hp < hero.max_hp * 0.5 and heal_cd <= 0:
+		heal_cd = 16.0
+		set_state("cast", 1.0)
+		return
+	if to.length() > 0.8:
+		var sp: float = clampf(to.length() * 2.2, 0.0, 7.5)
+		velocity.x = to.normalized().x * sp
+		velocity.z = to.normalized().z * sp
+		face_toward(global_position + to, dt)
+		if is_on_floor() and to.length() > 3.0 and hero.global_position.y > global_position.y + 0.6:
+			velocity.y = 9.0
+	else:
+		velocity.x = 0
+		velocity.z = 0
+		face_toward(hero.global_position + hero.forward() * 6.0, dt, 4.0)

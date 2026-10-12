@@ -1,7 +1,7 @@
 config_version=5
 [application]
-config/name="Chronicle Clash MG — 3D Room"
-run/main_scene="res://scenes/main.tscn"
+config/name="Chronicle Clash — Sky Citadel"
+run/main_scene="res://scenes/citadel.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 [display]
 window/size/viewport_width=1280

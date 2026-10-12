@@ -223,6 +223,12 @@ func menu_action(a: String) -> void:
 			var key: String = a.trim_prefix("hero_")
 			if key != game.hero_key:
 				game.restart_with(key)
+		"stage_citadel":
+			if game.stage != "citadel":
+				game.restart_with("blonde_lance", "citadel")
+		"stage_forest":
+			if game.stage != "forest":
+				game.restart_with("lance", "forest")
 		"resume":
 			game.mode = "play"
 			release()
@@ -406,14 +412,17 @@ func _draw() -> void:
 		text(Vector2(640, 638), "MAGIC seeks marked enemies. Drag the right side to look around.", 18, Color(WHITE, 0.85), false)
 	elif game.mode == "dead" and game.dead_timer > 1.2:
 		draw_rect(Rect2(-2000, -200, 5280, 1120), Color(0.08, 0, 0.02, 0.55))
-		text(Vector2(640, 300), "YOU FELL", 64, Color("ff6a7a"))
+		text(Vector2(640, 300), game.fail_text, 64, Color("ff6a7a"))
 		text(Vector2(640, 350), "Back to the last checkpoint with full health.", 24, WHITE, false)
 		menu_btn(Rect2(500, 395, 280, 72), "RETRY", "retry", true)
 	elif game.mode == "win":
 		draw_rect(Rect2(-2000, -200, 5280, 1120), Color(0, 0.03, 0.08, 0.6))
-		text(Vector2(640, 230), "CITADEL CLEARED", 64, Color("ffe08a"))
+		text(Vector2(640, 230), game.win_text, 64, Color("ffe08a"))
 		var secs: int = int(game.time_played)
-		text(Vector2(640, 290), "Time %d:%02d    Parries %d" % [secs / 60, secs % 60, game.parries], 28, WHITE, false)
+		if game.stage == "forest":
+			text(Vector2(640, 290), "Time %d:%02d    Silent takedowns %d" % [secs / 60, secs % 60, game.takedowns], 28, WHITE, false)
+		else:
+			text(Vector2(640, 290), "Time %d:%02d    Parries %d" % [secs / 60, secs % 60, game.parries], 28, WHITE, false)
 		menu_btn(Rect2(500, 340, 280, 72), "PLAY AGAIN", "again", true)
 		menu_btn(Rect2(500, 425, 280, 62), "MG LABS (OLD)", "labs")
 
@@ -427,12 +436,31 @@ func draw_title() -> void:
 	draw_rect(Rect2(-10, 440, W + 20, 680), Color(0.0, 0.02, 0.08, 0.5))
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
-	text(Vector2(640, 196), "SKY CITADEL  ·  SWORD DEMO", 26, CYAN)
-	text(Vector2(640, 470), "CHOOSE YOUR HERO", 22, WHITE)
+	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
+	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Eliza out. Blonde Lance hunts you", "ally"]]
+	for i in stages.size():
+		var st: Array = stages[i]
+		var sr: Rect2 = Rect2(330 + i * 320, 392, 300, 82)
+		var son: bool = game.stage == st[0]
+		frame(sr, Color(0.06, 0.22, 0.32, 0.95) if son else INK, CYAN if son else Color(0.6, 0.7, 0.85, 0.5))
+		if portraits.has(st[3]):
+			var tex: Texture2D = portraits[st[3]]
+			var tsz: Vector2 = tex.get_size()
+			draw_texture_rect_region(tex, Rect2(sr.position + Vector2(8, 8), Vector2(66, 66)), Rect2(Vector2((tsz.x - tsz.y) * 0.5, 0), Vector2(tsz.y, tsz.y)))
+		text(sr.position + Vector2(84, 36), st[1], 24, CYAN if son else WHITE, true, -1)
+		text(sr.position + Vector2(84, 62), st[2], 14, Color(WHITE, 0.8), false, -1)
+		menu_buttons.append({"rect": Rect2(sr.position + Vector2(group_dx, 0), sr.size), "action": "stage_" + st[0]})
+	if game.stage == "forest":
+		text(Vector2(640, 525), "You play LANCE. Blonde Lance is the hunter.", 20, WHITE, false)
+		menu_btn(Rect2(510, 585, 260, 76), "PLAY", "play", true)
+		text(Vector2(640, 700), "Crouch in tall grass to hide  ·  rocks are cover  ·  keep Eliza close", 19, Color(WHITE, 0.8), false)
+		group(dx_r)
+		menu_btn(Rect2(1040, 640, 210, 54), "MG LABS (OLD)", "labs")
+		return
 	var keys: Array = ["blonde_lance", "lance"]
 	for i in keys.size():
 		var k2: String = keys[i]
-		var r: Rect2 = Rect2(370 + i * 290, 490, 250, 70)
+		var r: Rect2 = Rect2(370 + i * 290, 496, 250, 70)
 		var on: bool = game.hero_key == k2
 		frame(r, Color(0.06, 0.22, 0.32, 0.95) if on else INK, CYAN if on else Color(0.6, 0.7, 0.85, 0.5))
 		if portraits.has(k2):
@@ -450,7 +478,7 @@ func draw_stats() -> void:
 	seg_bar(Vector2(464, 16), 352, game.hero.hp, game.hero.max_hp, HP, "HEALTH")
 	seg_bar(Vector2(464, 42), 352, game.mana, 100, MP, "MANA")
 	seg_bar(Vector2(464, 68), 352, game.stamina, 100, ST, "STAMINA")
-	var goal: String = game.SECTIONS[game.section].goal if game.section < 4 else ""
+	var goal: String = game.sections[game.section].goal if game.section < game.sections.size() else ""
 	var gr: Rect2 = Rect2(480, 104, 320, 32)
 	frame(gr, Color(0.03, 0.1, 0.18, 0.75))
 	text(gr.get_center() + Vector2(0, 7), goal.to_upper(), 16, CYAN)
@@ -466,12 +494,18 @@ func draw_stats() -> void:
 		draw_circle(sr.position + Vector2(26, 17), 8, sc)
 		draw_circle(sr.position + Vector2(26, 17), 3, Color(0.02, 0.1, 0.12))
 		text(sr.get_center() + Vector2(10, 8), "STEALTH: " + st, 19, sc)
-	if game.boss_seen and game.boss.alive():
+	if game.stage == "forest" and game.ally != null:
+		var ar: Rect2 = Rect2(290, 70, 150, 26)
+		frame(ar, Color(0.03, 0.1, 0.18, 0.8), Color("bfe9ff"))
+		draw_rect(Rect2(ar.position + Vector2(60, 9), Vector2(80, 9)), Color(0.15, 0.2, 0.3))
+		draw_rect(Rect2(ar.position + Vector2(60, 9), Vector2(80 * game.ally.hp / game.ally.max_hp, 9)), Color("bfe9ff"))
+		text(ar.position + Vector2(8, 19), "ELIZA", 14, WHITE, true, -1)
+	if game.boss_seen and game.boss.alive() and game.boss.visible:
 		var br: Rect2 = Rect2(370, 142, 540, 32)
 		frame(br, Color(0.12, 0.02, 0.04, 0.8), Color("ff3346"))
 		draw_rect(Rect2(br.position + Vector2(150, 9), Vector2(374, 14)), Color(0.2, 0.05, 0.08))
 		draw_rect(Rect2(br.position + Vector2(150, 9), Vector2(374 * game.boss.hp / game.boss.max_hp, 14)), Color("ff3346"))
-		text(br.position + Vector2(14, 23), "DARK KNIGHT", 18, Color("ffb0b8"), true, -1)
+		text(br.position + Vector2(14, 23), game.boss_name, 18, Color("ffb0b8"), true, -1)
 
 func draw_left() -> void:
 	var base: Vector2 = stick_origin
@@ -571,7 +605,7 @@ func draw_dialogue() -> void:
 		frame(tr, Color(0.03, 0.12, 0.2, 0.9 * slide))
 		text(tr.position + Vector2(390, 30), l.text, 17, Color(WHITE, slide), false)
 		return
-	var left: bool = who != "ally" and who != "boss"
+	var left: bool = who != "ally" and who != "boss" and who != "hunter"
 	var w: float = 340
 	var r: Rect2
 	if left:
@@ -580,9 +614,9 @@ func draw_dialogue() -> void:
 	else:
 		group(dx_r)
 		r = Rect2(1280 - 16 - w + (1.0 - slide) * 440, 10, w, 118)
-	var edge: Color = Color("ff3346") if who == "boss" else CYAN
+	var edge: Color = Color("ff3346") if who in ["boss", "hunter"] else CYAN
 	frame(r, INK, edge)
-	var key: String = game.hero_key if who == "hero" else who
+	var key: String = game.hero_key if who == "hero" else ("blonde_lance" if who == "hunter" else who)
 	var pr: Rect2 = Rect2(r.position + Vector2(8, 8), Vector2(102, 102))
 	if portraits.has(key):
 		var tex: Texture2D = portraits[key]
@@ -600,7 +634,7 @@ func draw_map(r: Rect2) -> void:
 	var hero: Vector3 = game.hero.global_position
 	var k: float = 2.2
 	var c: Vector2 = r.get_center() + Vector2(0, 8)
-	var zones: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
+	var zones: Array = game.map_zones
 	for z: Rect2 in zones:
 		var zr: Rect2 = Rect2(c + (z.position - Vector2(hero.x, hero.z)) * k, z.size * k)
 		zr = zr.intersection(r.grow(-6))
@@ -616,10 +650,10 @@ func draw_map(r: Rect2) -> void:
 				# Vision cone on the map (40° half-angle, patrol range).
 				var fw: Vector3 = e.forward()
 				var a0: float = atan2(fw.z, fw.x)
-				var reach: float = minf(game.patrol.range_limit() * k, 26.0)
+				var reach: float = minf(game.patrol.range_limit(e) * k, 26.0)
 				var pts: PackedVector2Array = PackedVector2Array([p])
 				for i in 7:
-					var a: float = a0 + deg_to_rad(lerpf(-40.0, 40.0, i / 6.0))
+					var a: float = a0 + deg_to_rad(lerpf(-e.vision_half, e.vision_half, i / 6.0))
 					pts.append(p + Vector2(cos(a), sin(a)) * reach)
 				draw_colored_polygon(pts, Color(1, 0.2, 0.3, 0.3) if e.seeing else Color(1, 0.7, 0.2, 0.22))
 			draw_circle(p, 5 if e.kind == "boss" else 3.5, CYAN if e in game.marks else Color("ff3346"))

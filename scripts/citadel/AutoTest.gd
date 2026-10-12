@@ -203,6 +203,7 @@ func run() -> void:
 	await wait(2.8)
 	check("defeating the Dark Knight wins", game.mode == "win", "mode=%s" % game.mode)
 	await shot("07_win")
+	await forest_tests()
 	var passed: int = results.count(true)
 	print("CITADEL RESULT %d/%d %s" % [passed, results.size(), "PASS" if passed == results.size() else "FAIL"])
 	if OS.has_feature("web"):
@@ -318,3 +319,112 @@ func stealth_tests() -> void:
 	await wait(0.4)
 	check("attacking an unaware guard is a silent takedown", not g0.alive() and game.takedowns == 1 and not g2.active, "takedowns=%d" % game.takedowns)
 	await shot("s6_takedown")
+
+
+func forest_tests() -> void:
+	game.restart_with("lance", "forest")
+	await wait(0.3)
+	await shot("f0_title")
+	game.start_game()
+	await wait(0.5)
+	var hunter: CharacterBody3D = game.boss
+	check("forest stage loads with Lance, Eliza and Blonde Lance", game.stage == "forest" and game.hero_key == "lance" and hunter.kind == "hunter" and game.grass.size() > 4 and game.enemies.size() == 7, "enemies=%d grass=%d" % [game.enemies.size(), game.grass.size()])
+	var ks: Array = game.enemies.filter(func(e: Variant) -> bool: return e.kind == "knight")
+	for i in ks.size():
+		hold_guard(ks[i], Vector3(-12 + i * 0.1, 0.2, 4.0 - i * 0.5), PI)
+	hold_guard(hunter, Vector3(12, 0.2, -110), 0.0)
+	await shot("f1_start")
+	# Eliza keeps up.
+	game.hud.stick = Vector2(0, -1)
+	await wait(1.2)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.6)
+	check("Eliza follows close behind", game.ally.global_position.distance_to(game.hero.global_position) < 3.0, "d=%.2f" % game.ally.global_position.distance_to(game.hero.global_position))
+	# Tall grass: crouched you vanish, standing you are seen.
+	var g: CharacterBody3D = ks[0]
+	hold_guard(g, Vector3(-3, 0.2, -25), PI / 2.0)
+	place(Vector3(-8.5, 0.2, -25), 0.0)
+	game.set_crouch(true)
+	await wait(1.2)
+	check("crouched in tall grass stays hidden", game.hero_in_grass() and g.suspicion == 0.0 and game.stealth_status() == "HIDDEN", "sus=%.2f" % g.suspicion)
+	check("Eliza crouches with you", game.ally.rig.position.y < -0.15, "y=%.2f" % game.ally.rig.position.y)
+	await shot("f2_grass")
+	game.set_crouch(false)
+	await wait(0.5)
+	check("standing in the grass gets noticed", g.suspicion > 0.2, "sus=%.2f" % g.suspicion)
+	hold_guard(g, Vector3(-12, 0.2, 4), PI)
+	await wait(0.3)
+	# Boulders are cover.
+	place(Vector3(-1.5, 0.2, -14.9), 0.0)
+	await wait(0.3)
+	await tap("hug")
+	check("wall hug works on a boulder", game.in_cover() and not game.cover_low, "cover=%s" % game.in_cover())
+	await shot("f3_rock")
+	await tap("hug")
+	# Spotted in the open: alarm and two knights from behind.
+	var before: int = game.enemies.size()
+	hold_guard(g, Vector3(4, 0.2, -30), PI)
+	place(Vector3(4, 0.2, -24), 0.0)
+	await wait(1.6)
+	var extra: Array = game.enemies.filter(func(e: Variant) -> bool: return e.has_meta("reinforcement"))
+	check("being spotted calls knights in from behind", g.active and game.enemies.size() == before + 2 and extra.size() == 2 and extra[0].global_position.z > -24.0, "n=%d" % game.enemies.size())
+	await shot("f4_alarm")
+	# Hide in the grass and they lose you.
+	for e: CharacterBody3D in extra:
+		e.global_position = Vector3(12, 0.2, 2)
+		e.attack_cd = 99.0
+	g.attack_cd = 99.0
+	place(Vector3(-9.5, 0.2, -32), 0.0)
+	game.set_crouch(true)
+	await wait(5.8)
+	check("hidden long enough, the guard gives up the chase", not g.active and g.gstate in ["INVESTIGATE", "SEARCH", "PATROL"], "active=%s state=%s" % [g.active, g.gstate])
+	game.set_crouch(false)
+	for e: CharacterBody3D in extra:
+		e.damage(999, e.global_position + Vector3.FORWARD, 0)
+	# Blonde Lance sweeps closer into the grass than the knights.
+	place(Vector3(-10, 0.2, -60), 0.0)
+	game.set_crouch(true)
+	hold_guard(g, Vector3(-10, 0.2, -57.6), 0.0)
+	g.yaw = PI
+	hold_guard(hunter, Vector3(-12.5, 0.2, -60), -PI / 2.0)
+	await wait(0.6)
+	check("Blonde Lance spots you in the grass up close; knights don't", hunter.suspicion > 0.2 and g.suspicion == 0.0, "hunter=%.2f knight=%.2f" % [hunter.suspicion, g.suspicion])
+	await shot("f5_hunter")
+	hold_guard(g, Vector3(-12, 0.2, 4), PI)
+	await wait(1.0)
+	check("Blonde Lance attacks when he finds you", hunter.active, "active=%s" % hunter.active)
+	game.set_crouch(false)
+	# He breaks off when hurt and turns up further on.
+	hunter.damage(hunter.max_hp * 0.4, game.hero.global_position, 0)
+	await wait(0.3)
+	check("Blonde Lance retreats when hurt and reappears ahead", not hunter.active and hunter.global_position.z < -80.0 and hunter.alive(), "z=%.1f" % hunter.global_position.z)
+	# Knights go for Eliza when she is closer.
+	var k2: CharacterBody3D = ks[1]
+	k2.active = true
+	k2.global_position = game.ally.global_position + Vector3(0, 0, 1.2)
+	k2.yaw = 0.0
+	var ahp: float = game.ally.hp
+	place(game.ally.global_position + Vector3(0, 0, -4), 0.0)
+	game.ally.global_position = k2.global_position + Vector3(0, 0, -1.2)
+	k2.yaw = 0.0
+	game.enemy_hits(k2, 12.0, 3.0, -1.0)
+	check("knights can hit Eliza", game.ally.hp < ahp, "hp=%d" % game.ally.hp)
+	game.ally.damage(999, k2.global_position, 0)
+	await wait(1.6)
+	check("losing Eliza fails the stage", game.mode == "dead" and game.fail_text == "SHE WAS CAPTURED", game.fail_text)
+	await shot("f6_captured")
+	game.respawn()
+	await wait(0.3)
+	check("retry restores Eliza", game.mode == "play" and game.ally.alive() and game.ally.hp == game.ally.max_hp)
+	# Reach the forest edge.
+	for e: CharacterBody3D in game.enemies:
+		e.attack_cd = 99.0
+		if e.alive() and e != hunter:
+			hold_guard(e, Vector3(-12, 0.2, 4), PI)
+	place(Vector3(0, 0.2, -108), 0.0)
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.8)
+	game.hud.stick = Vector2.ZERO
+	await wait(2.0)
+	check("reaching the forest edge escapes", game.mode == "win" and game.win_text == "ESCAPED THE FOREST", "mode=%s" % game.mode)
+	await shot("f7_escaped")

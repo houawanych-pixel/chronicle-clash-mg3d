@@ -32,6 +32,13 @@ Cover and crawl logic is from `Player.gd` (`toggle_cover`, cover slide with edge
 
 The Dark Knight's leap sends out a red shockwave; jump or dodge through it.
 
+## Forest Escape (second stage)
+Pick FOREST ESCAPE on the title. You play Lance; Eliza (just rescued) stays right behind you and crouches when you do. Three areas, each with a knight pair on patrol: the glade, the rocks, the tall grass, then the forest edge. Crouch or crawl inside tall grass and knights can't see you unless they are within 2 m. Boulders and trees are cover (wall hug works on them). Getting spotted brings two more knights in from behind (once per area). Break line of sight for about 5 s and an alerted guard goes back to searching. Knights will go for Eliza when she is closer; if she falls, the stage fails ("SHE WAS CAPTURED") and you retry from the checkpoint.
+
+Blonde Lance is the hunter: longer, wider vision and he spots you in grass from 3 m. He fights when he finds you, breaks off at 66% and 33% health and reappears in the next area, and flees for good after that. Reaching the light at the far end wins ("ESCAPED THE FOREST").
+
+Code: `scripts/citadel/Forest.gd` builds the stage and runs the hunter, reinforcements and lost-contact rules. `Citadel.gd` switches stages with `restart_with(hero, stage)`.
+
 ## Characters
 `assets/characters/` holds the owner's Tripo GLBs, reduced from ~2M to ~38k triangles with 1024 textures (`knight_lite` is ~17k for the minions). They have a 78-bone rig and no animation clips yet, so `scripts/citadel/Rig.gd` + `Poses.gd` pose the bones procedurally. The owner's Animation Library packs (Drive) use the same rig and can replace these poses once attached.
 
@@ -47,4 +54,4 @@ The Dark Knight's leap sends out a red shockwave; jump or dodge through it.
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 36/36 PASS`. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 51/51 PASS` (citadel, stealth and forest). The web build runs the same test with `?autotest`.

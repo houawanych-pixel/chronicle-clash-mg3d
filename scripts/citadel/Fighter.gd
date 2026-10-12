@@ -45,6 +45,8 @@ var search_t: float = 0.0
 var seeing: bool = false
 var cone: MeshInstance3D
 var cone_t: float = 0.0
+var vision_range: float = 9.5
+var vision_half: float = 40.0
 
 func setup(g: Node, k: String, model: String, h: float, blade: Color, blade_len: float) -> void:
 	game = g
@@ -196,6 +198,9 @@ func animate(dt: float) -> void:
 				pose = P.run(run_phase, speed_now)
 			else:
 				pose = P.idle(anim_t, kind != "ally")
+			if kind == "ally" and game.stage == "forest" and game.hero_low():
+				run_phase += dt * 6.0 * speed_now / 0.45
+				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
 	rig.rotation.y = yaw
 	if state == "dead":
 		dead_t += dt
@@ -214,6 +219,8 @@ func animate(dt: float) -> void:
 				drop = 0.22
 			elif game.crouched or (game.in_cover() and game.cover_low):
 				drop = -0.34
+		elif kind == "ally" and game.stage == "forest" and game.hero_low() and state == "idle":
+			drop = -0.3
 		rig.rotation.x = lerpf(rig.rotation.x, tilt, 1.0 - exp(-10.0 * dt))
 		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
 	rig.apply(pose, dt, rate)
@@ -233,7 +240,7 @@ func animate(dt: float) -> void:
 ## Knights: chase, telegraph, strike, recover. A shared token keeps at most
 ## two of them swinging at once so the player can read the fight.
 func knight_tick(dt: float) -> void:
-	var hero: CharacterBody3D = game.hero
+	var hero: CharacterBody3D = game.target_for(self)
 	if not alive():
 		return
 	attack_cd -= dt
@@ -250,9 +257,18 @@ func knight_tick(dt: float) -> void:
 			active = true
 			game.sound("alarm", -18)
 		return
+	# Forest: an alerted guard who loses sight of you heads for where you were
+	# last seen instead of homing in (the MG CHASE -> last_known rule).
+	if stealth and game.stage == "forest" and hero == game.hero:
+		if game.patrol.can_see(self) or dist < 2.5:
+			last_known = hero.global_position
+		else:
+			to = last_known - global_position
+			to.y = 0
+			dist = maxf(to.length(), reach)
 	match state:
 		"idle", "chase":
-			face_toward(hero.global_position, dt)
+			face_toward(global_position + to, dt)
 			var sep: Vector3 = game.separation(self)
 			if dist > reach * 0.85 and hero.alive():
 				var v: Vector3 = to.normalized() * move_speed + sep * 2.0
@@ -394,6 +410,9 @@ func ally_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.hero
 	heal_cd -= dt
 	var spot: Vector3 = hero.global_position + Vector3(1.6, 0, 2.4)
+	if game.stage == "forest":
+		# Stay right behind Lance so his cover is her cover.
+		spot = hero.global_position - hero.forward() * 1.3 + Vector3(0.35, 0, 0)
 	var to: Vector3 = spot - global_position
 	to.y = 0
 	if to.length() > 14.0 or global_position.y < hero.global_position.y - 4.0:

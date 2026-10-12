@@ -46,8 +46,8 @@ func hear(e: CharacterBody3D, at: Vector3) -> void:
 	e.gstate = "INVESTIGATE"
 	e.search_t = 5.0
 
-func range_limit() -> float:
-	var r: float = RANGE
+func range_limit(e: CharacterBody3D = null) -> float:
+	var r: float = e.vision_range if e else RANGE
 	if game.prone:
 		r *= 0.5
 	elif game.crouched:
@@ -62,9 +62,17 @@ func can_see(e: CharacterBody3D) -> bool:
 	var target: Vector3 = game.hero_target_point()
 	var to_player: Vector3 = target - eye
 	var flat: Vector3 = Vector3(to_player.x, 0, to_player.z)
-	if to_player.length() > range_limit():
+	var r: float = range_limit(e)
+	# Tall grass (forest): crouched or crawling you vanish unless they are right
+	# on top of you; Blonde Lance sweeps closer than the knights.
+	if game.hero_in_grass():
+		if game.crouched or game.prone:
+			r = minf(r, 3.0 if e.kind == "hunter" else 2.0)
+		else:
+			r *= 0.7
+	if to_player.length() > r:
 		return false
-	if flat.length() > 0.7 and e.forward().dot(flat.normalized()) < cos(deg_to_rad(HALF_ANGLE)):
+	if flat.length() > 0.7 and e.forward().dot(flat.normalized()) < cos(deg_to_rad(e.vision_half)):
 		return false
 	return game.ray(eye, target).is_empty()
 
@@ -132,12 +140,13 @@ func update_cone(e: CharacterBody3D) -> void:
 	var mesh: ImmediateMesh = ImmediateMesh.new()
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var start: Vector3 = e.global_position + Vector3.UP * 0.09
-	var r: float = range_limit()
+	var r: float = range_limit(e)
 	var fwd: Vector3 = e.forward()
+	var spread: float = deg_to_rad(e.vision_half) * CONE_SPREAD / deg_to_rad(HALF_ANGLE)
 	for i in range(20):
 		var pts: Array = []
 		for j in [i, i + 1]:
-			var dir: Vector3 = fwd.rotated(Vector3.UP, lerpf(-CONE_SPREAD, CONE_SPREAD, float(j) / 20.0))
+			var dir: Vector3 = fwd.rotated(Vector3.UP, lerpf(-spread, spread, float(j) / 20.0))
 			var hit: Dictionary = game.ray(start + Vector3.UP * 0.8, start + Vector3.UP * 0.8 + dir * r)
 			var end: Vector3 = hit.get("position", start + dir * r)
 			end.y = start.y
@@ -148,4 +157,4 @@ func update_cone(e: CharacterBody3D) -> void:
 	mesh.surface_end()
 	cone.mesh = mesh
 	var m: StandardMaterial3D = cone.material_override
-	m.albedo_color = Color(1, 0.2, 0.3, 0.24) if e.seeing else Color(1, 0.68, 0.2, 0.15)
+	m.albedo_color = Color(1, 0.2, 0.3, 0.24) if e.seeing else (Color(1, 0.85, 0.3, 0.2) if e.kind == "hunter" else Color(1, 0.68, 0.2, 0.15))

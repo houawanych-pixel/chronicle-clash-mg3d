@@ -6,6 +6,8 @@ const FighterScript = preload("res://scripts/citadel/Fighter.gd")
 const HUDScript = preload("res://scripts/citadel/CitadelHUD.gd")
 const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
 const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
+const ForestScript = preload("res://scripts/citadel/Forest.gd")
+const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
 
 const HEROES: Dictionary = {
@@ -19,6 +21,16 @@ const SECTIONS: Array = [
 	{"goal": "Defeat the Dark Knight", "spawn": Vector3(0, 0.2, -131.0)},
 ]
 
+var stage: String = "citadel"
+var sections: Array = SECTIONS
+var map_zones: Array = CITADEL_ZONES
+var forest: RefCounted
+var env_res: Environment
+var sun: DirectionalLight3D
+var grass: Array = []
+var boss_name: String = "DARK KNIGHT"
+var fail_text: String = "YOU FELL"
+var win_text: String = "CITADEL CLEARED"
 var hero: CharacterBody3D
 var ally: CharacterBody3D
 var boss: CharacterBody3D
@@ -95,13 +107,14 @@ var cover_look: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	patrol = PatrolScript.new(self)
+	forest = ForestScript.new(self)
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
 		audio_bank[cue] = load("res://audio/%s.wav" % cue)
 	build_environment()
 	world = Node3D.new()
 	add_child(world)
-	build_world()
+	build_stage()
 	camera = Camera3D.new()
 	camera.fov = 58
 	camera.far = 600
@@ -183,7 +196,8 @@ func build_environment() -> void:
 	e.glow_hdr_threshold = 1.3
 	env.environment = e
 	add_child(env)
-	var sun: DirectionalLight3D = DirectionalLight3D.new()
+	env_res = e
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -28, 0)
 	sun.light_energy = 1.15
 	sun.light_color = Color("fff3dc")
@@ -191,6 +205,54 @@ func build_environment() -> void:
 	sun.directional_shadow_max_distance = 45.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	add_child(sun)
+
+func citadel_look() -> void:
+	var sm: ProceduralSkyMaterial = env_res.sky.sky_material
+	sm.sky_top_color = Color("2f63c9")
+	sm.sky_horizon_color = Color("c9dcff")
+	sm.ground_horizon_color = Color("c9dcff")
+	sm.ground_bottom_color = Color("e9f1ff")
+	env_res.fog_light_color = Color("cfe0ff")
+	env_res.fog_density = 0.0022
+	env_res.ambient_light_color = Color("aebfe0")
+	sun.light_color = Color("fff3dc")
+	sun.rotation_degrees = Vector3(-52, -28, 0)
+
+## Rebuild the level for the current stage.
+func build_stage() -> void:
+	for c: Node in world.get_children():
+		world.remove_child(c)
+		c.queue_free()
+	walls.clear()
+	wall_heights.clear()
+	barriers.clear()
+	grass.clear()
+	if stage == "forest":
+		sections = ForestScript.SECTIONS
+		map_zones = ForestScript.MAP_ZONES
+		win_text = "ESCAPED THE FOREST"
+		forest.build()
+	else:
+		sections = SECTIONS
+		map_zones = CITADEL_ZONES
+		boss_name = "DARK KNIGHT"
+		win_text = "CITADEL CLEARED"
+		citadel_look()
+		build_world()
+
+func hero_in_grass() -> bool:
+	var p: Vector2 = Vector2(hero.global_position.x, hero.global_position.z)
+	for g: Rect2 in grass:
+		if g.has_point(p):
+			return true
+	return false
+
+func target_for(e: CharacterBody3D) -> CharacterBody3D:
+	## In the forest, knights go for Eliza when she is the closer one.
+	if stage == "forest" and ally != null and ally.alive() and hero.alive():
+		if ally.global_position.distance_to(e.global_position) + 1.5 < hero.global_position.distance_to(e.global_position):
+			return ally
+	return hero
 
 func marble_texture(dark: bool) -> ImageTexture:
 	var n: FastNoiseLite = FastNoiseLite.new()
@@ -566,11 +628,15 @@ func make_fighter(k: String, model: String, h: float, blade: Color, blade_len: f
 	return f
 
 func spawn_cast() -> void:
+	if stage == "forest":
+		forest.spawn_cast()
+		return
+	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
-	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.05, SECTIONS[0].spawn)
+	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.05, sections[0].spawn)
 	hero.max_hp = 100
 	hero.hp = 100
-	ally = make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, SECTIONS[0].spawn + Vector3(1.6, 0, 2.4))
+	ally = make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, sections[0].spawn + Vector3(1.6, 0, 2.4))
 	ally.rig.sword.visible = false
 	var knights: Array = [
 		[0, Vector3(-9, 0.2, -17)], [0, Vector3(10, 0.2, -21)], [0, Vector3(-2, 0.2, -35)],
@@ -610,20 +676,23 @@ func spawn_cast() -> void:
 	aura.position = Vector3(0, 2.0, 0)
 	boss.add_child(aura)
 
-func restart_with(key: String) -> void:
+func restart_with(key: String, new_stage: String = "") -> void:
 	hero_key = key
+	if new_stage != "":
+		stage = new_stage
 	for e: Node in enemies:
 		e.queue_free()
 	enemies.clear()
 	hero.queue_free()
 	ally.queue_free()
-	for b: Node in barriers:
-		if is_instance_valid(b):
-			b.queue_free()
-	barriers.clear()
-	add_barrier(Vector3(0, 2, -38.5), Vector3(4.0, 4.0, 0.4))
-	add_barrier(Vector3(0, 2, -92.5), Vector3(8.0, 4.0, 0.4))
-	add_barrier(Vector3(0, 2.5, -128.5), Vector3(8.0, 5.0, 0.4))
+	for t: Dictionary in throws:
+		if is_instance_valid(t.node):
+			t.node.queue_free()
+	throws.clear()
+	hud.lines.clear()
+	hud.popups.clear()
+	hud.numbers.clear()
+	build_stage()
 	section = 0
 	checkpoint = 0
 	said.clear()
@@ -653,6 +722,9 @@ func restart_with(key: String) -> void:
 func start_game() -> void:
 	mode = "play"
 	hud.release()
+	if stage == "forest":
+		forest.start()
+		return
 	say_once("start", "ally", "Guards ahead. Stay sharp!")
 	say_once("tip", "tip", "Hold BLOCK when a knight glows red. Block just before the hit to parry.")
 
@@ -963,7 +1035,16 @@ func hero_strike(f: CharacterBody3D, dmg: float, reach: float, arc_cos: float, s
 		sound("step", -16)
 
 func enemy_hits(attacker: CharacterBody3D, dmg: float, reach: float, arc_cos: float) -> void:
-	var f: CharacterBody3D = hero
+	var f: CharacterBody3D = target_for(attacker)
+	if f == ally:
+		var ta: Vector3 = ally.global_position - attacker.global_position
+		ta.y = 0
+		if ta.length() <= reach and (ta.length() < 0.3 or attacker.forward().dot(ta.normalized()) >= arc_cos):
+			ally.damage(dmg * 0.8, attacker.global_position, 0.3)
+			ally.flash_color = Color(1, 0.3, 0.3)
+			sound("hurt", -8)
+			say_once("eliza_hit", "ally", "Lance! They're on me!")
+		return
 	if not f.alive():
 		return
 	if f.state in ["dodge", "dashchain"]:
@@ -1056,13 +1137,17 @@ func give_token(e: CharacterBody3D) -> void:
 func on_death(f: CharacterBody3D) -> void:
 	give_token(f)
 	marks.erase(f)
-	if f == hero:
+	if f == hero or f == ally:
+		fail_text = "YOU FELL" if f == hero else "SHE WAS CAPTURED"
 		mode = "dead"
 		dead_timer = 0.0
 		sound("fail", -6)
 		return
 	sound("guard_down", -8)
 	burst(f.global_position + Vector3.UP, Color("ffd27a"), 24, 5.0)
+	if f == boss and stage == "forest":
+		hud.popup("BLONDE LANCE IS DOWN", Color("ffd27a"))
+		return
 	if f == boss:
 		hud.popup("DARK KNIGHT DEFEATED", Color("ffd27a"))
 		get_tree().create_timer(2.2).timeout.connect(func() -> void:
@@ -1078,8 +1163,8 @@ func fell() -> void:
 		hero.hp = 0
 		hero.set_state("dead")
 		on_death(hero)
-	var safe: Vector3 = SECTIONS[checkpoint].spawn
-	if checkpoint == 1:
+	var safe: Vector3 = sections[checkpoint].spawn
+	if checkpoint == 1 and stage == "citadel":
 		# Back to the last bridge segment the hero reached.
 		var z: float = hero.global_position.z
 		safe.z = -40.0 if z > -54 else (-56.5 if z > -70 else -72.5)
@@ -1092,9 +1177,18 @@ func respawn() -> void:
 	hero.set_state("idle")
 	hero.visible = true
 	stamina = 100
-	hero.global_position = SECTIONS[checkpoint].spawn
+	hero.global_position = sections[checkpoint].spawn
 	hero.velocity = Vector3.ZERO
 	ally.global_position = hero.global_position + Vector3(1.6, 0, 2.4)
+	ally.hp = ally.max_hp
+	ally.set_state("idle")
+	ally.visible = true
+	for e: CharacterBody3D in enemies.duplicate():
+		if e.has_meta("reinforcement"):
+			enemies.erase(e)
+			e.queue_free()
+	if stage == "forest":
+		forest.reinforced.clear()
 	for e: CharacterBody3D in enemies:
 		if e.alive() and e.section >= checkpoint:
 			e.hp = e.max_hp
@@ -1106,6 +1200,9 @@ func respawn() -> void:
 			if e.stealth:
 				e.gstate = "PATROL"
 				e.suspicion = 0.0
+				if e.kind == "hunter":
+					var r0: Vector2 = e.route[0]
+					e.global_position = Vector3(r0.x, 0.2, r0.y)
 	tokens.clear()
 	marks.clear()
 	mana = 100
@@ -1120,6 +1217,10 @@ func section_clear(s: int) -> bool:
 	return true
 
 func progress_check() -> void:
+	if stage == "forest":
+		forest.progress()
+		forest.tick(get_process_delta_time())
+		return
 	if section < 3 and section_clear(section):
 		open_barrier(section)
 		section += 1
@@ -1715,6 +1816,8 @@ func alert_guard(e: CharacterBody3D) -> void:
 	if e.cone:
 		e.cone.visible = false
 	sound("alarm", -10)
+	if stage == "forest":
+		forest.on_alarm(e)
 	hud.number(e.global_position + Vector3.UP * (e.height + 0.5), "!", Color("ff3346"))
 	say_once("spotted", "ally", "They've spotted us! Fight or break line of sight!")
 
@@ -1743,3 +1846,6 @@ func stealth_on(id: String) -> bool:
 		"peek":
 			return peeking
 	return false
+
+func hero_low() -> bool:
+	return crouched or prone or (in_cover() and cover_low)

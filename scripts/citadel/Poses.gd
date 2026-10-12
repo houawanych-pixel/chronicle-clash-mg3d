@@ -173,3 +173,52 @@ static func cast(t: float) -> Dictionary:
 	p["R_Forearm"] = d(1, 0.7, 0.1)
 	p["Spine01"] = lean(-0.1)
 	return p
+
+static func crouch(phase: float, speed: float) -> Dictionary:
+	## Low sneaking stance; knees bent, sword held low and back.
+	var s: float = sin(phase) * speed
+	var p: Dictionary = {}
+	p["L_Thigh"] = leg(1.15 + 0.35 * s, -0.22)
+	p["L_Calf"] = leg(-0.55 + 0.25 * s, -0.1)
+	p["R_Thigh"] = leg(0.85 - 0.35 * s, 0.22)
+	p["R_Calf"] = leg(-0.8 - 0.25 * s, 0.1)
+	p["L_Upperarm"] = d(0.6, -0.8, -0.4)
+	p["L_Forearm"] = d(1, -0.3, -0.1)
+	p["R_Upperarm"] = d(0.1, -1, 0.45)
+	p["R_Forearm"] = d(-0.2, -1, 0.3)
+	p["blade"] = d(-0.6, -0.7, 0.25)
+	p["Spine01"] = lean(0.45)
+	p["Head"] = lean(-0.35)
+	return p
+
+static func crawl(phase: float, speed: float) -> Dictionary:
+	## Prone: the rig is tilted face-down, so model "up" points along the ground ahead.
+	var s: float = sin(phase) * speed
+	var p: Dictionary = {}
+	p["L_Upperarm"] = d(0.55, 0.8 + 0.3 * s, -0.5)
+	p["L_Forearm"] = d(0.2, 0.9 - 0.3 * s, -0.2)
+	p["R_Upperarm"] = d(0.55, 0.8 - 0.3 * s, 0.5)
+	p["R_Forearm"] = d(0.2, 0.9 + 0.3 * s, 0.2)
+	p["L_Thigh"] = d(0.15 + 0.2 * s, -1, -0.15)
+	p["L_Calf"] = d(-0.1, -1, -0.12)
+	p["R_Thigh"] = d(0.15 - 0.2 * s, -1, 0.15)
+	p["R_Calf"] = d(-0.1, -1, 0.12)
+	p["blade"] = d(-0.2, -1, 0.4)
+	p["Head"] = lean(-0.9)
+	return p
+
+static func hug(side: float, moving: bool, peeking: bool) -> Dictionary:
+	## Back flat to the wall (the hero faces away from it), sword tucked in.
+	var p: Dictionary = {}
+	base_legs(p, 0.22)
+	if moving:
+		p["L_Thigh"] = leg(0.1, -0.35 * side)
+		p["R_Thigh"] = leg(-0.1, 0.35 * side)
+	p["L_Upperarm"] = d(-0.35, -1, -0.55)
+	p["L_Forearm"] = d(-0.2, -1, -0.15)
+	p["R_Upperarm"] = d(-0.3, -1, 0.5)
+	p["R_Forearm"] = d(0.3, -1, 0.2)
+	p["blade"] = d(0.15, -1, 0.35)
+	p["Spine02"] = lean(-0.06)
+	p["Head"] = yaw((0.9 if peeking else 0.5) * -side)
+	return p

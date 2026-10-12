@@ -18,7 +18,17 @@ Courtyard guards → broken sky bridge (two gaps to jump) → plaza → Dark Kni
 | Charged dash through marks | Hold CHARGE, release | I |
 | Seeking magic (to marks; stronger right after a charged dash) | MAGIC | U |
 | Potion (3) | POTION | R |
-| Pause | II (top left) | Esc / P |
+| Crouch (quiet, harder to see) | tap CROUCH | C |
+| Crawl | hold CROUCH | Z |
+| Wall hug (slide along; low walls auto-crouch) | WALL HUG, or push into a wall out of combat | H |
+| Peek round the edge | hold PEEK while hugging | Q |
+| Distract (knock in cover, else throw a pebble) | DISTRACT | F |
+| Pause | II (beside the stats) | Esc / P |
+
+## Stealth (ported from the MG build)
+The three courtyard guards patrol with vision cones (shown on the floor and the map). Numbers match the old `Guard.gd`: 40° half-cone, suspicion rises 1.15/s in view and falls 0.3/s out of view, crouching cuts their range to 80% and crawling to 50%. Low planters hide you only when crouched. Walking upright makes footstep noise; crouching and crawling are silent. Knocks and pebbles send guards to INVESTIGATE, then SEARCH, then back to PATROL. Full suspicion raises the alarm and wakes guards within 14 m into sword combat. Attacking an unaware guard is a silent takedown. The top shows STEALTH: HIDDEN / SUSPICIOUS / ALERT.
+
+Cover and crawl logic is from `Player.gd` (`toggle_cover`, cover slide with edge peek, wall-pressure entry, crawl). The wall-hug camera is the `EnvironmentCamera.gd` cover view. Change from the MG build: tapping CROUCH crouch-walks and holding it crawls (the MG build crawled as soon as you moved while crouched).
 
 The Dark Knight's leap sends out a red shockwave; jump or dodge through it.
 
@@ -30,10 +40,11 @@ The Dark Knight's leap sends out a red shockwave; jump or dodge through it.
 - `scripts/citadel/Fighter.gd` — shared body for hero, knights, boss, ally (AI state machines)
 - `scripts/citadel/CitadelHUD.gd` — touch HUD (edge-anchored for wide phones)
 - `scripts/citadel/AutoTest.gd` — scripted run
-- `tools/` — `render_portraits.gd`, `pose_test.gd`, `inspect_models.gd` (not exported)
+- `scripts/citadel/Patrol.gd` — guard patrol, vision cone, suspicion and noise (ported from `scripts/Guard.gd`)
+- `tools/` — `render_portraits.gd`, `pose_test.gd`, `stance_test.gd`, `inspect_models.gd` (not exported)
 
 ## Test
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 21/21 PASS`. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 36/36 PASS`. The web build runs the same test with `?autotest`.

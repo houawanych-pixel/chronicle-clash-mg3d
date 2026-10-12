@@ -5,6 +5,8 @@ extends Node3D
 const FighterScript = preload("res://scripts/citadel/Fighter.gd")
 const HUDScript = preload("res://scripts/citadel/CitadelHUD.gd")
 const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
+const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
+const Spatial = preload("res://scripts/StealthMath.gd")
 
 const HEROES: Dictionary = {
 	"blonde_lance": {"name": "BLONDE LANCE", "model": "res://assets/characters/blonde_lance.glb", "blade": Color("8fe9ff")},
@@ -67,8 +69,32 @@ var chain_power: float = 1.0
 const DODGE_TIME: float = 0.3
 const DODGE_SPEED: float = 15.0
 const CHAIN_SEG: float = 0.24
+# Stealth (ported from the MG build: Player.gd cover/crouch/crawl, Game.gd knock/noise).
+var patrol: RefCounted
+var walls: Array = []
+var wall_heights: Dictionary = {}
+var crouched: bool = false
+var prone: bool = false
+var cover: Dictionary = {}
+var cover_side: float = 1.0
+var cover_low: bool = false
+var cover_cooldown: float = 0.0
+var cover_blend: float = 0.0
+var cover_motion: Vector3 = Vector3.ZERO
+var peeking: bool = false
+var peek_dir: Vector3 = Vector3.ZERO
+var wall_pressure: float = 0.0
+var foot_time: float = 0.0
+var distract_cd: float = 0.0
+var crouch_hold: float = 0.0
+var crouch_long: bool = false
+var takedowns: int = 0
+var throws: Array = []
+var cover_eye: Vector3 = Vector3.ZERO
+var cover_look: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
+	patrol = PatrolScript.new(self)
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
 		audio_bank[cue] = load("res://audio/%s.wav" % cue)
@@ -98,7 +124,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -293,6 +319,8 @@ func box(pos: Vector3, size: Vector3, material: String, collide: bool = true, pa
 	mi.material_override = mat(material)
 	mi.position = pos
 	(parent if parent else world).add_child(mi)
+	if collide and material != "barrier" and pos.y - size.y * 0.5 < 0.35 and pos.y + size.y * 0.5 > 0.7:
+		add_wall(Rect2(pos.x - size.x * 0.5, pos.z - size.z * 0.5, size.x, size.z), pos.y + size.y * 0.5)
 	if collide:
 		var body: StaticBody3D = StaticBody3D.new()
 		var cs: CollisionShape3D = CollisionShape3D.new()
@@ -302,6 +330,10 @@ func box(pos: Vector3, size: Vector3, material: String, collide: bool = true, pa
 		body.add_child(cs)
 		mi.add_child(body)
 	return mi
+
+func add_wall(r: Rect2, top: float) -> void:
+	walls.append(r)
+	wall_heights[r] = top
 
 func column(pos: Vector3, h: float, r: float = 0.55, collide: bool = true) -> void:
 	var mi: MeshInstance3D = MeshInstance3D.new()
@@ -317,6 +349,7 @@ func column(pos: Vector3, h: float, r: float = 0.55, collide: bool = true) -> vo
 	box(pos + Vector3(0, 0.2, 0), Vector3(r * 2.6, 0.4, r * 2.6), "marble", false)
 	box(pos + Vector3(0, h - 0.15, 0), Vector3(r * 2.6, 0.3, r * 2.6), "gold", false)
 	if collide:
+		add_wall(Rect2(pos.x - r * 1.05, pos.z - r * 1.05, r * 2.1, r * 2.1), h)
 		var body: StaticBody3D = StaticBody3D.new()
 		var cs: CollisionShape3D = CollisionShape3D.new()
 		var sh: CylinderShape3D = CylinderShape3D.new()
@@ -540,7 +573,7 @@ func spawn_cast() -> void:
 	ally = make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, SECTIONS[0].spawn + Vector3(1.6, 0, 2.4))
 	ally.rig.sword.visible = false
 	var knights: Array = [
-		[0, Vector3(-3, 0.2, -16)], [0, Vector3(4, 0.2, -20)], [0, Vector3(0, 0.2, -30)],
+		[0, Vector3(-9, 0.2, -17)], [0, Vector3(10, 0.2, -21)], [0, Vector3(-2, 0.2, -35)],
 		[1, Vector3(0, 0.2, -60)], [1, Vector3(-1, 0.2, -78)], [1, Vector3(1.2, 0.2, -84)],
 		[2, Vector3(-5, 0.2, -104)], [2, Vector3(5, 0.2, -106)], [2, Vector3(-3, 0.2, -118)], [2, Vector3(4, 0.2, -121)],
 	]
@@ -552,6 +585,14 @@ func spawn_cast() -> void:
 		e.yaw = PI
 		e.home = k[1]
 		enemies.append(e)
+	# Courtyard guards patrol with vision cones, ported from the MG guards.
+	var routes: Array = [
+		[Vector2(-9, -17), Vector2(3, -17)],
+		[Vector2(10, -21), Vector2(10, -33), Vector2(3, -33), Vector2(3, -21)],
+		[Vector2(-2, -35), Vector2(-9, -31), Vector2(-2, -27)],
+	]
+	for i in routes.size():
+		patrol.setup(enemies[i], routes[i])
 	boss = make_fighter("boss", "res://assets/characters/knight.glb", 2.55, Color("ff3346"), 1.6, Vector3(0, 0.2, -158))
 	boss.section = 3
 	boss.max_hp = 650
@@ -601,6 +642,11 @@ func restart_with(key: String) -> void:
 	bolts.clear()
 	cam_yaw = 0.0
 	cam_pitch = 0.42
+	crouched = false
+	prone = false
+	cover.clear()
+	peeking = false
+	takedowns = 0
 	spawn_cast()
 	cam_pos = hero.global_position
 
@@ -647,7 +693,32 @@ func update_camera(dt: float) -> void:
 	var jitter: Vector3 = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.25
 	shake = maxf(0.0, shake - dt * 3.0)
 	var look: Vector3 = cam_pos + Vector3(0, 1.3, 0) + cam_forward() * 2.2
-	camera.look_at_from_position(cam_pos + back + jitter, look + jitter)
+	var eye: Vector3 = cam_pos + back
+	if prone:
+		eye.y -= 1.0
+		look.y -= 0.7
+	elif crouched:
+		eye.y -= 0.5
+		look.y -= 0.4
+	# Wall-hug view from the MG EnvironmentCamera: stand off the wall, and
+	# shift toward the open side only while sliding or peeking.
+	cover_blend = move_toward(cover_blend, 1.0 if in_cover() else 0.0, dt / 0.4)
+	if cover_blend > 0.0 and in_cover():
+		var normal: Vector3 = Vector3(cover.normal.x, 0, cover.normal.y)
+		var tangent: Vector3 = Vector3(-normal.z, 0, normal.x) * cover_side
+		var amount: float = 1.0 if cover_motion.length() > 0.1 or peek_dir.length() > 0.1 else 0.0
+		var reveal: Vector3 = tangent * 1.4 * amount + peek_dir * 2.0
+		var c_eye: Vector3 = hero.global_position + normal * 5.5 - tangent * 3.0 * amount + Vector3.UP * (2.2 if cover_low else 2.8)
+		var c_look: Vector3 = hero.global_position + Vector3.UP * (0.8 if cover_low else 1.2) + reveal
+		var k: float = cover_blend * cover_blend * (3.0 - 2.0 * cover_blend)
+		cover_eye = cover_eye.lerp(c_eye, 1.0 - exp(-8.0 * dt)) if cover_eye != Vector3.ZERO else c_eye
+		cover_look = cover_look.lerp(c_look, 1.0 - exp(-8.0 * dt)) if cover_look != Vector3.ZERO else c_look
+		eye = eye.lerp(cover_eye, k)
+		look = look.lerp(cover_look, k)
+	else:
+		cover_eye = Vector3.ZERO
+		cover_look = Vector3.ZERO
+	camera.look_at_from_position(eye + jitter, look + jitter)
 
 func move_input() -> Vector2:
 	var v: Vector2 = hud.stick
@@ -732,6 +803,9 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		f.rig.trail_on = false
 		f.set_state("dodge", DODGE_TIME)
 		sound("hook", -12)
+	stealth_input(f, dt)
+	if f.state != "idle" and (prone or in_cover()) and f.state not in ["block"]:
+		leave_stance()
 	match f.state:
 		"dead":
 			return
@@ -809,14 +883,31 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 			return
 	# Free movement.
 	var speed: float = 6.6
-	f.velocity.x = dir.x * speed
-	f.velocity.z = dir.z * speed
-	if dir.length() > 0.15:
-		f.face_toward(f.global_position + dir, dt, 14.0)
+	if prone:
+		speed = 1.4
+	elif crouched:
+		speed = 2.6
+	if in_cover():
+		cover_move(f, dt, mv, dir)
+	else:
+		f.velocity.x = dir.x * speed
+		f.velocity.z = dir.z * speed
+		if dir.length() > 0.15:
+			f.face_toward(f.global_position + dir, dt, 14.0)
+		auto_cover(f, dt, dir)
+	footsteps(f, dt)
+	if (jump or attack or blocking) and (prone or in_cover()):
+		leave_stance()
+		if prone:
+			jump = false
 	if jump and f.is_on_floor():
+		if crouched:
+			set_crouch(false)
 		f.velocity.y = 9.6
 		sound("step", -10)
 	if attack:
+		if crouched:
+			set_crouch(false)
 		if f.is_on_floor():
 			f.combo = 0
 			f.set_state("attack", 0.36)
@@ -854,7 +945,14 @@ func hero_strike(f: CharacterBody3D, dmg: float, reach: float, arc_cos: float, s
 			continue
 		if d > 0.3 and f.forward().dot(to.normalized()) < arc_cos:
 			continue
-		e.active = true
+		if e.stealth and not e.active and not e.seeing:
+			# Unaware guard: one silent hit, like the old takedowns.
+			e.damage(e.hp + 1.0, f.global_position, 0.0)
+			takedowns += 1
+			hud.popup("SILENT TAKEDOWN", Color("7dffcf"))
+			hit_any = true
+			continue
+		wake(e)
 		e.damage(dmg, f.global_position, stagger)
 		burst(e.global_position + Vector3.UP * e.height * 0.55, Color("bff4ff"), 14, 4.0)
 		hit_any = true
@@ -1005,6 +1103,9 @@ func respawn() -> void:
 			e.state = "idle"
 			e.active = false
 			e.attack_cd = 1.5
+			if e.stealth:
+				e.gstate = "PATROL"
+				e.suspicion = 0.0
 	tokens.clear()
 	marks.clear()
 	mana = 100
@@ -1129,6 +1230,7 @@ func update_effects(dt: float) -> void:
 	if paused():
 		return
 	update_bolts(dt)
+	update_throws(dt)
 	for fx: Dictionary in effects.duplicate():
 		fx.t += dt
 		var k: float = fx.t / fx.life
@@ -1206,7 +1308,8 @@ func tap_target(ui_pos: Vector2) -> void:
 	marks.append(best)
 	while marks.size() > 3:
 		marks.pop_front()
-	best.active = true
+	if not best.stealth:
+		best.active = true
 	sound("bleep", -8)
 	say_once("marks", "tip", "Marked! Hold CHARGE and release to dash through marks. MAGIC seeks them too.")
 
@@ -1271,7 +1374,7 @@ func chain_tick(f: CharacterBody3D, dt: float) -> void:
 		var dmg: float = 26.0 + 34.0 * chain_power
 		if t != null and is_instance_valid(t) and t.alive():
 			var e: CharacterBody3D = t
-			e.active = true
+			wake(e)
 			e.damage(dmg, f.global_position, 0.6)
 			burst(e.global_position + Vector3.UP * e.height * 0.55, Color("ffe08a"), 20, 5.0)
 			sound("hit", -4)
@@ -1371,7 +1474,7 @@ func update_bolts(dt: float) -> void:
 		node.global_position = pos + (b.vel as Vector3) * dt
 		if t != null and is_instance_valid(t) and t.alive() and node.global_position.distance_to(aim) < 0.7:
 			var e: CharacterBody3D = t
-			e.active = true
+			wake(e)
 			e.damage(b.dmg, node.global_position, 0.35)
 			burst(node.global_position, Color("d9c2ff"), 18, 4.0)
 			sound("hit", -8)
@@ -1381,3 +1484,262 @@ func update_bolts(dt: float) -> void:
 			burst(node.global_position, Color("d9c2ff"), 8, 2.0)
 			node.queue_free()
 			bolts.erase(b)
+
+# ---------------------------------------------------------------- stealth (ported from the MG build)
+
+func in_cover() -> bool:
+	return not cover.is_empty()
+
+func hero_target_point() -> Vector3:
+	## Same idea as Player.target_point(): lower when crouched or crawling.
+	return hero.global_position + Vector3.UP * (0.35 if prone else (0.6 if crouched else 0.95))
+
+func set_hero_shape(h: float) -> void:
+	var cs: CollisionShape3D = hero.get_child(0)
+	var cap: CapsuleShape3D = cs.shape
+	cap.height = h
+	cap.radius = minf(0.38, h * 0.5)
+	cs.position.y = h * 0.5
+
+func can_stand() -> bool:
+	var shape: CapsuleShape3D = CapsuleShape3D.new()
+	shape.radius = 0.3
+	shape.height = 1.7
+	var q: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	q.shape = shape
+	q.transform = Transform3D(Basis.IDENTITY, hero.global_position + Vector3.UP * 0.9)
+	q.collision_mask = 1
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+func set_crouch(on: bool) -> void:
+	if not on and not can_stand():
+		hud.popup("TOO LOW TO STAND", Color("ffb03b"))
+		return
+	crouched = on
+	prone = false
+	set_hero_shape(1.2 if on else 1.8)
+
+func set_crawl(on: bool) -> void:
+	if not on and not can_stand():
+		hud.popup("TOO LOW TO STAND", Color("ffb03b"))
+		return
+	if in_cover():
+		toggle_cover()
+	prone = on
+	crouched = false
+	cover_cooldown = 0.5
+	set_hero_shape(0.6 if on else 1.8)
+	sound("cover", -14)
+
+func leave_stance() -> void:
+	if in_cover():
+		toggle_cover()
+	if prone:
+		set_crawl(false)
+
+## Old Player.toggle_cover(): snap to the nearest wall face within reach.
+func toggle_cover() -> void:
+	if in_cover():
+		cover.clear()
+		cover_cooldown = 0.7
+		peeking = false
+		peek_dir = Vector3.ZERO
+		if cover_low and crouched:
+			set_crouch(false)
+		cover_low = false
+		return
+	if prone or not hero.is_on_floor():
+		return
+	var p: Vector2 = Vector2(hero.global_position.x, hero.global_position.z)
+	var found: Dictionary = Spatial.cover_face(p, walls, 1.3)
+	if found.is_empty():
+		hud.popup("MOVE CLOSER TO A WALL", Color("ffb03b"))
+		return
+	cover = found
+	hero.global_position = Vector3(found.point.x, hero.global_position.y, found.point.y)
+	hero.velocity = Vector3.ZERO
+	var n: Vector2 = found.normal
+	hero.yaw = atan2(-n.x, -n.y)
+	cover_low = float(wall_heights.get(found.wall, 3.0)) < 1.4
+	if cover_low:
+		set_crouch(true)
+	sound("cover")
+	say_once("cover", "tip", "Slide along the wall. Hold PEEK at the edge. DISTRACT knocks to lure guards.")
+
+## Old Player.tick() cover branch: slide along the face, stop and peek at the edge.
+func cover_move(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3) -> void:
+	var n: Vector2 = cover.normal
+	var tangent: Vector2 = Vector2(-n.y, n.x)
+	var move: Vector2 = Vector2(dir.x, dir.z)
+	peek_dir = Vector3.ZERO
+	if move.dot(n) > 0.7:
+		toggle_cover()
+		return
+	var along: float = move.dot(tangent)
+	var direction: Vector3 = Vector3(tangent.x, 0, tangent.y) * along
+	var speed: float = 1.8
+	var rect: Rect2 = cover.wall
+	var axis: int = 1 if absf(n.x) > 0.5 else 0
+	var pt: Vector2 = Vector2(f.global_position.x, f.global_position.z)
+	var proposed: float = pt[axis] + Vector2(direction.x, direction.z)[axis] * speed * dt
+	if absf(along) > 0.1:
+		cover_side = signf(along)
+	if proposed < rect.position[axis] + 0.15 or proposed > rect.end[axis] - 0.15:
+		peek_dir = direction.normalized()
+		direction = Vector3.ZERO
+	if peeking:
+		peek_dir = Vector3(tangent.x, 0, tangent.y) * cover_side
+	f.velocity.x = direction.x * speed
+	f.velocity.z = direction.z * speed
+	cover_motion = f.velocity
+	f.yaw = lerp_angle(f.yaw, atan2(-n.x, -n.y), 1.0 - exp(-12.0 * dt))
+
+## Old wall-pressure rule: pushing into a wall for 0.22 s takes cover.
+## Only outside a fight, so it never grabs you mid-combat.
+func auto_cover(f: CharacterBody3D, dt: float, dir: Vector3) -> void:
+	cover_cooldown = maxf(0.0, cover_cooldown - dt)
+	if not prone and f.is_on_wall() and dir.length() > 0.3 and cover_cooldown <= 0 and f.is_on_floor() and not fighting():
+		wall_pressure += dt
+		if wall_pressure > 0.22:
+			toggle_cover()
+			wall_pressure = 0.0
+	else:
+		wall_pressure = 0.0
+
+func fighting() -> bool:
+	for e: CharacterBody3D in enemies:
+		if e.alive() and e.active and e.global_position.distance_to(hero.global_position) < 12.0:
+			return true
+	return false
+
+## Old footstep noise: walking upright is heard nearby; crouching and crawling are silent.
+func footsteps(f: CharacterBody3D, dt: float) -> void:
+	foot_time -= dt
+	var hs: float = Vector2(f.velocity.x, f.velocity.z).length()
+	if hs > 2.6 and f.is_on_floor() and foot_time <= 0 and not crouched and not prone:
+		foot_time = 0.42
+		noise(f.global_position, 4.5)
+
+func noise(at: Vector3, radius: float) -> void:
+	for e: CharacterBody3D in enemies:
+		if e.stealth and e.global_position.distance_to(at) < radius:
+			patrol.hear(e, at)
+
+func stealth_input(f: CharacterBody3D, dt: float) -> void:
+	distract_cd -= dt
+	if mode != "play" or not f.alive():
+		peeking = false
+		return
+	var free: bool = f.state in ["idle", "block"]
+	# CROUCH: tap toggles crouch; hold for crawl (the MG build's crawl).
+	var crouch_down: bool = hud.held("crouch") or Input.is_action_pressed("cc_crouch")
+	if hud.take("crouch") or Input.is_action_just_pressed("cc_crouch"):
+		crouch_hold = 0.0
+		crouch_long = false
+	if crouch_down:
+		crouch_hold += dt
+		if crouch_hold > 0.45 and not crouch_long and free:
+			crouch_long = true
+			set_crawl(not prone)
+	if (hud.took_release("crouch") or Input.is_action_just_released("cc_crouch")) and not crouch_long and free:
+		if prone:
+			set_crawl(false)
+		elif not (in_cover() and cover_low):
+			set_crouch(not crouched)
+			sound("cover", -16)
+	if Input.is_action_just_pressed("cc_crawl") and free:
+		set_crawl(not prone)
+	if (hud.take("hug") or Input.is_action_just_pressed("cc_hug")) and free:
+		toggle_cover()
+	var want_peek: bool = hud.held("peek") or Input.is_action_pressed("cc_peek")
+	if want_peek and not in_cover():
+		if hud.take("peek"):
+			hud.popup("WALL HUG FIRST", Color("ffb03b"))
+		want_peek = false
+	hud.take("peek")
+	peeking = want_peek
+	if (hud.take("distract") or Input.is_action_just_pressed("cc_distract")) and distract_cd <= 0:
+		distract_cd = 1.2
+		if in_cover():
+			# Old "knock": guards within 11 m come to investigate.
+			noise(f.global_position, 11.0)
+			sound("knock")
+			hud.popup("KNOCK", Color("ffcf6a"))
+		else:
+			throw_pebble(f)
+
+func throw_pebble(f: CharacterBody3D) -> void:
+	var from: Vector3 = f.global_position + Vector3.UP * 1.5
+	var to: Vector3 = f.global_position + f.forward() * 8.0
+	var hit: Dictionary = ray(from, to + Vector3.UP * 1.0)
+	if not hit.is_empty():
+		to = hit.position - f.forward() * 0.3
+	var ground: Dictionary = ray(to + Vector3.UP * 2.0, to + Vector3.DOWN * 4.0)
+	if not ground.is_empty():
+		to = ground.position
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	var sm: SphereMesh = SphereMesh.new()
+	sm.radius = 0.09
+	sm.height = 0.18
+	mi.mesh = sm
+	mi.material_override = mat("gold")
+	add_child(mi)
+	mi.global_position = from
+	throws.append({"node": mi, "from": from, "to": to, "t": 0.0})
+	sound("step", -10)
+
+func update_throws(dt: float) -> void:
+	for t: Dictionary in throws.duplicate():
+		t.t += dt
+		var k: float = clampf(t.t / 0.6, 0, 1)
+		var pos: Vector3 = (t.from as Vector3).lerp(t.to, k) + Vector3.UP * sin(k * PI) * 2.0
+		(t.node as Node3D).global_position = pos
+		if k >= 1.0:
+			noise(t.to, 9.0)
+			sound("knock", -6)
+			ring(t.to + Vector3.UP * 0.05, 1.2, Color("ffcf6a"), 0.5)
+			(t.node as Node3D).queue_free()
+			throws.erase(t)
+
+func wake(e: CharacterBody3D) -> void:
+	if e.stealth and not e.active:
+		alert_guard(e)
+	e.active = true
+
+func alert_guard(e: CharacterBody3D) -> void:
+	if e.active or not e.alive():
+		return
+	e.active = true
+	e.gstate = "CHASE"
+	e.attack_cd = 0.8
+	if e.cone:
+		e.cone.visible = false
+	sound("alarm", -10)
+	hud.number(e.global_position + Vector3.UP * (e.height + 0.5), "!", Color("ff3346"))
+	say_once("spotted", "ally", "They've spotted us! Fight or break line of sight!")
+
+func stealth_status() -> String:
+	## "" when no patrol guards are around; otherwise HIDDEN / SUSPICIOUS / ALERT.
+	var any: bool = false
+	var sus: bool = false
+	for e: CharacterBody3D in enemies:
+		if not e.stealth or not e.alive():
+			continue
+		any = true
+		if e.active:
+			return "ALERT"
+		if e.suspicion > 0.05 or e.gstate in ["INVESTIGATE", "SEARCH"]:
+			sus = true
+	if not any:
+		return ""
+	return "SUSPICIOUS" if sus else "HIDDEN"
+
+func stealth_on(id: String) -> bool:
+	match id:
+		"crouch":
+			return crouched or prone
+		"hug":
+			return in_cover()
+		"peek":
+			return peeking
+	return false

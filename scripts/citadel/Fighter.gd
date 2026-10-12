@@ -34,6 +34,17 @@ var slam_count: int = 0
 var heal_cd: float = 6.0
 var hurt_cd: float = 0.0
 var height: float = 1.8
+# Stealth patrol state (see Patrol.gd, ported from the MG Guard.gd).
+var stealth: bool = false
+var route: Array = []
+var route_i: int = 0
+var gstate: String = ""
+var suspicion: float = 0.0
+var last_known: Vector3
+var search_t: float = 0.0
+var seeing: bool = false
+var cone: MeshInstance3D
+var cone_t: float = 0.0
 
 func setup(g: Node, k: String, model: String, h: float, blade: Color, blade_len: float) -> void:
 	game = g
@@ -170,7 +181,15 @@ func animate(dt: float) -> void:
 		_:
 			var hs: float = Vector2(velocity.x, velocity.z).length()
 			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
-			if not is_on_floor() and kind == "hero":
+			if kind == "hero" and game.prone:
+				run_phase += dt * 6.0 * speed_now / 0.25
+				pose = P.crawl(run_phase, clampf(speed_now / 0.25, 0, 1))
+			elif kind == "hero" and game.in_cover() and not game.cover_low:
+				pose = P.hug(game.cover_side, speed_now > 0.05, game.peeking)
+			elif kind == "hero" and game.crouched:
+				run_phase += dt * 7.0 * speed_now / 0.45
+				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
+			elif not is_on_floor() and kind == "hero":
 				pose = P.airborne(velocity.y)
 			elif speed_now > 0.08:
 				run_phase += dt * (5.0 + 6.5 * speed_now)
@@ -187,8 +206,16 @@ func animate(dt: float) -> void:
 			if dead_t > 3.6:
 				visible = false
 	else:
-		rig.rotation.x = lerpf(rig.rotation.x, 0.0, 1.0 - exp(-10.0 * dt))
-		rig.position.y = 0.0
+		var tilt: float = 0.0
+		var drop: float = 0.0
+		if kind == "hero" and state in ["idle", "block"]:
+			if game.prone:
+				tilt = -1.42
+				drop = 0.22
+			elif game.crouched or (game.in_cover() and game.cover_low):
+				drop = -0.34
+		rig.rotation.x = lerpf(rig.rotation.x, tilt, 1.0 - exp(-10.0 * dt))
+		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
 	rig.apply(pose, dt, rate)
 	rig.update_trail()
 	var tint: float = flash
@@ -214,6 +241,9 @@ func knight_tick(dt: float) -> void:
 	to.y = 0
 	var dist: float = to.length()
 	if not active:
+		if stealth:
+			game.patrol.tick(self, dt)
+			return
 		velocity.x = 0
 		velocity.z = 0
 		if section <= game.section and dist < 13.0:

@@ -25,7 +25,15 @@ const BUTTONS: Array = [
 	{"id": "magic", "c": Vector2(1222, 292), "r": 44.0, "label": "MAGIC", "glyph": "magic", "color": Color("b48cff")},
 	{"id": "potion", "c": Vector2(1118, 300), "r": 42.0, "label": "POTION", "glyph": "potion", "color": Color("7dffcf")},
 ]
-const PAUSE_C: Vector2 = Vector2(44, 44)
+## Stealth actions, top-left like the concept screens (ported MG actions).
+const STEALTH_BUTTONS: Array = [
+	{"id": "crouch", "rect": Rect2(14, 12, 100, 92), "label": "CROUCH", "glyph": "crouch"},
+	{"id": "hug", "rect": Rect2(122, 12, 100, 92), "label": "WALL HUG", "glyph": "hug"},
+	{"id": "peek", "rect": Rect2(14, 112, 100, 92), "label": "PEEK", "glyph": "peek"},
+	{"id": "distract", "rect": Rect2(122, 112, 100, 92), "label": "DISTRACT", "glyph": "distract"},
+]
+## The pause button sits beside the stats panel (centre group).
+const PAUSE_C: Vector2 = Vector2(866, 40)
 const STICK_HOME: Vector2 = Vector2(190, 565)
 const STICK_R: float = 105.0
 
@@ -143,10 +151,17 @@ func finger_down(id: int, p: Vector2) -> void:
 				menu_action(b.action)
 				return
 		return
-	if p.distance_to(PAUSE_C) < 46:
+	if p.distance_to(PAUSE_C + Vector2(dx_c, 0)) < 42:
 		game.mode = "paused"
 		release()
 		return
+	for sb: Dictionary in STEALTH_BUTTONS:
+		if (sb.rect as Rect2).grow(4).has_point(p):
+			var sa: String = sb.id
+			fingers[id] = {"kind": "button", "action": sa}
+			pressed[sa] = true
+			holds[sa] = holds.get(sa, 0) + 1
+			return
 	for b: Dictionary in BUTTONS:
 		if p.distance_to(button_pos(b)) <= b.r * 1.12:
 			var a: String = b.id
@@ -439,6 +454,18 @@ func draw_stats() -> void:
 	var gr: Rect2 = Rect2(480, 104, 320, 32)
 	frame(gr, Color(0.03, 0.1, 0.18, 0.75))
 	text(gr.get_center() + Vector2(0, 7), goal.to_upper(), 16, CYAN)
+	if game.mode == "play":
+		draw_pause()
+	var st: String = game.stealth_status()
+	if st != "":
+		var sc: Color = {"HIDDEN": Color("3dffb0"), "SUSPICIOUS": Color("ffb03b"), "ALERT": Color("ff4060")}[st]
+		var sr: Rect2 = Rect2(500, 142, 280, 34)
+		if game.boss_seen:
+			sr.position.y = 180
+		frame(sr, Color(0.02, 0.1, 0.12, 0.8), sc)
+		draw_circle(sr.position + Vector2(26, 17), 8, sc)
+		draw_circle(sr.position + Vector2(26, 17), 3, Color(0.02, 0.1, 0.12))
+		text(sr.get_center() + Vector2(10, 8), "STEALTH: " + st, 19, sc)
 	if game.boss_seen and game.boss.alive():
 		var br: Rect2 = Rect2(370, 142, 540, 32)
 		frame(br, Color(0.12, 0.02, 0.04, 0.8), Color("ff3346"))
@@ -457,10 +484,43 @@ func draw_left() -> void:
 	draw_circle(knob, 44, Color(0.55, 0.88, 1.0, 0.9))
 	draw_circle(knob, 34, Color(0.75, 0.95, 1.0, 0.95))
 	text(base + Vector2(0, STICK_R + 30), "MOVE", 20, WHITE)
-	draw_circle(PAUSE_C, 32, INK)
-	draw_arc(PAUSE_C, 32, 0, TAU, 40, Color(CYAN, 0.7), 2, true)
-	draw_rect(Rect2(PAUSE_C + Vector2(-10, -12), Vector2(7, 24)), WHITE)
-	draw_rect(Rect2(PAUSE_C + Vector2(3, -12), Vector2(7, 24)), WHITE)
+	for sb: Dictionary in STEALTH_BUTTONS:
+		stealth_btn(sb)
+
+func stealth_btn(sb: Dictionary) -> void:
+	var r: Rect2 = sb.rect
+	var on: bool = held(sb.id) or game.stealth_on(sb.id)
+	frame(r, Color(0.06, 0.22, 0.32, 0.9) if on else Color(0.03, 0.08, 0.16, 0.7), CYAN if on else Color(0.37, 0.89, 1.0, 0.55))
+	var c: Vector2 = r.get_center() + Vector2(0, -12)
+	var col: Color = Color(WHITE, 0.95)
+	match sb.glyph:
+		"crouch":
+			draw_circle(c + Vector2(6, -16), 7, col)
+			draw_polyline(PackedVector2Array([c + Vector2(4, -8), c + Vector2(-8, 4), c + Vector2(6, 8), c + Vector2(-2, 20)]), col, 5)
+			draw_line(c + Vector2(-8, 4), c + Vector2(-16, 18), col, 5)
+		"hug":
+			draw_rect(Rect2(c + Vector2(10, -22), Vector2(6, 44)), Color(GOLD, 0.9))
+			draw_circle(c + Vector2(0, -15), 7, col)
+			draw_line(c + Vector2(2, -7), c + Vector2(2, 12), col, 5)
+			draw_line(c + Vector2(2, 12), c + Vector2(-6, 22), col, 5)
+			draw_line(c + Vector2(2, 12), c + Vector2(8, 22), col, 5)
+		"peek":
+			draw_arc(c, 16, PI * 1.1, PI * 1.9, 20, col, 4)
+			draw_arc(c, 16, PI * 0.1, PI * 0.9, 20, col, 4)
+			draw_circle(c, 7, CYAN)
+		"distract":
+			draw_circle(c + Vector2(0, 6), 13, Color(GOLD, 0.95))
+			draw_rect(Rect2(c + Vector2(-5, -12), Vector2(10, 7)), col)
+			draw_circle(c + Vector2(17, -10), 4, CYAN)
+	text(Vector2(r.get_center().x, r.end.y - 10), sb.label, 15, WHITE)
+	if sb.id == "peek":
+		text(r.position + Vector2(r.size.x - 22, 18), "HOLD", 11, CYAN)
+
+func draw_pause() -> void:
+	draw_circle(PAUSE_C, 28, INK)
+	draw_arc(PAUSE_C, 28, 0, TAU, 40, Color(CYAN, 0.7), 2, true)
+	draw_rect(Rect2(PAUSE_C + Vector2(-9, -11), Vector2(6, 22)), WHITE)
+	draw_rect(Rect2(PAUSE_C + Vector2(3, -11), Vector2(6, 22)), WHITE)
 
 func draw_world_marks() -> void:
 	for e: CharacterBody3D in game.enemies:
@@ -472,6 +532,9 @@ func draw_world_marks() -> void:
 		var col: Color = Color("ff3346") if e.state in ["windup", "leap"] else Color(1, 0.25, 0.25, 0.85)
 		var s: float = 13.0 if e.state in ["windup", "leap"] else 9.0
 		draw_colored_polygon(PackedVector2Array([head + Vector2(-s, -s * 1.3), head + Vector2(s, -s * 1.3), head]), col)
+		if e.stealth and not e.active and (e.suspicion > 0.05 or e.gstate in ["INVESTIGATE", "SEARCH"]):
+			text(head + Vector2(0, -24), "?", 30, Color("ffb03b"))
+			draw_arc(head + Vector2(0, -34), 20, -PI / 2, -PI / 2 + TAU * e.suspicion, 24, Color("ffb03b"), 3, true)
 		if e.kind != "boss" and (e.active or e.hp < e.max_hp):
 			var w: float = 70
 			draw_rect(Rect2(head + Vector2(-w / 2, -s * 1.3 - 14), Vector2(w, 7)), Color(0.1, 0.05, 0.08, 0.85))
@@ -513,7 +576,7 @@ func draw_dialogue() -> void:
 	var r: Rect2
 	if left:
 		group(0)
-		r = Rect2(92 - (1.0 - slide) * 440, 10, w, 118)
+		r = Rect2(14 - (1.0 - slide) * 440, 214, w, 118)
 	else:
 		group(dx_r)
 		r = Rect2(1280 - 16 - w + (1.0 - slide) * 440, 10, w, 118)
@@ -549,6 +612,16 @@ func draw_map(r: Rect2) -> void:
 			continue
 		var p: Vector2 = c + Vector2(e.global_position.x - hero.x, e.global_position.z - hero.z) * k
 		if r.grow(-6).has_point(p):
+			if e.stealth and not e.active:
+				# Vision cone on the map (40° half-angle, patrol range).
+				var fw: Vector3 = e.forward()
+				var a0: float = atan2(fw.z, fw.x)
+				var reach: float = minf(game.patrol.range_limit() * k, 26.0)
+				var pts: PackedVector2Array = PackedVector2Array([p])
+				for i in 7:
+					var a: float = a0 + deg_to_rad(lerpf(-40.0, 40.0, i / 6.0))
+					pts.append(p + Vector2(cos(a), sin(a)) * reach)
+				draw_colored_polygon(pts, Color(1, 0.2, 0.3, 0.3) if e.seeing else Color(1, 0.7, 0.2, 0.22))
 			draw_circle(p, 5 if e.kind == "boss" else 3.5, CYAN if e in game.marks else Color("ff3346"))
 	var f: Vector3 = game.hero.forward()
 	var dir: Vector2 = Vector2(f.x, f.z)

@@ -45,6 +45,10 @@ func run() -> void:
 	await wait(0.6)
 	check("hero and cast spawn", game.hero.hp == 100 and game.enemies.size() == 11 and game.ally != null)
 	await shot("01_start")
+	await stealth_tests()
+	game.restart_with(game.hero_key)
+	game.start_game()
+	await wait(0.4)
 	# Move with the left stick.
 	var z0: float = game.hero.global_position.z
 	game.hud.stick = Vector2(0, -1)
@@ -205,3 +209,112 @@ func run() -> void:
 		JavaScriptBridge.eval("window.__cc={done:true,passed:%d,total:%d}" % [passed, results.size()])
 	if quit_after:
 		get_tree().quit()
+
+
+func hold_guard(e: CharacterBody3D, pos: Vector3, yaw: float) -> void:
+	## Freeze a patrol guard in place, facing a set way.
+	e.global_position = pos
+	e.velocity = Vector3.ZERO
+	e.route = [Vector2(pos.x, pos.z)]
+	e.route_i = 0
+	e.gstate = "PATROL"
+	e.suspicion = 0.0
+	e.yaw = yaw
+
+func tap(action: String) -> void:
+	game.hud.pressed[action] = true
+	game.hud.holds[action] = 1
+	await wait(0.08)
+	game.hud.holds[action] = 0
+	game.hud.released[action] = true
+	await wait(0.08)
+
+func stealth_tests() -> void:
+	check("starts hidden", game.stealth_status() == "HIDDEN", game.stealth_status())
+	var g0: CharacterBody3D = knight(0)
+	var g1: CharacterBody3D = knight(1)
+	var g2: CharacterBody3D = knight(2)
+	hold_guard(g0, Vector3(-11, 0.2, -2), 0.0)
+	hold_guard(g1, Vector3(11, 0.2, -36), 0.0)
+	hold_guard(g2, Vector3(-11, 0.2, -36), 0.0)
+	# Crouch, then hold for crawl, then tap to stand.
+	place(Vector3(0, 0.2, -4), 0.0)
+	await wait(0.2)
+	await tap("crouch")
+	var cap: CapsuleShape3D = (game.hero.get_child(0) as CollisionShape3D).shape
+	check("CROUCH lowers the hero", game.crouched and cap.height < 1.5, "h=%.2f" % cap.height)
+	game.hud.pressed["crouch"] = true
+	game.hud.holds["crouch"] = 1
+	await wait(0.6)
+	game.hud.holds["crouch"] = 0
+	game.hud.released["crouch"] = true
+	await wait(0.1)
+	check("holding CROUCH crawls", game.prone and cap.height < 0.8, "prone=%s" % game.prone)
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.5)
+	await shot("s1_crawl")
+	game.hud.stick = Vector2.ZERO
+	await tap("crouch")
+	check("tap again stands up", not game.prone and not game.crouched)
+	# Wall hug on the low planter at (-6, -9): auto-crouch, slide, peek at the edge.
+	place(Vector3(-6, 0.2, -7.5), 0.0)
+	await wait(0.3)
+	await tap("hug")
+	check("WALL HUG snaps to cover", game.in_cover() and game.cover_low and game.crouched, "cover=%s low=%s" % [game.in_cover(), game.cover_low])
+	var x0: float = game.hero.global_position.x
+	game.hud.stick = Vector2(1, 0)
+	await wait(1.4)
+	await shot("s2_hug_slide")
+	check("slides along the wall", game.in_cover() and game.hero.global_position.x > x0 + 1.0, "dx=%.2f" % (game.hero.global_position.x - x0))
+	check("stops and peeks at the edge", game.peek_dir.length() > 0.5, "peek=%s" % game.peek_dir)
+	game.hud.stick = Vector2.ZERO
+	game.hud.holds["peek"] = 1
+	await wait(0.6)
+	await shot("s3_peek")
+	check("holding PEEK looks around the corner", game.peeking and game.peek_dir.length() > 0.5)
+	game.hud.holds["peek"] = 0
+	await wait(0.1)
+	# Knock on the wall: a guard within 11 m comes to look.
+	hold_guard(g0, Vector3(2, 0.2, -16), 0.0)
+	await tap("distract")
+	check("DISTRACT knock draws a guard", g0.gstate == "INVESTIGATE", "state=%s" % g0.gstate)
+	await wait(0.6)
+	await shot("s4_investigate")
+	hold_guard(g0, Vector3(-11, 0.2, -2), 0.0)
+	await tap("hug")
+	check("leaving low cover stands up", not game.in_cover() and not game.crouched)
+	# Thrown distraction when not in cover.
+	place(Vector3(0, 0.2, -6), 0.0)
+	hold_guard(g2, Vector3(4, 0.2, -18), PI)
+	await wait(0.2)
+	await tap("distract")
+	await wait(0.8)
+	check("thrown pebble draws a guard", g2.gstate == "INVESTIGATE", "state=%s" % g2.gstate)
+	hold_guard(g2, Vector3(-11, 0.2, -36), 0.0)
+	# Low cover hides a crouched hero; standing up gets noticed.
+	hold_guard(g1, Vector3(-6, 0.2, -14.5), PI)
+	game.set_crouch(false)
+	place(Vector3(-6, 0.2, -7.4), 0.0)
+	await tap("crouch")
+	await wait(1.2)
+	check("crouched behind low cover stays hidden", g1.suspicion == 0.0 and game.stealth_status() == "HIDDEN", "sus=%.2f" % g1.suspicion)
+	await tap("crouch")
+	await wait(0.5)
+	await shot("s5_seen")
+	check("standing up in view raises suspicion", g1.suspicion > 0.2 and game.stealth_status() == "SUSPICIOUS", "sus=%.2f %s" % [g1.suspicion, game.stealth_status()])
+	await wait(1.0)
+	check("full suspicion raises the alarm", g1.active and game.stealth_status() == "ALERT", game.stealth_status())
+	# Silent takedown from behind an unaware guard.
+	for g: CharacterBody3D in [g0, g2]:
+		g.active = false
+		g.state = "idle"
+	hold_guard(g0, Vector3(6, 0.2, -4), 0.0)
+	g1.active = false
+	g1.state = "idle"
+	hold_guard(g1, Vector3(11, 0.2, -36), 0.0)
+	place(Vector3(6, 0.2, -2.3), 0.0)
+	await wait(0.2)
+	game.hud.pressed["attack"] = true
+	await wait(0.4)
+	check("attacking an unaware guard is a silent takedown", not g0.alive() and game.takedowns == 1 and not g2.active, "takedowns=%d" % game.takedowns)
+	await shot("s6_takedown")

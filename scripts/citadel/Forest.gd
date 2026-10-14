@@ -118,28 +118,15 @@ func wall(pos: Vector3, size: Vector3) -> void:
 	body.position = pos
 	game.world.add_child(body)
 
+## Trees are batched into four MultiMeshes (trunk + three leaf cones):
+## the same look as separate meshes, but a handful of draw calls instead of ~700.
+var tree_parts: Array = [[], [], [], []]
+
 func tree(pos: Vector3, h: float, collide: bool) -> void:
-	var trunk: MeshInstance3D = MeshInstance3D.new()
-	var cm: CylinderMesh = CylinderMesh.new()
-	cm.top_radius = 0.28
-	cm.bottom_radius = 0.42
-	cm.height = h * 0.55
-	cm.radial_segments = 7
-	trunk.mesh = cm
-	trunk.material_override = mat("bark")
-	trunk.position = pos + Vector3(0, h * 0.275, 0)
-	game.world.add_child(trunk)
+	tree_parts[0].append(Transform3D(Basis.IDENTITY.scaled(Vector3(1, h * 0.55, 1)), pos + Vector3(0, h * 0.275, 0)))
 	for i in 3:
-		var c: MeshInstance3D = MeshInstance3D.new()
-		var cone: CylinderMesh = CylinderMesh.new()
-		cone.top_radius = 0.0
-		cone.bottom_radius = h * (0.34 - i * 0.07)
-		cone.height = h * 0.38
-		cone.radial_segments = 8
-		c.mesh = cone
-		c.material_override = mat("leaves" if i % 2 == 0 else "leaves2")
-		c.position = pos + Vector3(0, h * (0.5 + i * 0.17), 0)
-		game.world.add_child(c)
+		var r: float = h * (0.34 - i * 0.07)
+		tree_parts[i + 1].append(Transform3D(Basis.IDENTITY.scaled(Vector3(r, h * 0.38, r)), pos + Vector3(0, h * (0.5 + i * 0.17), 0)))
 	if collide:
 		var body: StaticBody3D = StaticBody3D.new()
 		var cs: CollisionShape3D = CollisionShape3D.new()
@@ -148,8 +135,40 @@ func tree(pos: Vector3, h: float, collide: bool) -> void:
 		sh.height = h * 0.55
 		cs.shape = sh
 		body.add_child(cs)
-		trunk.add_child(body)
+		body.position = pos + Vector3(0, h * 0.275, 0)
+		game.world.add_child(body)
 		game.add_wall(Rect2(pos.x - 0.45, pos.z - 0.45, 0.9, 0.9), h * 0.55)
+
+func flush_trees() -> void:
+	var trunk: CylinderMesh = CylinderMesh.new()
+	trunk.top_radius = 0.28
+	trunk.bottom_radius = 0.42
+	trunk.height = 1.0
+	trunk.radial_segments = 7
+	var meshes: Array = [trunk]
+	for i in 3:
+		var cone: CylinderMesh = CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 1.0
+		cone.height = 1.0
+		cone.radial_segments = 8
+		meshes.append(cone)
+	var mats: Array = [mat("bark"), mat("leaves"), mat("leaves2"), mat("leaves")]
+	for k in 4:
+		var list: Array = tree_parts[k]
+		var mm: MultiMesh = MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = meshes[k]
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i])
+		var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mats[k]
+		if game.phone:
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		game.world.add_child(mmi)
+	tree_parts = [[], [], [], []]
 
 func boulder(pos: Vector3, r: float) -> void:
 	var mi: MeshInstance3D = MeshInstance3D.new()
@@ -188,7 +207,7 @@ func boulder(pos: Vector3, r: float) -> void:
 
 func grass_patch(r: Rect2, mm_data: Array) -> void:
 	var area: float = r.size.x * r.size.y
-	var count: int = int(area * 7.0)
+	var count: int = int(area * (4.5 if game.phone else 7.0))
 	for i in count:
 		var x: float = r.position.x + randf() * r.size.x
 		var z: float = r.position.y + randf() * r.size.y
@@ -223,6 +242,7 @@ func build() -> void:
 	# Scattered trees inside the path: hard cover.
 	for p: Vector2 in [Vector2(10.5, -12), Vector2(-9, -44), Vector2(11, -70), Vector2(-11.5, -100), Vector2(-4, -82), Vector2(5, -90)]:
 		tree(Vector3(p.x, 0, p.y), randf_range(8, 11), true)
+	flush_trees()
 	for r: Array in ROCKS:
 		boulder(r[0], r[1])
 	# Tall grass as one multimesh of blades.

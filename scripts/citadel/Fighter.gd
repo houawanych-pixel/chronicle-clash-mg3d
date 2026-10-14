@@ -225,7 +225,11 @@ func animate(dt: float) -> void:
 		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
 	# Anyone the close camera would clip through fades out of the way.
 	if kind != "hero" and game.camera:
-		rig.visible = game.camera.global_position.distance_to(global_position + Vector3.UP * height * 0.5) > 1.3
+		var cd: float = game.camera.global_position.distance_to(global_position + Vector3.UP * height * 0.5)
+		rig.visible = cd > 1.3
+		# Far-off characters skip bone posing; nobody can see the detail.
+		if cd > 38.0 and state != "dead":
+			return
 	rig.apply(pose, dt, rate)
 	rig.update_trail()
 	var tint: float = flash

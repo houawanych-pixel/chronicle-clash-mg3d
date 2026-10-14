@@ -62,7 +62,7 @@ func setup(path: String, h: float, color: Color, length: float, glow_base: float
 	for t: String in TURN_BONES:
 		turn[t] = Quaternion()
 	for m: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
-		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if phone_mode() else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mats.append(m)
 	build_sword(glow_base)
 	build_trail()
@@ -223,3 +223,7 @@ func set_flash(amount: float, color: Color) -> void:
 				o.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 				m.material_overlay = o
 			o.albedo_color = Color(color.r, color.g, color.b, amount)
+
+func phone_mode() -> bool:
+	var g: Node = get_parent().get("game") if get_parent() else null
+	return g != null and g.get("phone") == true

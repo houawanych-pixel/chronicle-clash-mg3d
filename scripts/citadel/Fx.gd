@@ -129,7 +129,28 @@ func impact(pos: Vector3, color: Color, size: float = 1.2, light: bool = true) -
 	tw.tween_property(mi, "scale", Vector3.ONE * size, 0.09).set_ease(Tween.EASE_OUT)
 	tw.tween_property(m, "albedo_color:a", 0.0, 0.2).set_delay(0.06)
 	tw.chain().tween_callback(mi.queue_free)
-	if light:
+	if light and game.phone:
+		# Fake flash: a big soft additive glow instead of a real light.
+		var gq: QuadMesh = QuadMesh.new()
+		gq.size = Vector2.ONE
+		var gmi: MeshInstance3D = MeshInstance3D.new()
+		gmi.mesh = gq
+		var gm: StandardMaterial3D = StandardMaterial3D.new()
+		gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		gm.albedo_texture = game.spark_texture()
+		gm.albedo_color = Color(color.r, color.g, color.b, 0.55)
+		gmi.material_override = gm
+		gmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		game.add_child(gmi)
+		gmi.global_position = pos
+		gmi.scale = Vector3.ONE * size * 2.6
+		var tg: Tween = gmi.create_tween()
+		tg.tween_property(gm, "albedo_color:a", 0.0, 0.18)
+		tg.tween_callback(gmi.queue_free)
+	elif light:
 		var l: OmniLight3D = OmniLight3D.new()
 		l.light_color = color
 		l.light_energy = 3.0
@@ -141,6 +162,8 @@ func impact(pos: Vector3, color: Color, size: float = 1.2, light: bool = true) -
 		tl.tween_callback(l.queue_free)
 
 func sparks(pos: Vector3, color: Color, count: int = 22, speed: float = 9.0, dir: Vector3 = Vector3.ZERO) -> void:
+	if game.phone:
+		count = maxi(6, count / 2)
 	var p: CPUParticles3D = CPUParticles3D.new()
 	p.one_shot = true
 	p.emitting = false

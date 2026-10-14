@@ -42,6 +42,9 @@ Code: `scripts/citadel/Forest.gd` builds the stage and runs the hunter, reinforc
 ## Look and hit effects
 Close over-the-shoulder camera (2.75 m, hero lower-left, pulls in when a wall is behind you), with extra contrast and saturation. Sword hits draw a crescent slash arc, an impact star with a light flash, spark streaks and a short freeze on hit (heavier on the combo finisher, plunge and dash). A combo counter shows on the right, and damage numbers pop bigger, with hits of 40+ in gold. Getting hit flashes red slash marks and a red screen edge. Parries get a big star, sparks and a longer freeze. Effects live in `scripts/citadel/Fx.gd`; `tools/fx_test.gd` renders them on a light and a dark floor.
 
+## Phone performance mode
+Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` forces it off, `?fps` shows the frame rate in the top-left). In phone mode: no glow, no real-time sun shadows (soft blob shadows under characters instead), no extra point lights (crystals, boss aura, magic bolts; hit flashes become a soft additive glow sprite), light character models (`*_lite.glb`, ~17k triangles, 512 textures), half the particles and less forest grass. The web page draws phones at 65% of their pixel density (capped at 2x). On every device, forest trees are batched into 4 multimeshes and characters more than 38 m away skip bone posing.
+
 ## Characters
 `assets/characters/` holds the owner's Tripo GLBs, reduced from ~2M to ~38k triangles with 1024 textures (`knight_lite` is ~17k for the minions). They have a 78-bone rig and no animation clips yet, so `scripts/citadel/Rig.gd` + `Poses.gd` pose the bones procedurally. The owner's Animation Library packs (Drive) use the same rig and can replace these poses once attached.
 

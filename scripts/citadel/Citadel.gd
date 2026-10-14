@@ -106,8 +106,39 @@ var takedowns: int = 0
 var throws: Array = []
 var cover_eye: Vector3 = Vector3.ZERO
 var cover_look: Vector3 = Vector3.ZERO
+## Phone performance mode: no glow, no real-time shadows or extra lights,
+## lighter models, fewer particles. Auto on phones/touch; ?full or ?lite
+## in the URL forces it off or on. ?fps shows the frame rate.
+var phone: bool = false
+var show_fps: bool = false
+var fps_label: Label
+var blob_tex: Texture2D
+
+func url_has(word: String) -> bool:
+	if not OS.has_feature("web"):
+		return ("--" + word) in OS.get_cmdline_user_args()
+	return str(JavaScriptBridge.eval("location.search", true)).contains(word)
+
+func detect_phone() -> bool:
+	if url_has("full"):
+		return false
+	if url_has("lite"):
+		return true
+	if OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile"):
+		return true
+	return DisplayServer.is_touchscreen_available()
+
+## Light model on phones: knight.glb -> knight_lite.glb etc.
+func model_path(path: String) -> String:
+	if not phone or path.ends_with("_lite.glb"):
+		return path
+	var lite: String = path.replace(".glb", "_lite.glb")
+	return lite if ResourceLoader.exists(lite) else path
 
 func _ready() -> void:
+	phone = detect_phone()
+	show_fps = url_has("fps")
+	print("CITADEL performance mode: ", "PHONE" if phone else "FULL")
 	patrol = PatrolScript.new(self)
 	forest = ForestScript.new(self)
 	fx = FxScript.new(self)
@@ -125,9 +156,19 @@ func _ready() -> void:
 	camera.current = true
 	var layer: CanvasLayer = CanvasLayer.new()
 	add_child(layer)
+	if show_fps:
+		fps_label = Label.new()
+		fps_label.position = Vector2(8, 8)
+		fps_label.add_theme_font_size_override("font_size", 22)
+		fps_label.add_theme_color_override("font_color", Color("7dffcf"))
+		fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		fps_label.add_theme_constant_override("outline_size", 6)
+		fps_label.z_index = 100
 	hud = HUDScript.new()
 	hud.game = self
 	layer.add_child(hud)
+	if fps_label:
+		layer.add_child(fps_label)
 	spawn_cast()
 	cam_pos = hero.global_position
 	var web_test: bool = false
@@ -193,7 +234,7 @@ func build_environment() -> void:
 	e.fog_light_color = Color("cfe0ff")
 	e.fog_density = 0.0022
 	e.fog_sky_affect = 0.0
-	e.glow_enabled = true
+	e.glow_enabled = not phone
 	e.glow_intensity = 0.35
 	e.glow_bloom = 0.0
 	e.glow_hdr_threshold = 1.3
@@ -208,7 +249,7 @@ func build_environment() -> void:
 	sun.rotation_degrees = Vector3(-52, -28, 0)
 	sun.light_energy = 1.15
 	sun.light_color = Color("fff3dc")
-	sun.shadow_enabled = true
+	sun.shadow_enabled = not phone
 	sun.directional_shadow_max_distance = 45.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	add_child(sun)
@@ -453,6 +494,8 @@ func crystal(pos: Vector3, s: float = 1.0, violet: bool = false) -> void:
 	down.position = pos + Vector3(0, (0.9 + 0.8 - 1.25) * s + 0.2, 0)
 	down.scale = Vector3(1, 0.35, 1)
 	world.add_child(down)
+	if phone:
+		return
 	var light: OmniLight3D = OmniLight3D.new()
 	light.light_color = Color("9d5bff") if violet else Color("6fe0ff")
 	light.light_energy = 1.4
@@ -631,8 +674,40 @@ func make_fighter(k: String, model: String, h: float, blade: Color, blade_len: f
 	f.set_script(FighterScript)
 	add_child(f)
 	f.global_position = pos
-	f.setup(self, k, model, h, blade, blade_len)
+	f.setup(self, k, model_path(model), h, blade, blade_len)
+	if phone:
+		add_blob(f, h)
 	return f
+
+## Soft dark disc under a character, standing in for a real shadow on phones.
+func add_blob(f: Node3D, h: float) -> void:
+	if blob_tex == null:
+		var g: GradientTexture2D = GradientTexture2D.new()
+		var gr: Gradient = Gradient.new()
+		gr.set_color(0, Color(0, 0, 0, 0.55))
+		gr.set_color(1, Color(0, 0, 0, 0))
+		g.gradient = gr
+		g.fill = GradientTexture2D.FILL_RADIAL
+		g.fill_from = Vector2(0.5, 0.5)
+		g.fill_to = Vector2(1.0, 0.5)
+		g.width = 64
+		g.height = 64
+		blob_tex = g
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2.ONE * h * 0.55
+	q.orientation = PlaneMesh.FACE_Y
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = q
+	var m: StandardMaterial3D = StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_texture = blob_tex
+	m.render_priority = -1
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(0, 0.03, 0)
+	mi.name = "Blob"
+	f.add_child(mi)
 
 func spawn_cast() -> void:
 	if stage == "forest":
@@ -676,6 +751,8 @@ func spawn_cast() -> void:
 	boss.yaw = PI
 	boss.home = boss.global_position
 	enemies.append(boss)
+	if phone:
+		return
 	var aura: OmniLight3D = OmniLight3D.new()
 	aura.light_color = Color("ff3346")
 	aura.light_energy = 1.6
@@ -749,6 +826,8 @@ func _process(dt: float) -> void:
 	if mode == "dead":
 		dead_timer += dt
 	hud.queue_redraw()
+	if fps_label:
+		fps_label.text = "%d FPS  %s" % [Engine.get_frames_per_second(), "PHONE" if phone else "FULL"]
 
 func cam_forward() -> Vector3:
 	return Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
@@ -1285,6 +1364,8 @@ func spawn_number(pos: Vector3, amount: float, is_hero: bool) -> void:
 	hud.number(pos, str(int(round(amount))), Color("ff6a6a") if is_hero else Color("fff2c4"))
 
 func burst(pos: Vector3, color: Color, count: int, speed: float) -> void:
+	if phone:
+		count = maxi(6, count / 2)
 	var p: CPUParticles3D = CPUParticles3D.new()
 	p.one_shot = true
 	p.emitting = false
@@ -1576,11 +1657,12 @@ func spawn_bolt(from: Vector3, target: Variant, boosted: bool, i: int) -> void:
 	mi.material_override = m
 	add_child(mi)
 	mi.global_position = from
-	var light: OmniLight3D = OmniLight3D.new()
-	light.light_color = Color("b48cff")
-	light.light_energy = 1.5
-	light.omni_range = 3.0
-	mi.add_child(light)
+	if not phone:
+		var light: OmniLight3D = OmniLight3D.new()
+		light.light_color = Color("b48cff")
+		light.light_energy = 1.5
+		light.omni_range = 3.0
+		mi.add_child(light)
 	var side: Vector3 = Vector3(cos(i * 2.1), 0.6, sin(i * 2.1))
 	bolts.append({"node": mi, "target": target, "vel": hero.forward() * 6.0 + side * 6.0, "t": 0.0, "dmg": 46.0 if boosted else 26.0})
 

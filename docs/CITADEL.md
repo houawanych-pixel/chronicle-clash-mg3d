@@ -39,6 +39,21 @@ Blonde Lance is the hunter: longer, wider vision and he spots you in grass from 
 
 Code: `scripts/citadel/Forest.gd` builds the stage and runs the hunter, reinforcements and lost-contact rules. `Citadel.gd` switches stages with `restart_with(hero, stage)`.
 
+## Village (third stage, Phase 1)
+Pick VILLAGE on the title. The village is a 3×3 grid of 40 m blocks; only the block you are in is loaded. Two are built so far: **Village Square** (centre) and **Mill Lane** (east of it). Walk off the road at a block edge and the next block loads behind a short fade. Each block has 6 villagers who never leave it (fence gaps at the roads have villager-only bars).
+
+**Villagers** (`Villager.gd`) use placeholder bodies (the lite Lance, Eliza and Blonde Lance models, posed by the same rig). Jobs: woodcutter (axe at a tree), miner (pick at an ore rock), fisher (rod off the dock), farmer (hoe in a field), miller (goes inside the windmill), merchant (stall), elder (sits on a bench), wanderer (strolls and chats). After a work cycle they carry the load to the drop pile. They walk on a navigation mesh baked when the block loads, avoid each other, and recover if stuck (re-path, then snap back onto the mesh). Each tree, rock, dock spot, field, stall and seat (`WorkSpot.gd`) holds one villager at a time. Walk up to a villager and they stop, face you and say a line (no AI calls; lines are written per job), then go back to work.
+
+**Day schedule** (game clock runs 2 minutes per real second, shown top-centre): sleep inside their own house before 6:00 and from 21:30; wake 6–7; work; lunch 12–13; work; socialise from 18:00. Sky and light follow the clock (dawn 5–7, dusk 19–21).
+
+**Saving**: `user://village_save.json` (on the web, the browser's own storage). Autosaves every 20 s, on block change, and when the tab is hidden or closed. Returning within 5 game minutes puts everyone back exactly; longer, and villagers are placed where their schedule says they would be.
+
+**Buildings**: `assets/village/village_kit.glb` is 13 buildings cut from the owner's Tripo village model (`cc village.glb` in Drive, 1.9M triangles, not in the repo), reduced and with 2048/1024 textures.
+
+**Not in Phase 1**: Echo Vision conversations (must go through a server; no keys in the game), smarter guards, the other 7 blocks, and the owner's animation clips. LimboAI (behaviour trees) was not needed for these simple daily routines; it is worth another look for the guard AI phase.
+
+Code: `Village.gd` (blocks, building, clock, save, block switching), `Villager.gd`, `WorkSpot.gd`, `VillageSave.gd`; tools and work poses added to `Rig.gd` / `Poses.gd`.
+
 ## Look and hit effects
 Close over-the-shoulder camera (2.75 m, hero lower-left, pulls in when a wall is behind you), with extra contrast and saturation. Sword hits draw a crescent slash arc, an impact star with a light flash, spark streaks and a short freeze on hit (heavier on the combo finisher, plunge and dash). A combo counter shows on the right, and damage numbers pop bigger, with hits of 40+ in gold. Getting hit flashes red slash marks and a red screen edge. Parries get a big star, sparks and a longer freeze. Effects live in `scripts/citadel/Fx.gd`; `tools/fx_test.gd` renders them on a light and a dark floor.
 
@@ -60,4 +75,4 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 51/51 PASS` (citadel, stealth and forest). The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 68/68 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.

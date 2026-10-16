@@ -222,3 +222,94 @@ static func hug(side: float, moving: bool, peeking: bool) -> Dictionary:
 	p["Spine02"] = lean(-0.06)
 	p["Head"] = yaw((0.9 if peeking else 0.5) * -side)
 	return p
+
+# ---------------------------------------------------------------- village work poses
+
+static func chop(t: float) -> Dictionary:
+	## Two-handed swing from over the right shoulder down to the left. t loops 0..1.
+	var k: float = smoothstep(0.0, 0.55, t) - smoothstep(0.62, 1.0, t)
+	var p: Dictionary = {}
+	base_legs(p, 0.24)
+	p["L_Thigh"] = leg(0.25, -0.22)
+	p["R_Thigh"] = leg(-0.2, 0.22)
+	var hand_up: Vector3 = d(0.1, 1, 0.55)
+	var hand_dn: Vector3 = d(1, -0.4, -0.35)
+	var arm: Vector3 = hand_dn.slerp(hand_up, k)
+	p["R_Upperarm"] = arm.slerp(d(0.3, -0.4, 1), 0.25)
+	p["R_Forearm"] = arm
+	p["L_Upperarm"] = arm.slerp(d(0.3, -0.4, -1), 0.3)
+	p["L_Forearm"] = arm
+	p["blade"] = d(-0.6, 0.8, 0.4).slerp(d(0.9, -0.1, -0.5), 1.0 - k)
+	p["Spine02"] = yaw(-0.5 * k + 0.35 * (1.0 - k))
+	p["Spine01"] = lean(0.1 + 0.25 * (1.0 - k))
+	return p
+
+static func mine(t: float) -> Dictionary:
+	## Overhead pick swing straight down in front.
+	var k: float = smoothstep(0.0, 0.55, t) - smoothstep(0.6, 1.0, t)
+	var p: Dictionary = {}
+	base_legs(p, 0.26)
+	p["L_Thigh"] = leg(0.3, -0.24)
+	p["R_Thigh"] = leg(-0.25, 0.24)
+	p["R_Calf"] = leg(-0.4, 0.1)
+	var arm: Vector3 = d(1, -0.7, 0.05).slerp(d(-0.15, 1, 0.1), k)
+	p["R_Upperarm"] = arm.slerp(d(0.2, -0.3, 1), 0.2)
+	p["R_Forearm"] = arm
+	p["L_Upperarm"] = arm.slerp(d(0.2, -0.3, -1), 0.2)
+	p["L_Forearm"] = arm
+	p["blade"] = d(-0.9, 0.5, 0).slerp(d(1, -0.2, 0), 1.0 - k)
+	p["Spine01"] = lean(-0.2 * k + 0.45 * (1.0 - k))
+	return p
+
+static func hoe(t: float) -> Dictionary:
+	var p: Dictionary = mine(t)
+	p["Spine01"] = lean(0.3 + 0.15 * sin(t * TAU))
+	return p
+
+static func fish(t: float) -> Dictionary:
+	## Rod held out over the water, slow bob.
+	var b: float = sin(t * TAU) * 0.05
+	var p: Dictionary = {}
+	base_legs(p, 0.18)
+	p["R_Upperarm"] = d(0.8, -0.35 + b, 0.35)
+	p["R_Forearm"] = d(1, 0.25 + b, 0.05)
+	p["L_Upperarm"] = d(0.8, -0.4, -0.2)
+	p["L_Forearm"] = d(1, 0.15, 0.35)
+	p["blade"] = d(1, 0.7 + b, 0)
+	p["Spine01"] = lean(0.08)
+	p["Head"] = lean(0.25)
+	return p
+
+static func carry(phase: float, speed: float) -> Dictionary:
+	## Walking with a load held at the chest.
+	var p: Dictionary = run(phase, speed * 0.6)
+	p["R_Upperarm"] = d(0.35, -1, 0.3)
+	p["R_Forearm"] = d(1, 0.15, -0.35)
+	p["L_Upperarm"] = d(0.35, -1, -0.3)
+	p["L_Forearm"] = d(1, 0.15, 0.35)
+	p["blade"] = d(0, -1, 0.2)
+	p["Spine01"] = lean(-0.06)
+	return p
+
+static func sit(t: float) -> Dictionary:
+	var b: float = sin(t * 1.2) * 0.02
+	var p: Dictionary = {}
+	p["L_Thigh"] = d(1, 0.05, -0.12)
+	p["L_Calf"] = d(0.1, -1, -0.05)
+	p["R_Thigh"] = d(1, 0.05, 0.12)
+	p["R_Calf"] = d(0.1, -1, 0.05)
+	p["L_Upperarm"] = d(0.35, -1, -0.25)
+	p["L_Forearm"] = d(1, -0.2, 0.25)
+	p["R_Upperarm"] = d(0.35, -1, 0.25)
+	p["R_Forearm"] = d(1, -0.2, -0.25)
+	p["blade"] = d(0, -1, 0)
+	p["Spine01"] = lean(0.05 + b)
+	return p
+
+static func talk(t: float) -> Dictionary:
+	## Standing chat with a small hand gesture.
+	var p: Dictionary = idle(t, false)
+	p["R_Upperarm"] = d(0.45, -1, 0.35)
+	p["R_Forearm"] = d(1, 0.35 + sin(t * 5.0) * 0.25, 0.1)
+	p["blade"] = d(0, -1, 0)
+	return p

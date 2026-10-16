@@ -8,6 +8,7 @@ const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
 const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
 const ForestScript = preload("res://scripts/citadel/Forest.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
+const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
 
@@ -27,6 +28,7 @@ var sections: Array = SECTIONS
 var map_zones: Array = CITADEL_ZONES
 var forest: RefCounted
 var fx: RefCounted
+var village: RefCounted
 var env_res: Environment
 var sun: DirectionalLight3D
 var grass: Array = []
@@ -142,6 +144,7 @@ func _ready() -> void:
 	patrol = PatrolScript.new(self)
 	forest = ForestScript.new(self)
 	fx = FxScript.new(self)
+	village = VillageScript.new(self)
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
 		audio_bank[cue] = load("res://audio/%s.wav" % cue)
@@ -280,6 +283,9 @@ func build_stage() -> void:
 		map_zones = ForestScript.MAP_ZONES
 		win_text = "ESCAPED THE FOREST"
 		forest.build()
+	elif stage == "village":
+		village.configure_stage()
+		village.build()
 	else:
 		sections = SECTIONS
 		map_zones = CITADEL_ZONES
@@ -713,6 +719,9 @@ func spawn_cast() -> void:
 	if stage == "forest":
 		forest.spawn_cast()
 		return
+	if stage == "village":
+		village.spawn_cast()
+		return
 	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
 	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.25, sections[0].spawn)
@@ -762,8 +771,12 @@ func spawn_cast() -> void:
 
 func restart_with(key: String, new_stage: String = "") -> void:
 	hero_key = key
+	if village.active:
+		village.leave()
 	if new_stage != "":
 		stage = new_stage
+	if stage == "village":
+		village.enter()
 	for e: Node in enemies:
 		e.queue_free()
 	enemies.clear()
@@ -808,6 +821,9 @@ func start_game() -> void:
 	hud.release()
 	if stage == "forest":
 		forest.start()
+		return
+	if stage == "village":
+		village.start()
 		return
 	say_once("start", "ally", "Guards ahead. Stay sharp!")
 	say_once("tip", "tip", "Hold BLOCK when a knight glows red. Block just before the hit to parry.")
@@ -1320,6 +1336,9 @@ func section_clear(s: int) -> bool:
 	return true
 
 func progress_check() -> void:
+	if stage == "village":
+		village.progress(get_process_delta_time())
+		return
 	if stage == "forest":
 		forest.progress()
 		forest.tick(get_process_delta_time())
@@ -1958,3 +1977,8 @@ func stealth_on(id: String) -> bool:
 
 func hero_low() -> bool:
 	return crouched or prone or (in_cover() and cover_low)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if village and village.active:
+			village.save_now()

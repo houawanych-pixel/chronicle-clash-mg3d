@@ -227,3 +227,72 @@ func set_flash(amount: float, color: Color) -> void:
 func phone_mode() -> bool:
 	var g: Node = get_parent().get("game") if get_parent() else null
 	return g != null and g.get("phone") == true
+
+## Village tools. "sword" keeps the normal blade; anything else hides the blade
+## and holds a simple tool along the same direction ("blade" in the pose).
+var tool_kind: String = "sword"
+var tool_node: Node3D
+
+func set_tool(kind: String) -> void:
+	if kind == tool_kind:
+		return
+	tool_kind = kind
+	if tool_node:
+		tool_node.queue_free()
+		tool_node = null
+	for c: Node in sword.get_children():
+		if c is MeshInstance3D:
+			(c as MeshInstance3D).visible = kind == "sword"
+	if kind == "sword" or kind == "none":
+		return
+	tool_node = Node3D.new()
+	sword.add_child(tool_node)
+	var wood: StandardMaterial3D = StandardMaterial3D.new()
+	wood.albedo_color = Color("7a5532")
+	wood.roughness = 0.9
+	var iron: StandardMaterial3D = StandardMaterial3D.new()
+	iron.albedo_color = Color("9aa3ad")
+	iron.metallic = 0.7
+	iron.roughness = 0.4
+	var handle_len: float = 2.3 if kind == "rod" else 0.95
+	_tool_box(Vector3(0, handle_len * 0.5 - 0.15, 0), Vector3(0.045, handle_len, 0.045), wood)
+	match kind:
+		"axe":
+			_tool_box(Vector3(0.09, 0.72, 0), Vector3(0.2, 0.16, 0.035), iron)
+		"pick":
+			_tool_box(Vector3(0, 0.76, 0), Vector3(0.5, 0.06, 0.05), iron)
+		"hoe":
+			_tool_box(Vector3(0.08, 0.78, 0), Vector3(0.18, 0.05, 0.12), iron)
+		"rod":
+			# Line hanging from the tip.
+			var line: MeshInstance3D = MeshInstance3D.new()
+			var cm: CylinderMesh = CylinderMesh.new()
+			cm.top_radius = 0.006
+			cm.bottom_radius = 0.006
+			cm.height = 1.6
+			line.mesh = cm
+			var lm: StandardMaterial3D = StandardMaterial3D.new()
+			lm.albedo_color = Color("e8e8e8")
+			line.material_override = lm
+			line.top_level = true
+			line.name = "Line"
+			tool_node.add_child(line)
+
+func _tool_box(pos: Vector3, size: Vector3, m: Material) -> void:
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	var bm: BoxMesh = BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = m
+	mi.position = pos
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tool_node.add_child(mi)
+
+func update_line() -> void:
+	## Keep a fishing line hanging straight down from the rod tip.
+	if tool_node == null or tool_kind != "rod":
+		return
+	var line: Node3D = tool_node.get_node_or_null("Line")
+	if line:
+		var tip: Vector3 = sword.global_transform * Vector3(0, 2.1, 0)
+		line.global_transform = Transform3D(Basis.IDENTITY, tip + Vector3.DOWN * 0.8)

@@ -205,6 +205,7 @@ func run() -> void:
 	check("defeating the Dark Knight wins", game.mode == "win", "mode=%s" % game.mode)
 	await shot("07_win")
 	await forest_tests()
+	await village_tests()
 	var passed: int = results.count(true)
 	print("CITADEL RESULT %d/%d %s" % [passed, results.size(), "PASS" if passed == results.size() else "FAIL"])
 	if OS.has_feature("web"):
@@ -429,3 +430,144 @@ func forest_tests() -> void:
 	await wait(2.0)
 	check("reaching the forest edge escapes", game.mode == "win" and game.win_text == "ESCAPED THE FOREST", "mode=%s" % game.mode)
 	await shot("f7_escaped")
+
+
+const SaveScript = preload("res://scripts/citadel/VillageSave.gd")
+
+func vill(id: String) -> Node:
+	for v: Node in game.village.villagers:
+		if v.vid == id:
+			return v
+	return null
+
+func village_tests() -> void:
+	SaveScript.clear()
+	game.restart_with("blonde_lance", "village")
+	await wait(0.3)
+	game.start_game()
+	await wait(0.6)
+	var vg: RefCounted = game.village
+	check("village loads with 6 villagers in Village Square", game.stage == "village" and vg.block == "square" and vg.villagers.size() == 6, "n=%d" % vg.villagers.size())
+	check("village has a walkable navigation mesh", vg.region != null and vg.region.navigation_mesh.get_polygon_count() > 20, "polys=%d" % vg.region.navigation_mesh.get_polygon_count())
+	await shot("v0_square")
+	# Work hours: woodcutter, miner and fisher reach their spots and work.
+	vg.speed = 6.0
+	place(Vector3(0, 0.2, 9.0), PI)
+	var t0: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 25000:
+		await wait(0.5)
+		if vill("sq_bram").state == "work" and vill("sq_mara").state == "work" and vill("sq_finn").state == "work":
+			break
+	var bram: Node = vill("sq_bram")
+	var mara: Node = vill("sq_mara")
+	var finn: Node = vill("sq_finn")
+	check("woodcutter chops a tree", bram.state == "work" and bram.spot != null and bram.spot.kind == "tree", "state=%s" % bram.state)
+	check("miner mines a rock", mara.state == "work" and mara.spot != null and mara.spot.kind == "rock", "state=%s" % mara.state)
+	check("fisher fishes from the dock", finn.state == "work" and finn.spot != null and finn.spot.kind == "fish", "state=%s" % finn.state)
+	await shot("v1_work")
+	# No two villagers on one spot, and a held spot can't be taken.
+	var held: Dictionary = {}
+	var clash: bool = false
+	for v: Node in vg.villagers:
+		if v.spot:
+			if held.has(v.spot.id):
+				clash = true
+			held[v.spot.id] = true
+	check("work spots are never shared", not clash and not bram.spot.claim(mara), "held=%s" % [held.keys()])
+	# Talking: the hero walks up, the villager stops, speaks, then goes back to work.
+	place(bram.global_position + (bram.spot.pos - bram.spot.look).normalized() * 1.5, 0.0)
+	await wait(0.4)
+	check("villager stops to talk when the hero comes close", bram.state == "talk" and bram.bubble.visible, "state=%s" % bram.state)
+	await shot("v2_talk")
+	place(Vector3(0, 0.2, 9.0), PI)
+	await wait(3.5)
+	check("villager goes back to work after talking", bram.state in ["work", "walk", "idle"] and not bram.bubble.visible, "state=%s" % bram.state)
+	# A finished work cycle is carried to the drop spot.
+	vg.speed = 30.0
+	var c0: int = bram.work_count + finn.work_count + mara.work_count
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 25000:
+		await wait(0.5)
+		if vg.deliveries.size() >= 1:
+			break
+	check("finished work is carried to the drop pile", bram.work_count + finn.work_count + mara.work_count > c0 and vg.deliveries.size() >= 1, "deliveries=%s" % [vg.deliveries])
+	# Blocked path recovery: drop a villager inside a building; it gets out and carries on.
+	vg.speed = 6.0
+	var lia: Node = vill("sq_lia")
+	lia.global_position = Vector3(-12, 0.3, -13.0)
+	lia.go_to(Vector3(0, 0, 4), "point")
+	await wait(9.0)
+	check("a stuck villager recovers and moves on", lia.recoveries > 0 and lia.global_position.distance_to(Vector3(-12, 0, -13)) > 2.0, "recov=%d pos=%s" % [lia.recoveries, lia.global_position])
+	# Save, leave the village, come back: everyone is where they were.
+	vg.speed = 1.0
+	await wait(0.5)
+	var before: Dictionary = {}
+	for v: Node in vg.villagers:
+		before[v.vid] = [v.global_position, v.state, v.work_count]
+	var clock_before: float = vg.clock
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.4)
+	check("leaving the village frees its villagers and keeps the castle working", game.stage == "citadel" and vg.villagers.is_empty() and game.enemies.size() == 11)
+	await wait(1.0)
+	game.restart_with("blonde_lance", "village")
+	await wait(0.4)
+	game.start_game()
+	await wait(0.2)
+	var moved: float = 0.0
+	var same_state: int = 0
+	for v: Node in vg.villagers:
+		var b: Array = before[v.vid]
+		moved = maxf(moved, v.global_position.distance_to(b[0]))
+		if v.state == b[1] or (b[1] == "talk"):
+			same_state += 1
+	check("reopening the village restores villagers and the clock", absf(vg.clock - clock_before) < 2.0 and moved < 1.6 and same_state >= 5, "moved=%.2f same=%d clock=%.1f/%.1f" % [moved, same_state, vg.clock, clock_before])
+	# Walk off the east road into Mill Lane, then back.
+	place(Vector3(18.5, 0.2, 0.0), -PI / 2.0)
+	game.hud.stick = Vector2(1, 0)
+	await wait(1.2)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	check("the east road loads Mill Lane with its own villagers", vg.block == "mill" and vg.villagers.size() == 6 and vill("ml_wes") != null and game.hero.global_position.x < -10.0, "block=%s x=%.1f" % [vg.block, game.hero.global_position.x])
+	vg.speed = 8.0
+	place(Vector3(-14, 0.2, 0.0), -PI / 2.0)
+	t0 = Time.get_ticks_msec()
+	var farmed: bool = false
+	var milled: bool = false
+	while Time.get_ticks_msec() - t0 < 25000:
+		await wait(0.5)
+		farmed = farmed or (vill("ml_ada").state == "work" and vill("ml_ada").spot.kind == "field")
+		milled = milled or vill("ml_wes").state == "inside"
+		if farmed and milled:
+			break
+	check("farmers tend the field and the miller goes into the windmill", farmed and milled, "farm=%s mill=%s" % [farmed, milled])
+	await shot("v3_mill")
+	vg.speed = 1.0
+	place(Vector3(-18.5, 0.2, 0.0), PI / 2.0)
+	game.hud.stick = Vector2(-1, 0)
+	await wait(1.2)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	check("the west road leads back to Village Square", vg.block == "square" and vill("sq_bram") != null and game.hero.global_position.x > 10.0, "block=%s" % vg.block)
+	# Villagers never leave their block.
+	var inside: bool = true
+	for v: Node in vg.villagers:
+		if absf(v.global_position.x) > 20.5 or absf(v.global_position.z) > 20.5:
+			inside = false
+	check("villagers stay inside their own block", inside)
+	# Night: everyone heads home and goes inside.
+	vg.clock = floor(vg.clock / 1440.0) * 1440.0 + 21.6 * 60.0
+	vg.speed = 4.0
+	t0 = Time.get_ticks_msec()
+	var asleep: int = 0
+	while Time.get_ticks_msec() - t0 < 30000:
+		await wait(0.5)
+		asleep = 0
+		for v: Node in vg.villagers:
+			if v.state == "inside":
+				asleep += 1
+		if asleep == vg.villagers.size():
+			break
+	check("at night villagers go home and inside", asleep == vg.villagers.size(), "inside=%d" % asleep)
+	await shot("v4_night")
+	vg.speed = 1.0
+	SaveScript.clear()

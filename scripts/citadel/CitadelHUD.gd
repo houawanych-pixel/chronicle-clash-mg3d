@@ -61,6 +61,7 @@ var portraits: Dictionary = {}
 var title_tex: Texture2D
 var clock: float = 0.0
 var hurt_flash: float = 0.0
+var fade: float = 0.0
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -230,6 +231,9 @@ func menu_action(a: String) -> void:
 		"stage_forest":
 			if game.stage != "forest":
 				game.restart_with("lance", "forest")
+		"stage_village":
+			if game.stage != "village":
+				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "village")
 		"resume":
 			game.mode = "play"
 			release()
@@ -264,6 +268,7 @@ func number(pos: Vector3, text_s: String, color: Color) -> void:
 func _process(dt: float) -> void:
 	clock += dt
 	hurt_flash = maxf(0.0, hurt_flash - dt * 2.5)
+	fade = maxf(0.0, fade - dt * 1.8)
 	if game.mode == "play" or game.mode == "dead":
 		if lines.size() > 0:
 			line_t += dt
@@ -388,6 +393,8 @@ func _draw() -> void:
 		draw_title()
 		return
 	draw_world_marks()
+	if fade > 0.0:
+		draw_rect(Rect2(-10, -10, W + 20, 740), Color(0, 0, 0, clampf(fade, 0, 1)))
 	if hurt_flash > 0.0:
 		# Red edge flash when the hero is hit.
 		for i in 6:
@@ -453,10 +460,10 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Eliza out. Blonde Lance hunts you", "ally"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Eliza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
 	for i in stages.size():
 		var st: Array = stages[i]
-		var sr: Rect2 = Rect2(330 + i * 320, 392, 300, 82)
+		var sr: Rect2 = Rect2(175 + i * 315, 392, 300, 82)
 		var son: bool = game.stage == st[0]
 		frame(sr, Color(0.06, 0.22, 0.32, 0.95) if son else INK, CYAN if son else Color(0.6, 0.7, 0.85, 0.5))
 		if portraits.has(st[3]):
@@ -500,6 +507,12 @@ func draw_stats() -> void:
 	text(gr.get_center() + Vector2(0, 7), goal.to_upper(), 16, CYAN)
 	if game.mode == "play":
 		draw_pause()
+	if game.stage == "village":
+		var cr: Rect2 = Rect2(530, 142, 220, 32)
+		frame(cr, Color(0.03, 0.1, 0.18, 0.78), Color("ffd27a"))
+		var hr: float = game.village.hour()
+		var icon: String = "☾" if hr < 6.0 or hr >= 20.0 else "☀"
+		text(cr.get_center() + Vector2(0, 7), icon + "  " + game.village.clock_text(), 17, Color("ffe7b0"))
 	var st: String = game.stealth_status()
 	if st != "":
 		var sc: Color = {"HIDDEN": Color("3dffb0"), "SUSPICIOUS": Color("ffb03b"), "ALERT": Color("ff4060")}[st]
@@ -675,6 +688,13 @@ func draw_map(r: Rect2) -> void:
 					pts.append(p + Vector2(cos(a), sin(a)) * reach)
 				draw_colored_polygon(pts, Color(1, 0.2, 0.3, 0.3) if e.seeing else Color(1, 0.7, 0.2, 0.22))
 			draw_circle(p, 5 if e.kind == "boss" else 3.5, CYAN if e in game.marks else Color("ff3346"))
+	if game.stage == "village":
+		for v: Node3D in game.village.villagers:
+			if not v.visible:
+				continue
+			var vp: Vector2 = c + Vector2(v.global_position.x - hero.x, v.global_position.z - hero.z) * k
+			if r.grow(-6).has_point(vp):
+				draw_circle(vp, 3.5, Color("7dffcf"))
 	var f: Vector3 = game.hero.forward()
 	var dir: Vector2 = Vector2(f.x, f.z)
 	var side: Vector2 = Vector2(-dir.y, dir.x)

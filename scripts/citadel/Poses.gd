@@ -308,8 +308,43 @@ static func sit(t: float) -> Dictionary:
 
 static func talk(t: float) -> Dictionary:
 	## Standing chat with a small hand gesture.
-	var p: Dictionary = idle(t, false)
+	var p: Dictionary = idle_free(t)
 	p["R_Upperarm"] = d(0.45, -1, 0.35)
 	p["R_Forearm"] = d(1, 0.35 + sin(t * 5.0) * 0.25, 0.1)
 	p["blade"] = d(0, -1, 0)
+	return p
+
+## Unarmed (sword on the back): arms hang loose instead of holding a guard.
+static func idle_free(t: float) -> Dictionary:
+	var b: float = sin(t * 2.0) * 0.025
+	var p: Dictionary = {}
+	base_legs(p, 0.13)
+	p["L_Upperarm"] = d(0.04, -1, -0.24 - b)
+	p["L_Forearm"] = d(0.28, -1, -0.12)
+	p["R_Upperarm"] = d(0.04, -1, 0.24 + b)
+	p["R_Forearm"] = d(0.28, -1, 0.12)
+	p["blade"] = d(0, -1, 0)
+	p["Spine02"] = lean(0.02 + b)
+	return p
+
+static func run_free(phase: float, speed: float) -> Dictionary:
+	## Both arms swing opposite the legs.
+	var p: Dictionary = run(phase, speed)
+	var s: float = sin(phase)
+	p["L_Upperarm"] = d(-0.65 * s * speed, -1, -0.24)
+	p["L_Forearm"] = d(0.35 - 0.55 * s * speed + 0.4 * speed, -0.8, -0.1)
+	p["R_Upperarm"] = d(0.65 * s * speed, -1, 0.24)
+	p["R_Forearm"] = d(0.35 + 0.55 * s * speed + 0.4 * speed, -0.8, 0.1)
+	p["blade"] = d(0, -1, 0)
+	return p
+
+static func reach_back(t: float) -> Dictionary:
+	## Right hand up over the shoulder to the sword on the back (draw/sheathe).
+	## t 0..1: reach up, hold at the hilt, bring forward.
+	var p: Dictionary = idle_free(0.0)
+	var up: float = sin(clampf(t, 0, 1) * PI)
+	p["R_Upperarm"] = d(0.2 - 0.25 * up, -1.0 + 2.1 * up, 0.35)
+	p["R_Forearm"] = d(-0.25 * up, -1.0 + 1.6 * up, -0.35 * up)
+	p["blade"] = d(-0.2, -1, -0.3)
+	p["Spine02"] = yaw(-0.18 * up)
 	return p

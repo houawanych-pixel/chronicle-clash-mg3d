@@ -405,9 +405,9 @@ func animate(dt: float) -> void:
 			var hs: float = Vector2(velocity.x, velocity.z).length()
 			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
 			run_phase += dt * (5.0 + 6.5 * speed_now)
-			pose = P.carry(run_phase, speed_now) if carrying else P.run(run_phase, speed_now)
+			pose = P.carry(run_phase, speed_now) if carrying else P.run_free(run_phase, speed_now)
 		_:
-			pose = P.idle(anim_t, false)
+			pose = P.idle_free(anim_t)
 	rig.set_tool(tool)
 	load_box.visible = carrying and state != "work"
 	load_box.position = forward() * 0.38 + Vector3.UP * (height * 0.6)

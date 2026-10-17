@@ -24,6 +24,7 @@ const BUTTONS: Array = [
 	{"id": "skill", "c": Vector2(1196, 412), "r": 54.0, "label": "CHARGE", "glyph": "charge", "color": Color("ffcf6a")},
 	{"id": "magic", "c": Vector2(1222, 292), "r": 44.0, "label": "MAGIC", "glyph": "magic", "color": Color("b48cff")},
 	{"id": "potion", "c": Vector2(1118, 300), "r": 42.0, "label": "POTION", "glyph": "potion", "color": Color("7dffcf")},
+	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
 ]
 ## Stealth actions, top-left like the concept screens (ported MG actions).
 const STEALTH_BUTTONS: Array = [
@@ -344,6 +345,13 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 				var a: float = i * TAU / 6.0 + clock
 				draw_line(c, c + Vector2(cos(a), sin(a)) * r * 0.32, Color(MAGIC_C, 0.95), 4)
 			draw_circle(c, r * 0.14, WHITE)
+		"sheath":
+			# Scabbard; the blade shows above it while drawn.
+			var out: bool = game.sword_out
+			var tip: Vector2 = c + Vector2(r * 0.3, -r * 0.42) if out else c + Vector2(r * 0.16, -r * 0.2)
+			draw_line(c + Vector2(-r * 0.3, r * 0.34), c + Vector2(r * 0.06, -r * 0.02), Color("6b4a2a"), 9)
+			draw_line(c + Vector2(-r * 0.12, r * 0.04), tip, WHITE, 5)
+			draw_line(c + Vector2(-r * 0.26, -r * 0.04), c + Vector2(-r * 0.02, r * 0.2), GOLD, 5)
 		"potion":
 			draw_circle(c + Vector2(0, r * 0.08), r * 0.26, Color("7dffcf"))
 			draw_rect(Rect2(c + Vector2(-r * 0.09, -r * 0.38), Vector2(r * 0.18, r * 0.22)), WHITE)
@@ -361,7 +369,10 @@ func round_btn(b: Dictionary) -> void:
 	if fill > 0.0:
 		draw_arc(c, r + 6, -PI / 2, -PI / 2 + TAU * fill, 64, color, 6.0, true)
 	glyph(b.glyph, c, r)
-	text(c + Vector2(0, r * 0.84), b.label, 18 if r < 80 else 24, WHITE if ready else Color(WHITE, 0.55))
+	var label: String = b.label
+	if b.id == "sheathe":
+		label = "SHEATHE" if game.sword_out else "DRAW"
+	text(c + Vector2(0, r * 0.84), label, 18 if r < 80 else 24, WHITE if ready else Color(WHITE, 0.55))
 	var badge: String = game.button_badge(b.id)
 	if badge != "":
 		var bc: Vector2 = c + Vector2(r * 0.72, -r * 0.72)

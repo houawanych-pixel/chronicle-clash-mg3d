@@ -65,6 +65,13 @@ var autotest: Node
 var world: Node3D
 var boss_seen: bool = false
 var key_attack_prev: bool = false
+## Sword drawn (in hand) or put away on the back. The village starts with it
+## put away; ATTACK, GUARD or CHARGE draw it automatically.
+var sword_out: bool = true
+var draw_t: float = 0.0
+var draw_target: bool = true
+var draw_swapped: bool = true
+const DRAW_TIME: float = 0.5
 var key_jump_prev: bool = false
 var mana: float = 100.0
 var potions: int = 3
@@ -184,7 +191,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -716,6 +723,9 @@ func add_blob(f: Node3D, h: float) -> void:
 	f.add_child(mi)
 
 func spawn_cast() -> void:
+	sword_out = stage != "village"
+	draw_t = 0.0
+	draw_swapped = true
 	if stage == "forest":
 		forest.spawn_cast()
 		return
@@ -941,6 +951,15 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		dodge = false
 		magic = false
 		potion = false
+		skill_held = false
+		skill_up = false
+	var toggle: bool = hud.take("sheathe") or Input.is_action_just_pressed("cc_sheathe")
+	if mode != "play":
+		toggle = false
+	sword_tick(f, dt, toggle, attack or blocking or skill_held)
+	if not sword_out or draw_t > 0.0:
+		attack = false
+		blocking = false
 		skill_held = false
 		skill_up = false
 	mana = minf(100.0, mana + dt * 4.0)
@@ -1484,6 +1503,31 @@ func update_effects(dt: float) -> void:
 # ---------------------------------------------------------------- lock-on, charge, magic
 
 ## HUD queries for button state.
+## Draw or put away the sword. The blade changes hands halfway through the
+## reach so it looks pulled from (or slid onto) the back.
+func start_draw(out: bool) -> void:
+	draw_target = out
+	draw_t = DRAW_TIME
+	draw_swapped = false
+	sound("hook", -16)
+
+func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) -> void:
+	if draw_t > 0.0:
+		draw_t = maxf(0.0, draw_t - dt)
+		if not draw_swapped and draw_t <= DRAW_TIME * 0.5:
+			draw_swapped = true
+			sword_out = draw_target
+			sound("chip", -10 if sword_out else -14)
+		return
+	if not f.alive() or f.state not in ["idle", "block"]:
+		return
+	if toggle:
+		start_draw(not sword_out)
+		if f.state == "block":
+			f.state = "idle"
+	elif not sword_out and wants_fight:
+		start_draw(true)
+
 func button_ready(id: String) -> bool:
 	match id:
 		"dodge":

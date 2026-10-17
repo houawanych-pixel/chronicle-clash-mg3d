@@ -140,6 +140,10 @@ func _physics_process(dt: float) -> void:
 	move_and_slide()
 	animate(dt)
 
+## Hero with the sword on his back walks and stands with loose arms.
+func unarmed() -> bool:
+	return kind == "hero" and not game.sword_out
+
 func animate(dt: float) -> void:
 	var pose: Dictionary
 	var rate: float = 14.0
@@ -195,9 +199,13 @@ func animate(dt: float) -> void:
 				pose = P.airborne(velocity.y)
 			elif speed_now > 0.08:
 				run_phase += dt * (5.0 + 6.5 * speed_now)
-				pose = P.run(run_phase, speed_now)
+				pose = P.run_free(run_phase, speed_now) if unarmed() else P.run(run_phase, speed_now)
 			else:
-				pose = P.idle(anim_t, kind != "ally")
+				pose = P.idle_free(anim_t) if unarmed() else P.idle(anim_t, kind != "ally")
+			if kind == "hero" and game.draw_t > 0.0 and state == "idle" and is_on_floor():
+				var dp: Dictionary = P.reach_back(1.0 - game.draw_t / game.DRAW_TIME)
+				for key: String in ["R_Upperarm", "R_Forearm", "blade", "Spine02"]:
+					pose[key] = dp[key]
 			if kind == "ally" and game.stage == "forest" and game.hero_low():
 				run_phase += dt * 6.0 * speed_now / 0.45
 				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
@@ -230,6 +238,8 @@ func animate(dt: float) -> void:
 		# Far-off characters skip bone posing; nobody can see the detail.
 		if cd > 38.0 and state != "dead":
 			return
+	if kind == "hero":
+		rig.sheathed = not game.sword_out
 	rig.apply(pose, dt, rate)
 	rig.update_trail()
 	var tint: float = flash

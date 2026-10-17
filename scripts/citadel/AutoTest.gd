@@ -450,6 +450,24 @@ func village_tests() -> void:
 	check("village loads with 6 villagers in Village Square", game.stage == "village" and vg.block == "square" and vg.villagers.size() == 6, "n=%d" % vg.villagers.size())
 	check("village has a walkable navigation mesh", vg.region != null and vg.region.navigation_mesh.get_polygon_count() > 20, "polys=%d" % vg.region.navigation_mesh.get_polygon_count())
 	await shot("v0_square")
+	# Sword: starts on the back in the village; SHEATHE/DRAW toggles it,
+	# and ATTACK while it's away draws it instead of swinging.
+	var hero: Node = game.hero
+	check("village starts with the sword on his back", not game.sword_out and hero.rig.sheathed)
+	game.hud.pressed["sheathe"] = true
+	await wait(0.7)
+	check("DRAW puts the sword in his hand", game.sword_out and not hero.rig.sheathed and hero.state == "idle")
+	await shot("v0_drawn")
+	game.hud.pressed["sheathe"] = true
+	await wait(0.7)
+	check("SHEATHE puts it back", not game.sword_out and hero.rig.sheathed)
+	game.hud.pressed["attack"] = true
+	await wait(0.15)
+	var no_swing: bool = hero.state != "attack"
+	await wait(0.6)
+	check("ATTACK with the sword away draws it first", no_swing and game.sword_out, "state=%s" % hero.state)
+	game.hud.pressed["sheathe"] = true
+	await wait(0.7)
 	# Work hours: woodcutter, miner and fisher reach their spots and work.
 	vg.speed = 6.0
 	place(Vector3(0, 0.2, 9.0), PI)

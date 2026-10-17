@@ -161,10 +161,38 @@ func apply(pose: Dictionary, dt: float, rate: float = 14.0) -> void:
 		sk.set_bone_pose_rotation(i, (pq.inverse() * r * pq * (rest_q[i] as Quaternion)).normalized())
 	place_sword(pose.get("blade", d(1, 0.4, 0)))
 
+## When true the sword rides on the back (hilt over the right shoulder)
+## instead of in the hand.
+var sheathed: bool = false
+
+func place_on_back() -> void:
+	# Rig space: forward is -Z. Shoulders and hips come from the bones so the
+	# sword follows crouching, leaning and different body sizes.
+	var rs: Vector3 = to_rig * sk.get_bone_global_pose(idx["R_Upperarm"]).origin
+	var ls: Vector3 = to_rig * sk.get_bone_global_pose(idx["L_Upperarm"]).origin
+	var lh: Vector3 = to_rig * sk.get_bone_global_pose(idx["L_Thigh"]).origin
+	var fwd: Vector3 = Vector3(0, 0, -1)
+	var k: float = height / 1.8
+	var back_off: Vector3 = -fwd * 0.17 * k
+	# Scaled down a little on the back so a long blade ends at the hip
+	# instead of dragging on the ground; the hilt rises over the shoulder.
+	var sc: float = clampf(0.95 * k / (blade_len + 0.13), 0.55, 1.0)
+	var aim_from: Vector3 = rs.lerp(ls, 0.18) + back_off
+	var tip: Vector3 = lh.lerp(ls, 0.12) + (ls - rs) * 0.1 + back_off
+	var blade_up: Vector3 = (tip - aim_from).normalized()
+	var origin: Vector3 = tip - blade_up * (blade_len + 0.13) * sc
+	var side: Vector3 = blade_up.cross(fwd).normalized()
+	var back: Vector3 = side.cross(blade_up).normalized()
+	sword.transform = Transform3D(Basis(side, blade_up, back).scaled(Vector3.ONE * sc), origin)
+	blade_mat.emission_energy_multiplier = 0.25
+
 func place_sword(blade_dir: Vector3) -> void:
 	if not ready_xform and is_inside_tree():
 		to_rig = global_transform.affine_inverse() * sk.global_transform
 		ready_xform = true
+	if sheathed:
+		place_on_back()
+		return
 	var hand: Transform3D = sk.get_bone_global_pose(idx["R_Hand"])
 	var fore: Transform3D = sk.get_bone_global_pose(idx["R_Forearm"])
 	var hand_rig: Vector3 = to_rig * hand.origin

@@ -343,7 +343,7 @@ func progress() -> void:
 			1:
 				game.say("ally", "Rocks ahead. Wait for the guards to turn.")
 			2:
-				game.say("hero", "Through the tall grass. Stay right behind me.")
+				game.say("ally", "Into the tall grass. I'll stay right behind you.")
 			3:
 				game.say("ally", "I see the edge of the forest!")
 	if not game.boss_seen and hero.global_position.z < -42.0:

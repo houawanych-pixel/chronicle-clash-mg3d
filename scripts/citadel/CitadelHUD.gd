@@ -481,7 +481,7 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Eliza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
 	for i in stages.size():
 		var st: Array = stages[i]
 		var sr: Rect2 = Rect2(175 + i * 315, 392, 300, 82)
@@ -497,7 +497,7 @@ func draw_title() -> void:
 	if game.stage == "forest":
 		text(Vector2(640, 525), "You play LANCE. Blonde Lance is the hunter.", 20, WHITE, false)
 		menu_btn(Rect2(510, 585, 260, 76), "PLAY", "play", true)
-		text(Vector2(640, 700), "Crouch in tall grass to hide  ·  rocks are cover  ·  keep Eliza close", 19, Color(WHITE, 0.8), false)
+		text(Vector2(640, 700), "Crouch in tall grass to hide  ·  rocks are cover  ·  keep Elyza close", 19, Color(WHITE, 0.8), false)
 		group(dx_r)
 		menu_btn(Rect2(1040, 640, 210, 54), "MG LABS (OLD)", "labs")
 		return
@@ -549,7 +549,7 @@ func draw_stats() -> void:
 		frame(ar, Color(0.03, 0.1, 0.18, 0.8), Color("bfe9ff"))
 		draw_rect(Rect2(ar.position + Vector2(60, 9), Vector2(80, 9)), Color(0.15, 0.2, 0.3))
 		draw_rect(Rect2(ar.position + Vector2(60, 9), Vector2(80 * game.ally.hp / game.ally.max_hp, 9)), Color("bfe9ff"))
-		text(ar.position + Vector2(8, 19), "ELIZA", 14, WHITE, true, -1)
+		text(ar.position + Vector2(8, 19), "ELYZA", 14, WHITE, true, -1)
 	if game.boss_seen and game.boss.alive() and game.boss.visible:
 		var br: Rect2 = Rect2(370, 142, 540, 32)
 		frame(br, Color(0.12, 0.02, 0.04, 0.8), Color("ff3346"))

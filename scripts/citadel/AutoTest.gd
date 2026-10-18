@@ -25,8 +25,15 @@ func check(name: String, ok: bool, info: String = "") -> void:
 func shot(name: String) -> void:
 	if shots.is_empty():
 		return
+	# --clean-shots hides the HUD (used for website artwork of the beta).
+	var clean: bool = "--clean-shots" in OS.get_cmdline_user_args()
+	if clean:
+		game.hud.visible = false
+		await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots, name])
+	if clean:
+		game.hud.visible = true
 
 func place(pos: Vector3, yaw: float = 0.0) -> void:
 	game.hero.global_position = pos

@@ -1379,7 +1379,7 @@ func progress_check() -> void:
 		section += 1
 		match section:
 			1:
-				say("hero", "They're blocking the bridge. We have to break through!")
+				say("ally", "They're blocking the bridge. We have to break through!")
 				say("ally", "Jump the broken gaps. Don't look down!")
 			2:
 				say("ally", "More enemies ahead. Stay sharp!")

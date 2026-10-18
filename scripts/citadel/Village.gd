@@ -6,6 +6,7 @@ extends RefCounted
 const VillagerScript = preload("res://scripts/citadel/Villager.gd")
 const WorkSpotScript = preload("res://scripts/citadel/WorkSpot.gd")
 const SaveScript = preload("res://scripts/citadel/VillageSave.gd")
+const ChatScript = preload("res://scripts/citadel/VillageChat.gd")
 const KIT: String = "res://assets/village/village_kit.glb"
 
 const HALF: float = 20.0           # blocks are 40 x 40 m
@@ -43,12 +44,12 @@ const BLOCKS: Dictionary = {
 		"exits": {"east": "mill"},
 		"spawn": Vector3(0.0, 0.2, 7.0),
 		"villagers": [
-			{"id": "sq_bram", "name": "Bram", "job": "woodcutter", "home": "home_bram", "model": 0, "tint": Color(0.5, 0.25, 0.1)},
-			{"id": "sq_mara", "name": "Mara", "job": "miner", "home": "inn", "model": 1, "tint": Color(0.35, 0.3, 0.25)},
-			{"id": "sq_finn", "name": "Finn", "job": "fisher", "home": "home_finn", "model": 2, "tint": Color(0.1, 0.25, 0.45)},
-			{"id": "sq_ivo", "name": "Ivo", "job": "merchant", "home": "shop", "model": 0, "tint": Color(0.45, 0.1, 0.35)},
-			{"id": "sq_tam", "name": "Old Tam", "job": "elder", "home": "home_tam", "model": 2, "tint": Color(0.4, 0.4, 0.4), "speed": 1.1, "height": 1.7},
-			{"id": "sq_lia", "name": "Lia", "job": "wanderer", "home": "chapel", "model": 1, "tint": Color(0.1, 0.4, 0.2)},
+			{"id": "sq_bram", "name": "Bram", "job": "woodcutter", "home": "home_bram", "model": 0, "tint": Color(0.5, 0.25, 0.1), "persona": "Big, slow-spoken and kind. Proud of his axe work and the timber he cuts for every roof in the square. Teases Finn about never catching anything. Worries the knights will want his wood for war."},
+			{"id": "sq_mara", "name": "Mara", "job": "miner", "home": "inn", "model": 1, "tint": Color(0.35, 0.3, 0.25), "persona": "Tough, blunt and funny. Lives at the inn and swings a pick all day. Knows every rumour from the miners' table. Secretly saving coin to buy her own house.", "female": true},
+			{"id": "sq_finn", "name": "Finn", "job": "fisher", "home": "home_finn", "model": 2, "tint": Color(0.1, 0.25, 0.45), "persona": "Young, cheerful and a little boastful about the big fish he almost caught. Talks fast. Loves the quiet of the dock at dawn. Sweet on Lia but too shy to say so."},
+			{"id": "sq_ivo", "name": "Ivo", "job": "merchant", "home": "shop", "model": 0, "tint": Color(0.45, 0.1, 0.35), "persona": "A sharp merchant who sells bread, rope and lamp oil. Always tries to make a sale, haggles for fun, and trades gossip from travellers on the road."},
+			{"id": "sq_tam", "name": "Old Tam", "job": "elder", "home": "home_tam", "model": 2, "tint": Color(0.4, 0.4, 0.4), "speed": 1.1, "height": 1.7, "persona": "The village elder. Old, wise and patient, speaks slowly and remembers when the sky citadel was built. Gives advice whether you ask or not. Fond of everyone, especially the young.", "pitch": 0.75, "rate": 0.85},
+			{"id": "sq_lia", "name": "Lia", "job": "wanderer", "home": "chapel", "model": 1, "tint": Color(0.1, 0.4, 0.2), "persona": "A friendly wanderer who visits everyone and carries news around the village. Curious about the knight's adventures, hums songs, and dreams of seeing the citadel.", "female": true},
 		],
 	},
 	"mill": {
@@ -68,12 +69,12 @@ const BLOCKS: Dictionary = {
 		"exits": {"west": "square"},
 		"spawn": Vector3(-16.0, 0.2, 0.0),
 		"villagers": [
-			{"id": "ml_ada", "name": "Ada", "job": "farmer", "home": "home_ada", "model": 1, "tint": Color(0.45, 0.35, 0.1)},
-			{"id": "ml_rolf", "name": "Rolf", "job": "farmer", "home": "home_rolf", "model": 0, "tint": Color(0.3, 0.2, 0.1)},
-			{"id": "ml_wes", "name": "Wes", "job": "miller", "home": "windmill", "model": 2, "tint": Color(0.5, 0.5, 0.45)},
-			{"id": "ml_kit", "name": "Kit", "job": "woodcutter", "home": "home_kit", "model": 0, "tint": Color(0.2, 0.35, 0.15)},
-			{"id": "ml_nell", "name": "Nell", "job": "fisher", "home": "home_nell", "model": 1, "tint": Color(0.15, 0.3, 0.5)},
-			{"id": "ml_pip", "name": "Pip", "job": "wanderer", "home": "home_ada", "model": 2, "tint": Color(0.5, 0.15, 0.15), "height": 1.55, "speed": 1.9},
+			{"id": "ml_ada", "name": "Ada", "job": "farmer", "home": "home_ada", "model": 1, "tint": Color(0.45, 0.35, 0.1), "persona": "A hard-working farmer, warm and practical. Married to Rolf. Reads the weather in her bones. Feeds the whole lane at harvest and scolds anyone who steps in her furrows.", "female": true},
+			{"id": "ml_rolf", "name": "Rolf", "job": "farmer", "home": "home_rolf", "model": 0, "tint": Color(0.3, 0.2, 0.1), "persona": "A quiet farmer of few words, married to Ada. Dry sense of humour. Proud of his wheat and grumbles about crows and tax collectors."},
+			{"id": "ml_wes", "name": "Wes", "job": "miller", "home": "windmill", "model": 2, "tint": Color(0.5, 0.5, 0.45), "persona": "The miller. Dusty with flour, loud because the mill is loud, and fond of a good joke. Grinds grain for both parts of the village and knows everyone's business by what they buy."},
+			{"id": "ml_kit", "name": "Kit", "job": "woodcutter", "home": "home_kit", "model": 0, "tint": Color(0.2, 0.35, 0.15), "persona": "A young woodcutter, eager to prove himself to Bram in the square. Asks the knight about swords and dreams of joining the guard one day."},
+			{"id": "ml_nell", "name": "Nell", "job": "fisher", "home": "home_nell", "model": 1, "tint": Color(0.15, 0.3, 0.5), "persona": "A calm fisher who talks to the river like an old friend. Gentle, observant, notices small things others miss. Believes strange lights have been seen in the forest at night.", "female": true},
+			{"id": "ml_pip", "name": "Pip", "job": "wanderer", "home": "home_ada", "model": 2, "tint": Color(0.5, 0.15, 0.15), "height": 1.55, "speed": 1.9, "persona": "A small, quick, mischievous lad who runs everywhere and asks a hundred questions. Lives with Ada. Thinks the knight is the most exciting thing that has ever happened.", "pitch": 1.45, "rate": 1.12},
 		],
 	},
 }
@@ -94,12 +95,15 @@ var autosave_t: float = 0.0
 var switching: float = 0.0
 var deliveries: Dictionary = {}
 
+var chat: RefCounted
+
 func _init(g: Node) -> void:
 	game = g
+	chat = ChatScript.new(g, self)
 
 func minutes_per_second() -> float:
-	## Two game minutes per real second: one village day is 12 real minutes.
-	return 2.0 * speed
+	## One real hour is one village day (1440 game minutes / 3600 s).
+	return 0.4 * speed
 
 func hour() -> float:
 	return fmod(clock, 1440.0) / 60.0
@@ -507,6 +511,7 @@ func spawn_villagers() -> void:
 			v.place_for_schedule()
 
 func clear_villagers() -> void:
+	chat.stop()
 	for v: Node in villagers:
 		if is_instance_valid(v):
 			v.release_spot()
@@ -554,6 +559,7 @@ func leave() -> void:
 func progress(dt: float) -> void:
 	clock += dt * minutes_per_second()
 	apply_daylight()
+	chat.tick(dt)
 	autosave_t += dt
 	if autosave_t > 20.0:
 		autosave_t = 0.0

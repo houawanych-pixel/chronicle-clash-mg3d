@@ -197,7 +197,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -959,6 +959,12 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		potion = false
 		skill_held = false
 		skill_up = false
+	var talk: bool = hud.take("talk") or Input.is_action_just_pressed("cc_talk")
+	if talk and mode == "play" and stage == "village" and village.active:
+		if village.chat.is_open():
+			village.chat.stop()
+		else:
+			village.chat.start(village.chat.nearest())
 	var toggle: bool = hud.take("sheathe") or Input.is_action_just_pressed("cc_sheathe")
 	if mode != "play":
 		toggle = false
@@ -1533,6 +1539,12 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 			f.state = "idle"
 	elif not sword_out and wants_fight:
 		start_draw(true)
+
+## TALK shows only in the village, next to a villager (or while chatting).
+func button_visible(id: String) -> bool:
+	if id == "talk":
+		return stage == "village" and village.active and (village.chat.is_open() or village.chat.nearest() != null)
+	return true
 
 func button_ready(id: String) -> bool:
 	match id:

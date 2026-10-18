@@ -23,6 +23,7 @@ Courtyard guards → broken sky bridge (two gaps to jump) → plaza → Dark Kni
 | Wall hug (slide along; low walls auto-crouch) | WALL HUG, or push into a wall out of combat | H |
 | Peek round the edge | hold PEEK while hugging | Q |
 | Distract (knock in cover, else throw a pebble) | DISTRACT | F |
+| Talk to a villager (village) | TALK / BYE | T |
 | Draw / put away sword (back carry; ATTACK, GUARD or CHARGE also draw it) | DRAW / SHEATHE | X |
 | Pause | II (beside the stats) | Esc / P |
 
@@ -43,9 +44,9 @@ Code: `scripts/citadel/Forest.gd` builds the stage and runs the hunter, reinforc
 ## Village (third stage, Phase 1)
 Pick VILLAGE on the title (or open the site with `?village` on the end). The hero starts with his sword on his back and relaxed arms; DRAW pulls it over the shoulder. The village is a 3×3 grid of 40 m blocks; only the block you are in is loaded. Two are built so far: **Village Square** (centre) and **Mill Lane** (east of it). Walk off the road at a block edge and the next block loads behind a short fade. Each block has 6 villagers who never leave it (fence gaps at the roads have villager-only bars).
 
-**Villagers** (`Villager.gd`) use placeholder bodies (the lite Lance, Eliza and Blonde Lance models, posed by the same rig). Jobs: woodcutter (axe at a tree), miner (pick at an ore rock), fisher (rod off the dock), farmer (hoe in a field), miller (goes inside the windmill), merchant (stall), elder (sits on a bench), wanderer (strolls and chats). After a work cycle they carry the load to the drop pile. They walk on a navigation mesh baked when the block loads, avoid each other, and recover if stuck (re-path, then snap back onto the mesh). Each tree, rock, dock spot, field, stall and seat (`WorkSpot.gd`) holds one villager at a time. Walk up to a villager and they stop, face you and say a line (no AI calls; lines are written per job), then go back to work.
+**Villagers** (`Villager.gd`) use placeholder bodies (the lite Lance, Eliza and Blonde Lance models, posed by the same rig). Jobs: woodcutter (axe at a tree), miner (pick at an ore rock), fisher (rod off the dock), farmer (hoe in a field), miller (goes inside the windmill), merchant (stall), elder (sits on a bench), wanderer (strolls and chats). After a work cycle they carry the load to the drop pile. They walk on a navigation mesh baked when the block loads, avoid each other, and recover if stuck (re-path, then snap back onto the mesh). Each tree, rock, dock spot, field, stall and seat (`WorkSpot.gd`) holds one villager at a time. Walk up to a villager and they stop, face you and say a stock line, then go back to work. Tap **TALK** (key T) to really talk: a chat panel opens at the top, the mic listens hands-free (speak, they answer in text and voice, then it listens again; tap the mic to stop, or type instead), and the villager stays with you until **BYE** or you walk away. Replies come from the Echo Vision brain (`web/village_chat.js`): the Groq model behind Echo Vision's server `echo-brain` (`worker/brain-proxy.js` in the myechovision repo), which keeps the key, so no key is in the game. The brain is told who they are (each villager has a short personality), the time, what they were doing and who their neighbours are. The gear button sets another brain (address, model, optional own key, saved only in that browser). If the brain can't be reached, the villager answers with a stock line and the panel says why. The brain server must list `https://chronicleclashgame.com` in its ALLOW setting.
 
-**Day schedule** (game clock runs 2 minutes per real second, shown top-centre): sleep inside their own house before 6:00 and from 21:30; wake 6–7; work; lunch 12–13; work; socialise from 18:00. Sky and light follow the clock (dawn 5–7, dusk 19–21).
+**Day schedule** (one real hour is one village day; the clock is shown top-centre): sleep inside their own house before 6:00 and from 21:30; wake 6–7; work; lunch 12–13; work; socialise from 18:00. Sky and light follow the clock (dawn 5–7, dusk 19–21).
 
 **Saving**: `user://village_save.json` (on the web, the browser's own storage). Autosaves every 20 s, on block change, and when the tab is hidden or closed. Returning within 5 game minutes puts everyone back exactly; longer, and villagers are placed where their schedule says they would be.
 
@@ -76,4 +77,4 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 72/72 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 76/76 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.

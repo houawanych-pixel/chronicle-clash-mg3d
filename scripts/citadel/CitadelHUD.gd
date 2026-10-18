@@ -24,6 +24,7 @@ const BUTTONS: Array = [
 	{"id": "skill", "c": Vector2(1196, 412), "r": 54.0, "label": "CHARGE", "glyph": "charge", "color": Color("ffcf6a")},
 	{"id": "magic", "c": Vector2(1222, 292), "r": 44.0, "label": "MAGIC", "glyph": "magic", "color": Color("b48cff")},
 	{"id": "potion", "c": Vector2(1118, 300), "r": 42.0, "label": "POTION", "glyph": "potion", "color": Color("7dffcf")},
+	{"id": "talk", "c": Vector2(1108, 186), "r": 40.0, "label": "TALK", "glyph": "talk", "color": Color("7dffcf")},
 	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
 ]
 ## Stealth actions, top-left like the concept screens (ported MG actions).
@@ -166,7 +167,7 @@ func finger_down(id: int, p: Vector2) -> void:
 			holds[sa] = holds.get(sa, 0) + 1
 			return
 	for b: Dictionary in BUTTONS:
-		if p.distance_to(button_pos(b)) <= b.r * 1.12:
+		if game.button_visible(b.id) and p.distance_to(button_pos(b)) <= b.r * 1.12:
 			var a: String = b.id
 			fingers[id] = {"kind": "button", "action": a}
 			pressed[a] = true
@@ -345,6 +346,12 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 				var a: float = i * TAU / 6.0 + clock
 				draw_line(c, c + Vector2(cos(a), sin(a)) * r * 0.32, Color(MAGIC_C, 0.95), 4)
 			draw_circle(c, r * 0.14, WHITE)
+		"talk":
+			var bub: Rect2 = Rect2(c + Vector2(-r * 0.36, -r * 0.34), Vector2(r * 0.72, r * 0.46))
+			draw_rect(bub, WHITE)
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-r * 0.18, r * 0.1), c + Vector2(-r * 0.02, r * 0.1), c + Vector2(-r * 0.26, r * 0.3)]), WHITE)
+			for i in 3:
+				draw_circle(c + Vector2(-r * 0.18 + i * r * 0.18, -r * 0.11), r * 0.05, Color("0b2a44"))
 		"sheath":
 			# Scabbard; the blade shows above it while drawn.
 			var out: bool = game.sword_out
@@ -372,6 +379,8 @@ func round_btn(b: Dictionary) -> void:
 	var label: String = b.label
 	if b.id == "sheathe":
 		label = "SHEATHE" if game.sword_out else "DRAW"
+	elif b.id == "talk":
+		label = "BYE" if game.village.chat.is_open() else "TALK"
 	text(c + Vector2(0, r * 0.84), label, 18 if r < 80 else 24, WHITE if ready else Color(WHITE, 0.55))
 	var badge: String = game.button_badge(b.id)
 	if badge != "":
@@ -429,7 +438,8 @@ func _draw() -> void:
 		draw_left()
 		group(dx_r)
 		for b: Dictionary in BUTTONS:
-			round_btn(b)
+			if game.button_visible(b.id):
+				round_btn(b)
 	group(dx_c)
 	for i in popups.size():
 		var p: Dictionary = popups[i]

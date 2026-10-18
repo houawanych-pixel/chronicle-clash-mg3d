@@ -43,6 +43,12 @@ var stuck_from: Vector3
 var repaths: int = 0
 var recoveries: int = 0
 var talk_t: float = 0.0
+## Free chat (VillageChat.gd): stays with the hero until the chat ends.
+var chatting: bool = false
+var persona: String = ""
+var female: bool = false
+var voice_pitch: float = 1.0
+var voice_rate: float = 1.0
 var talk_cd: float = 0.0
 var resume_state: String = ""
 var desired_vel: Vector3 = Vector3.ZERO
@@ -64,6 +70,11 @@ func setup(g: Node, v: RefCounted, def: Dictionary) -> void:
 	vid = def.id
 	vname = def.name
 	job = def.job
+	persona = def.get("persona", "A villager going about their day.")
+	female = def.get("female", false)
+	var h: int = absi(hash(def.id))
+	voice_pitch = def.get("pitch", (1.08 if female else 0.92) + float(h % 7) * 0.03 - 0.09)
+	voice_rate = def.get("rate", 0.95 + float(h % 5) * 0.03)
 	height = def.get("height", 1.75)
 	walk_speed = def.get("speed", 1.6)
 	collision_layer = 4
@@ -144,10 +155,40 @@ func go_to(p: Vector3, kind: String) -> void:
 	stuck_from = global_position
 	repaths = 0
 
-func say(text: String) -> void:
+func say(text: String, seconds: float = 3.0) -> void:
 	bubble.text = vname + "\n" + text
 	bubble.visible = true
-	talk_t = 3.0
+	talk_t = seconds
+
+func begin_chat() -> void:
+	if state != "talk":
+		resume_state = state
+	state = "talk"
+	chatting = true
+	velocity = Vector3.ZERO
+
+func end_chat() -> void:
+	chatting = false
+	talk_cd = 10.0
+	talk_t = minf(talk_t, 1.5)
+
+## What they were up to, in words, for the brain.
+func doing_text() -> String:
+	var s: String = resume_state if state == "talk" else state
+	match s:
+		"work":
+			match job:
+				"woodcutter": return "chopping wood"
+				"miner": return "mining ore from a rock"
+				"fisher": return "fishing off the dock"
+				"farmer": return "hoeing the field"
+				"merchant": return "minding your market stall"
+				_: return "working"
+		"sit":
+			return "sitting on a bench"
+		"walk":
+			return "walking across the village" if goal_kind != "drop" else "carrying your load to the pile"
+	return "taking a short rest" if activity == "work" else ("eating" if activity == "eat" else "strolling and chatting")
 
 # ---------------------------------------------------------------- planning
 
@@ -271,7 +312,7 @@ func _physics_process(dt: float) -> void:
 			velocity.x = 0
 			velocity.z = 0
 			face(game.hero.global_position, dt)
-			if talk_t <= 0.0:
+			if talk_t <= 0.0 and not chatting:
 				state = resume_state if resume_state in ["work", "sit", "idle"] else "idle"
 				if resume_state == "walk":
 					go_to(target, goal_kind)

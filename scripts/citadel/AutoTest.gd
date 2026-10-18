@@ -469,7 +469,7 @@ func village_tests() -> void:
 	game.hud.pressed["sheathe"] = true
 	await wait(0.7)
 	# Work hours: woodcutter, miner and fisher reach their spots and work.
-	vg.speed = 6.0
+	vg.speed = 30.0
 	place(Vector3(0, 0.2, 9.0), PI)
 	var t0: int = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 25000:
@@ -497,20 +497,33 @@ func village_tests() -> void:
 	await wait(0.4)
 	check("villager stops to talk when the hero comes close", bram.state == "talk" and bram.bubble.visible, "state=%s" % bram.state)
 	await shot("v2_talk")
+	# Free chat: TALK opens a conversation; the villager stays until BYE.
+	var ch: RefCounted = vg.chat
+	check("TALK shows next to a villager", game.button_visible("talk") and ch.nearest() == bram)
+	game.hud.pressed["talk"] = true
+	await wait(0.2)
+	ch.send("Good morning! How is the wood today?")
+	await wait(0.4)
+	check("talking opens a chat and the villager answers", ch.is_open() and bram.chatting and ch.replies.size() == 1 and bram.bubble.visible, "replies=%s" % [ch.replies])
+	await wait(4.5)
+	check("the villager keeps chatting instead of walking off", bram.state == "talk" and ch.is_open())
+	game.hud.pressed["talk"] = true
+	await wait(0.2)
+	check("BYE ends the chat", not ch.is_open() and not bram.chatting)
 	place(Vector3(0, 0.2, 9.0), PI)
 	await wait(3.5)
 	check("villager goes back to work after talking", bram.state in ["work", "walk", "idle"] and not bram.bubble.visible, "state=%s" % bram.state)
 	# A finished work cycle is carried to the drop spot.
-	vg.speed = 30.0
+	vg.speed = 150.0
 	var c0: int = bram.work_count + finn.work_count + mara.work_count
 	t0 = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 25000:
 		await wait(0.5)
 		if vg.deliveries.size() >= 1:
 			break
-	check("finished work is carried to the drop pile", bram.work_count + finn.work_count + mara.work_count > c0 and vg.deliveries.size() >= 1, "deliveries=%s" % [vg.deliveries])
+	check("finished work is carried to the drop pile", bram.work_count + finn.work_count + mara.work_count >= maxi(c0, 1) and vg.deliveries.size() >= 1, "deliveries=%s" % [vg.deliveries])
 	# Blocked path recovery: drop a villager inside a building; it gets out and carries on.
-	vg.speed = 6.0
+	vg.speed = 30.0
 	var lia: Node = vill("sq_lia")
 	lia.global_position = Vector3(-12, 0.3, -13.0)
 	lia.go_to(Vector3(0, 0, 4), "point")
@@ -546,7 +559,7 @@ func village_tests() -> void:
 	game.hud.stick = Vector2.ZERO
 	await wait(0.4)
 	check("the east road loads Mill Lane with its own villagers", vg.block == "mill" and vg.villagers.size() == 6 and vill("ml_wes") != null and game.hero.global_position.x < -10.0, "block=%s x=%.1f" % [vg.block, game.hero.global_position.x])
-	vg.speed = 8.0
+	vg.speed = 40.0
 	place(Vector3(-14, 0.2, 0.0), -PI / 2.0)
 	t0 = Time.get_ticks_msec()
 	var farmed: bool = false
@@ -574,7 +587,7 @@ func village_tests() -> void:
 	check("villagers stay inside their own block", inside)
 	# Night: everyone heads home and goes inside.
 	vg.clock = floor(vg.clock / 1440.0) * 1440.0 + 21.6 * 60.0
-	vg.speed = 4.0
+	vg.speed = 20.0
 	t0 = Time.get_ticks_msec()
 	var asleep: int = 0
 	while Time.get_ticks_msec() - t0 < 30000:

@@ -9,7 +9,7 @@
   var tpl = document.getElementById('tests-tpl');
   document.querySelectorAll('[data-tests]').forEach(function (box) {
     box.appendChild(tpl.content.cloneNode(true));
-    if (box.closest('dialog')) box.querySelectorAll('.test .btn').forEach(function (a) { a.textContent = 'Launch'; a.setAttribute('aria-label', 'Launch ' + a.closest('.test').querySelector('h3').textContent); });
+    box.querySelectorAll('.test .btn').forEach(function (a) { a.setAttribute('aria-label', 'Enter ' + a.closest('.test').querySelector('h3').textContent.replace(/^\W+/, '').trim()); });
   });
 
   // ---- dialog

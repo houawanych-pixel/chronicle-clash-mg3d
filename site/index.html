@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chronicle Clash</title>
-<meta name="description" content="Chronicle Clash — a fantasy RPG of Guardians, Titans and a living world. Play the early beta in your browser.">
-<meta name="theme-color" content="#070b12">
+<meta name="description" content="Chronicle Clash: explore connected areas of a living world. Meet Lance and Elyza and play the early beta in your browser.">
+<meta name="theme-color" content="#0a1730">
 <meta property="og:title" content="Chronicle Clash">
 <meta property="og:description" content="Explore connected areas of a living world. Play the early beta in your browser.">
 <meta property="og:type" content="website">
@@ -16,7 +16,6 @@
 <link rel="apple-touch-icon" href="img/icon.png">
 <link rel="preload" href="fonts/cinzel-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/source-sans-3-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" as="image" href="img/lance-534.webp" imagesrcset="img/lance-400.webp 400w, img/lance-534.webp 534w" imagesizes="(max-width: 700px) 62vw, 34vw">
 <link rel="stylesheet" href="site.css">
 <script>
   // Old game links (chronicleclashgame.com/?village …) now live under /play/.
@@ -42,43 +41,65 @@
 
   <!-- 1. HERO ---------------------------------------------------------- -->
   <section class="hero" id="top" aria-labelledby="hero-title">
-    <div class="hero-bg" data-parallax="0.25" aria-hidden="true"></div>
     <div class="hero-art" aria-hidden="true">
-      <!-- Elyza stands behind Lance's shoulder; both from the approved character cards. -->
-      <img class="hero-elyza" data-parallax="0.08" src="img/elyza-534.webp" srcset="img/elyza-400.webp 400w, img/elyza-534.webp 534w" sizes="(max-width: 700px) 52vw, 30vw" alt="" width="534" height="792">
-      <img class="hero-lance" data-parallax="0.16" src="img/lance-534.webp" srcset="img/lance-400.webp 400w, img/lance-534.webp 534w" sizes="(max-width: 700px) 62vw, 34vw" alt="" width="534" height="848" fetchpriority="high">
+      <picture>
+        <source media="(max-width: 760px)" srcset="img/hero-tall-440.webp 440w, img/hero-tall-660.webp 660w" sizes="100vw">
+        <img data-parallax="0.1" src="img/hero-902.webp" srcset="img/hero-600.webp 600w, img/hero-902.webp 902w" sizes="60vw" alt="" width="902" height="941" fetchpriority="high">
+      </picture>
     </div>
     <div class="hero-copy" data-hero-copy>
-      <p class="eyebrow">A Chronicle Clash adventure</p>
+      <div class="crest" aria-hidden="true"></div>
       <h1 id="hero-title" class="title">Chronicle <span>Clash</span></h1>
+      <div class="rule" aria-hidden="true"></div>
       <p class="lede">Explore connected areas of a living world.</p>
-      <div class="hero-actions">
-        <button class="btn btn-gold" type="button" data-open-beta>Play the Beta</button>
-        <a class="btn btn-ghost" href="#world">Discover the world</a>
-      </div>
-      <p class="notice"><span class="dot" aria-hidden="true"></span>Early beta. Models, art and features are still in progress.</p>
+      <button class="btn btn-ornate" type="button" data-open-beta><span>Play the Beta</span></button>
+      <nav class="hero-links" aria-label="Explore">
+        <a href="#world">World</a><span aria-hidden="true">✦</span><a href="#characters">Characters</a>
+      </nav>
+      <p class="notice"><span class="dot" aria-hidden="true"></span>Early beta. Art, models and features are still in progress.</p>
     </div>
-    <a class="scroll-cue" href="#world" aria-label="Scroll to the world"><span></span></a>
   </section>
 
   <!-- 2. WORLD --------------------------------------------------------- -->
   <section class="world" id="world" aria-labelledby="world-title">
-    <div class="section-head" data-reveal>
-      <p class="eyebrow">The world</p>
-      <h2 id="world-title">Where Guardians sleep</h2>
-      <div class="ornament" aria-hidden="true"></div>
+    <div class="world-grid">
+      <div class="world-copy" data-reveal>
+        <h2 id="world-title" class="title-warm"><small>A world worth</small> Exploring</h2>
+        <div class="rule rule-dark" aria-hidden="true"></div>
+        <p class="pillars">Vast lands <span aria-hidden="true">✦</span> Timeless stories <span aria-hidden="true">✦</span> People who matter</p>
+        <p>From skyborne cities to humble villages, a realm of beauty, mystery and endless adventure awaits.</p>
+        <p class="continents">Six continents wait beyond the first road: Elindor, Myrath, Solvara, Vharos, the Frostcrown Isles and the Siri Isles. <a href="https://houawanych-pixel.github.io/chronicle-clash/explore/" target="_blank" rel="noopener">Open the world atlas<span class="sr-only"> (opens in a new tab)</span> ↗</a></p>
+      </div>
+      <figure class="world-pair" data-reveal>
+        <div class="frame">
+          <img data-parallax="0.06" src="img/world-pair-600.webp" srcset="img/world-pair-600.webp 600w, img/world-pair-902.webp 902w" sizes="(max-width: 760px) 100vw, 55vw" alt="Lance and Elyza rest on a stone wall above a sky city of waterfalls and floating islands." width="902" height="836" loading="lazy">
+        </div>
+      </figure>
+      <figure class="world-town" data-reveal>
+        <div class="frame">
+          <img src="img/world-town-500.webp" srcset="img/world-town-500.webp 500w, img/world-town-760.webp 760w" sizes="(max-width: 760px) 100vw, 40vw" alt="A busy village square with market stalls, banners and a fountain." width="760" height="471" loading="lazy">
+        </div>
+        <figcaption>Humble villages, where every face has a story.</figcaption>
+      </figure>
     </div>
+  </section>
 
+  <!-- 2b. LEGENDS (lore vs beta) ---------------------------------------- -->
+  <section class="legends" aria-labelledby="legends-title">
+    <div class="section-head" data-reveal>
+      <p class="eyebrow">Legends of the realm</p>
+      <h2 id="legends-title">Where Guardians sleep</h2>
+      <div class="rule" aria-hidden="true"></div>
+    </div>
     <figure class="vista" data-reveal>
       <div class="vista-frame">
         <img data-parallax="0.12" src="img/colossus-900.webp" srcset="img/colossus-900.webp 900w, img/colossus-1536.webp 1536w" sizes="(max-width: 900px) 100vw, 1200px" alt="Two blonde heroes face a towering Colossal of stone and root inside an overgrown cathedral." width="1536" height="1077" loading="lazy">
       </div>
       <figcaption>Something ancient wakes beneath the ruins.</figcaption>
     </figure>
-
     <div class="realms">
       <article class="realm" data-reveal>
-        <img src="img/sentinel-400.webp" srcset="img/sentinel-400.webp 400w, img/sentinel-572.webp 572w" sizes="(max-width: 700px) 100vw, 40vw" alt="Sentinel, a colossal Guardian of carved stone with a green heart of light, towers over a lone traveller." width="572" height="875" loading="lazy">
+        <img src="img/sentinel-400.webp" srcset="img/sentinel-400.webp 400w, img/sentinel-572.webp 572w" sizes="(max-width: 760px) 100vw, 22vw" alt="Sentinel, a colossal Guardian of carved stone with a green heart of light, towers over a lone traveller." width="572" height="875" loading="lazy">
         <div class="realm-text">
           <p class="tag tag-lore">World lore</p>
           <h3>Ancient Colossals</h3>
@@ -86,7 +107,7 @@
         </div>
       </article>
       <article class="realm realm-shadow" data-reveal>
-        <img src="img/shadow-400.webp" srcset="img/shadow-400.webp 400w, img/shadow-572.webp 572w" sizes="(max-width: 700px) 100vw, 40vw" alt="The Obsidian Dreadknight, an armoured champion of the Shadow host, grips a blade of green fire." width="572" height="875" loading="lazy">
+        <img src="img/shadow-400.webp" srcset="img/shadow-400.webp 400w, img/shadow-572.webp 572w" sizes="(max-width: 760px) 100vw, 22vw" alt="The Obsidian Dreadknight, an armoured champion of the Shadow host, grips a blade of green fire." width="572" height="875" loading="lazy">
         <div class="realm-text">
           <p class="tag tag-concept">World concept · not in the beta</p>
           <h3>The Shadow Realm</h3>
@@ -94,65 +115,62 @@
         </div>
       </article>
     </div>
-
-    <p class="continents" data-reveal>Six continents wait beyond the first road: Elindor, Myrath, Solvara, Vharos, the Frostcrown Isles and the Siri Isles. <a href="https://houawanych-pixel.github.io/chronicle-clash/explore/" target="_blank" rel="noopener">Open the world atlas<span class="sr-only"> (opens in a new tab)</span> ↗</a></p>
   </section>
 
   <!-- 3. CHARACTERS ---------------------------------------------------- -->
   <section class="characters" id="characters" aria-labelledby="chars-title">
     <div class="section-head" data-reveal>
-      <p class="eyebrow">The heroes</p>
-      <h2 id="chars-title">Lance &amp; Elyza</h2>
-      <div class="ornament" aria-hidden="true"></div>
+      <p class="eyebrow">Meet</p>
+      <h2 id="chars-title" class="title-big">Lance <span class="amp">&amp;</span> Elyza</h2>
+      <div class="rule" aria-hidden="true"></div>
     </div>
-
-    <article class="char" data-reveal>
-      <div class="char-art">
-        <img data-parallax="0.06" src="img/lance-400.webp" srcset="img/lance-400.webp 400w, img/lance-534.webp 534w" sizes="(max-width: 700px) 86vw, 34vw" alt="Lance, a blonde elf youth in a teal hooded mantle, patterned tunic and leather boots, a sword in hand." width="534" height="848" loading="lazy">
-      </div>
-      <div class="char-text">
-        <p class="tag">Key NPC · Elf</p>
-        <h3>Lance</h3>
-        <p>A wandering elf youth whose quiet courage carries him farther than he knows. Untested in the eyes of kings, he moves with instinct, kindness and resolve, and becomes a steady light for others.</p>
-        <p class="aside">Lance never speaks. He lets his choices answer.</p>
-        <ul class="kit" aria-label="Lance's abilities">
-          <li>Wanderer's Strike</li><li>Swift Step</li><li>Quiet Resolve</li><li class="ultra">Hero's Awakening</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="char char-flip" data-reveal>
-      <div class="char-art">
-        <img data-parallax="0.06" src="img/elyza-400.webp" srcset="img/elyza-400.webp 400w, img/elyza-534.webp 534w" sizes="(max-width: 700px) 86vw, 34vw" alt="Elyza, a princess with long golden hair and a circlet, in a white and gold gown." width="534" height="792" loading="lazy">
-      </div>
-      <div class="char-text">
-        <p class="tag">Key NPC · Princess</p>
-        <h3>Elyza</h3>
-        <p>A radiant princess chosen by the light. Her kind heart and unwavering faith heal wounds unseen, and through her the Guardian's power awakens in those who fight for what is right.</p>
-        <blockquote>“Where grace stands, hope still shines.”</blockquote>
-        <ul class="kit" aria-label="Elyza's abilities">
-          <li>Radiant Grace</li><li>Luminous Waltz</li><li>Sanctified Prayer</li><li class="ultra">Crown of Dawn</li>
-        </ul>
-      </div>
-    </article>
+    <div class="duo">
+      <article class="char" data-reveal>
+        <div class="char-art"><img data-parallax="0.05" src="img/meet-lance-420.webp" srcset="img/meet-lance-420.webp 420w, img/meet-lance-600.webp 600w" sizes="(max-width: 760px) 90vw, 40vw" alt="Lance, a blonde elf youth in a teal hooded mantle and patterned tunic, sword in hand." width="600" height="941" loading="lazy"></div>
+        <div class="char-text">
+          <p class="tag">Key NPC · Elf</p>
+          <h3>Lance</h3>
+          <p>A wandering elf youth whose quiet courage carries him farther than he knows. Untested in the eyes of kings, he moves with instinct, kindness and resolve, and becomes a steady light for others.</p>
+          <p class="aside">Lance never speaks. He lets his choices answer.</p>
+          <ul class="kit" aria-label="Lance's abilities"><li>Wanderer's Strike</li><li>Swift Step</li><li>Quiet Resolve</li><li class="ultra">Hero's Awakening</li></ul>
+        </div>
+      </article>
+      <article class="char" data-reveal>
+        <div class="char-art"><img data-parallax="0.05" src="img/meet-elyza-420.webp" srcset="img/meet-elyza-420.webp 420w, img/meet-elyza-637.webp 637w" sizes="(max-width: 760px) 90vw, 40vw" alt="Elyza, a princess with long golden hair and a circlet, in a white and gold gown." width="637" height="941" loading="lazy"></div>
+        <div class="char-text">
+          <p class="tag">Key NPC · Princess</p>
+          <h3>Elyza</h3>
+          <p>A radiant princess chosen by the light. Her kind heart and unwavering faith heal wounds unseen, and through her the Guardian's power awakens in those who fight for what is right.</p>
+          <blockquote>“Where grace stands, hope still shines.”</blockquote>
+          <ul class="kit" aria-label="Elyza's abilities"><li>Radiant Grace</li><li>Luminous Waltz</li><li>Sanctified Prayer</li><li class="ultra">Crown of Dawn</li></ul>
+        </div>
+      </article>
+    </div>
   </section>
 
   <!-- 4. BETA ---------------------------------------------------------- -->
   <section class="beta" id="beta" aria-labelledby="beta-title">
     <div class="section-head" data-reveal>
       <p class="eyebrow">Early beta</p>
-      <h2 id="beta-title">Choose your test</h2>
-      <div class="ornament" aria-hidden="true"></div>
-      <p class="sub">Both run right in your browser, on phone or computer. Nothing to install.</p>
+      <h2 id="beta-title" class="title-big">Choose your test</h2>
+      <div class="rule" aria-hidden="true"></div>
+      <p class="sub">Two worlds. One journey ahead.</p>
     </div>
-    <div class="tests" data-tests>
-      <!-- Filled from the same template as the dialog (see site.js) so both stay identical. -->
+    <div class="tests" data-tests></div>
+    <div class="footage" data-reveal>
+      <p class="eyebrow">From the current build</p>
+      <div class="footage-row">
+        <figure><img src="img/beta-village-640.webp" srcset="img/beta-village-640.webp 640w, img/beta-village-960.webp 960w" sizes="(max-width: 760px) 90vw, 40vw" alt="Beta screenshot: villagers in the village square." width="960" height="572" loading="lazy"><figcaption>Village Simulation today</figcaption></figure>
+        <figure><img src="img/beta-citadel-640.webp" srcset="img/beta-citadel-640.webp 640w, img/beta-citadel-960.webp 960w" sizes="(max-width: 760px) 90vw, 40vw" alt="Beta screenshot: the throne hall of the Sky Citadel." width="960" height="540" loading="lazy"><figcaption>Gameplay Test today</figcaption></figure>
+      </div>
+      <p class="fine-note">Artwork above shows where the game is heading. In the beta, characters use placeholder models.</p>
     </div>
   </section>
 </main>
 
 <!-- 5. FOOTER ---------------------------------------------------------- -->
 <footer class="footer">
+  <div class="crest" aria-hidden="true"></div>
   <p class="brand">Chronicle <span>Clash</span></p>
   <nav aria-label="Footer">
     <a href="https://houawanych-pixel.github.io/chronicle-clash/" target="_blank" rel="noopener">World atlas &amp; lore<span class="sr-only"> (opens in a new tab)</span> ↗</a>
@@ -161,12 +179,10 @@
   <p class="fine">© Chronicle Clash. All characters and artwork are the property of their creator. Early beta build.</p>
 </footer>
 
-<!-- Floating play button -->
 <button class="fab" type="button" data-open-beta data-fab aria-label="Play the Beta">
-  <span class="fab-icon" aria-hidden="true">▶</span><span class="fab-label">Play the Beta</span>
+  <span class="fab-icon" aria-hidden="true">✦</span><span class="fab-label">Play the Beta</span>
 </button>
 
-<!-- Beta selection dialog -->
 <dialog class="modal" data-beta-dialog aria-labelledby="modal-title">
   <div class="modal-inner">
     <button class="modal-close" type="button" data-close aria-label="Close">✕</button>
@@ -179,25 +195,24 @@
 
 <template id="tests-tpl">
   <article class="test">
-    <img src="img/beta-citadel-640.webp" srcset="img/beta-citadel-640.webp 640w, img/beta-citadel-960.webp 960w" sizes="(max-width: 700px) 90vw, 420px" alt="Beta footage: the knight and his ally enter the Dark Knight's throne hall." width="960" height="540" loading="lazy">
+    <img src="img/test-village-420.webp" srcset="img/test-village-420.webp 420w, img/test-village-622.webp 622w" sizes="(max-width: 760px) 90vw, 440px" alt="Concept art: villagers trade and chat in a sunny market square." width="622" height="278" loading="lazy">
     <div class="test-body">
-      <p class="tag tag-live">Playable now</p>
-      <h3>Gameplay Test</h3>
-      <p>The Sky Citadel: sword combat, parries and stealth on the way to the Dark Knight, plus the Forest Escape.</p>
-      <a class="btn btn-gold" href="play/">Launch Gameplay Test</a>
-    </div>
-  </article>
-  <article class="test">
-    <img src="img/beta-village-640.webp" srcset="img/beta-village-640.webp 640w, img/beta-village-960.webp 960w" sizes="(max-width: 700px) 90vw, 420px" alt="Beta footage: villagers going about their day in the village square." width="960" height="572" loading="lazy">
-    <div class="test-body">
-      <p class="tag tag-live">Playable now</p>
-      <h3>Village Simulation</h3>
+      <h3><span class="icon" aria-hidden="true">⌂</span> Village Simulation</h3>
       <p>Villagers with daily routines who stop to react when you walk up. Tap Talk to hold a real conversation by voice or text.</p>
-      <a class="btn btn-gold" href="play/?village">Launch Village Simulation</a>
+      <a class="btn btn-ornate" href="play/?village"><span>Enter Test</span></a>
+      <p class="chip">Playable · in development</p>
       <p class="test-note">AI conversations are in testing; a villager may answer with a set line.</p>
     </div>
   </article>
-  <p class="test-foot">Beta footage. Characters use placeholder models for now.</p>
+  <article class="test">
+    <img src="img/test-gameplay-420.webp" srcset="img/test-gameplay-420.webp 420w, img/test-gameplay-624.webp 624w" sizes="(max-width: 760px) 90vw, 440px" alt="Concept art: Lance leaps through a ruined castle with his sword drawn." width="624" height="278" loading="lazy">
+    <div class="test-body">
+      <h3><span class="icon" aria-hidden="true">⚔</span> Gameplay Test</h3>
+      <p>The Sky Citadel: sword combat, parries and stealth on the way to the Dark Knight, plus the Forest Escape.</p>
+      <a class="btn btn-ornate" href="play/"><span>Enter Test</span></a>
+      <p class="chip">Playable · in development</p>
+    </div>
+  </article>
 </template>
 
 <script src="site.js" defer></script>

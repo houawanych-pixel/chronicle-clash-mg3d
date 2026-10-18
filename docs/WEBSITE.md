@@ -13,7 +13,7 @@ Old links such as `/?village` forward to `/play/?village`.
 ## Editing
 - Text lives in `site/index.html`. The two beta cards are written once in the `<template id="tests-tpl">` block; the Beta section and the dialog both use it.
 - Images are in `site/img/` as WebP at two widths (`name-400.webp`, `name-534.webp` …). Swap a file with the same name to change art.
-- Original full-size artwork is kept in `art/originals/` (not deployed).
+- Original full-size artwork is kept in `art/originals/` (not deployed). The site art is cut from the owner's four concept screens in `art/originals/mockups/` (hero, world, meet Lance & Elyza, choose your test), with all text rebuilt as real HTML.
 - Fonts are self-hosted in `site/fonts/` (Cinzel, Source Sans 3; OFL licences included).
 - `site/.gdignore` and `art/.gdignore` keep Godot from importing the website files into the game.
 

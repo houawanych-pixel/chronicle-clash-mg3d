@@ -158,6 +158,12 @@ func _ready() -> void:
 	build_environment()
 	world = Node3D.new()
 	add_child(world)
+	# Direct links: ?village or ?forest opens the title with that stage picked.
+	if url_has("village"):
+		stage = "village"
+		village.enter()
+	elif url_has("forest"):
+		stage = "forest"
 	build_stage()
 	camera = Camera3D.new()
 	camera.fov = 54

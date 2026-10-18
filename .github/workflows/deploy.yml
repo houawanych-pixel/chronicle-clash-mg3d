@@ -28,6 +28,12 @@ jobs:
         run: |
           mkdir -v -p build/web
           godot --headless --export-release "Web" build/web/index.html
+      - name: Give the game pack a per-build name (phones never keep an old one)
+        run: |
+          V=$(echo "$GITHUB_SHA" | cut -c1-8)
+          mv build/web/index.pck "build/web/index.$V.pck"
+          sed -i "s/\"index.pck\":/\"index.$V.pck\":/; s/\"executable\":\"index\"/\"executable\":\"index\",\"mainPack\":\"index.$V.pck\"/" build/web/index.html
+          grep -o "mainPack[^,]*" build/web/index.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

@@ -932,6 +932,7 @@ func ruin3_tests() -> void:
 	var H: Dictionary = R.hubs
 	check("the rebuilt citadel loads with its hover platforms and crystal pads", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.ruin.plats.size() == R.platforms.size() and game.ruin.pads.size() == 4, "ladders=%d plats=%d pads=%d" % [game.ladders.size(), game.ruin.plats.size(), game.ruin.pads.size()])
 	check("the hero stands on the dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.6, "pos=%s" % [h.global_position])
+	check("Elyza starts as a prisoner in the Core (she does not follow yet)", game.ally_captive and game.ally.global_position.distance_to(game.ruin.CAPTIVE) < 1.5 and game.ruin.cage != null, "ally=%s" % [game.ally.global_position])
 	var n0: int = game.enemies.size()
 	check("only the dock guards are made at the start; the rest appear when you get there", game.ruin.pending.size() > 0 and n0 < R.knights.size() + 1, "made=%d waiting=%d" % [n0, game.ruin.pending.size()])
 	var y0: float = game.ruin.plats[0].body.global_position.y
@@ -993,6 +994,49 @@ func ruin3_tests() -> void:
 	game.stamina = 1.0
 	await wait(0.8)
 	check("climbing runs on stamina: at zero you let go", h.state != "wallclimb" and h.global_position.y < 73.5, "state=%s pos=%s" % [h.state, h.global_position])
+	# --- grappling hook: aim, fire, latch on the wall and climb
+	await wait(0.6)
+	h.global_position = stand
+	h.velocity = Vector3.ZERO
+	game.stamina = 100.0
+	await wait(0.5)
+	game.cam_yaw = atan2(-tw.x, -tw.z)
+	game.hud.pressed["hook"] = true
+	await wait(0.4)
+	var aimed: bool = game.grapple.aiming and game.grapple.blend > 0.9
+	game.grapple.aim_pitch = 0.62
+	await wait(0.3)
+	var on_target: bool = game.grapple.target.get("ok", false)
+	check("HOOK aims: over-the-shoulder camera, crosshair on the wall", aimed and on_target, "aiming=%s blend=%.2f target=%s" % [game.grapple.aiming, game.grapple.blend, game.grapple.target.get("pos")])
+	var y_before: float = h.global_position.y
+	game.hud.pressed["attack"] = true
+	var latched: bool = false
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 3000:
+		if h.state == "grapple":
+			latched = true
+		if h.state == "wallclimb":
+			break
+		await wait(0.03)
+	await wait(0.2)
+	check("FIRE: the hook latches and pulls you onto the wall, climbing", latched and h.state == "wallclimb" and h.global_position.y > y_before + 1.0, "latched=%s state=%s pos=%s" % [latched, h.state, h.global_position])
+	await shot("w7_hook")
+	game.hud.stick = Vector2(0, -1)
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 5000 and not (h.state != "wallclimb" and h.is_on_floor()):
+		await wait(0.05)
+	game.hud.stick = Vector2.ZERO
+	check("…and climb on up from the hook point", h.is_on_floor() and h.global_position.y > 73.5, "pos=%s" % [h.global_position])
+	# a miss reels the hook back in
+	game.cam_yaw += PI
+	game.hud.pressed["hook"] = true
+	await wait(0.4)
+	game.grapple.aim_pitch = 1.3
+	await wait(0.2)
+	var p_miss: Vector3 = h.global_position
+	game.hud.pressed["attack"] = true
+	await wait(1.4)
+	check("a miss (open sky) reels the hook back; you stay put", h.state == "idle" and game.grapple.shot.is_empty() and not game.grapple.aiming and h.global_position.distance_to(p_miss) < 1.5, "state=%s pos=%s" % [h.state, h.global_position])
 	# --- A: the outer ledges, all the way to the boss
 	await ruin3_start()
 	h = game.hero
@@ -1012,9 +1056,38 @@ func ruin3_tests() -> void:
 	h.hp = h.max_hp
 	await wait(6.0)
 	check("the Dark Knight fights in the Core", game.boss.alive() and absf(game.boss.global_position.y - game.ruin.core_y) < 4.0 and (h.hp < h.max_hp or game.boss.global_position.distance_to(h.global_position) < 6.0), "boss=%s hp=%d" % [game.boss.global_position, h.hp])
+	check("Elyza stays in her cage during the fight", game.ally_captive and game.ally.global_position.distance_to(game.ruin.CAPTIVE) < 1.5)
 	game.boss.damage(9999, h.global_position, 0)
-	await wait(2.8)
-	check("defeating the Dark Knight clears the citadel", game.mode == "win", "mode=%s" % game.mode)
+	await wait(2.4)
+	check("beating the Dark Knight frees Elyza (the stage isn't cleared yet)", not game.ally_captive and game.mode == "play" and game.ruin.rescue == "freed" and is_instance_valid(game.ruin.escape), "mode=%s rescue=%s" % [game.mode, game.ruin.rescue])
+	await shot("w8_freed")
+	# step onto the escape pad (walk_to would keep steering after the launch)
+	h.global_position = game.ruin.ESCAPE_PAD + Vector3(0, 0.3, 2.0)
+	h.velocity = Vector3.ZERO
+	await wait(0.4)
+	game.cam_yaw = 0.0
+	game.hud.stick = Vector2(0, -0.6)
+	t0 = Time.get_ticks_msec()
+	while game.ruin.rescue != "escort" and Time.get_ticks_msec() - t0 < 3000:
+		await wait(0.03)
+	game.hud.stick = Vector2.ZERO
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 6000 and not (game.ruin.rescue == "escort" and h.state == "idle" and h.is_on_floor()):
+		await wait(0.05)
+	await wait(1.0)
+	check("the escape pad lifts you up through the eye to the crown; Elyza follows", game.ruin.rescue == "escort" and h.global_position.y > 138.0 and game.ally.global_position.distance_to(h.global_position) < 6.0, "hero=%s ally=%s" % [h.global_position, game.ally.global_position])
+	await wait(1.2)
+	check("knights ambush the escape on the crown", game.ruin.ambush.size() == 2, "ambush=%d" % game.ruin.ambush.size())
+	await shot("w9_escort")
+	for e: CharacterBody3D in game.ruin.ambush:
+		e.damage(999, h.global_position, 0)
+	await wait(0.5)
+	check("the stage waits until Elyza is at the safe area", game.mode == "play")
+	ok = await walk_to(game.ruin.SAFE, 12.0)
+	await wait(1.2)
+	check("Elyza follows you to the safe area", game.ally.global_position.distance_to(game.ruin.SAFE) < 6.0, "ally=%s" % [game.ally.global_position])
+	await wait(2.0)
+	check("bringing her to the safe area clears the citadel", game.mode == "win", "mode=%s rescue=%s hero=%s" % [game.mode, game.ruin.rescue, h.global_position])
 	# --- B: the inner tower
 	await ruin3_start()
 	h = game.hero

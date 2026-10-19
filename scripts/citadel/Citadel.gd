@@ -10,6 +10,7 @@ const ForestScript = preload("res://scripts/citadel/Forest.gd")
 const RuinScript = preload("res://scripts/citadel/Ruin.gd")
 const Ruin3Script = preload("res://scripts/citadel/Ruin3.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
+const GrappleScript = preload("res://scripts/citadel/Grapple.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
@@ -38,6 +39,7 @@ var climb_ladder: Dictionary = {}
 var climb_phase: float = 0.0
 var climb_mask: int = 1
 var fx: RefCounted
+var grapple: RefCounted
 var village: RefCounted
 var env_res: Environment
 var sun: DirectionalLight3D
@@ -47,6 +49,8 @@ var fail_text: String = "YOU FELL"
 var win_text: String = "CITADEL CLEARED"
 var hero: CharacterBody3D
 var ally: CharacterBody3D
+## Sky Citadel: Elyza is a prisoner in the Core until the Dark Knight falls.
+var ally_captive: bool = false
 var boss: CharacterBody3D
 var enemies: Array = []
 var hud: Control
@@ -162,6 +166,7 @@ func _ready() -> void:
 	forest = ForestScript.new(self)
 	ruin = Ruin3Script.new(self) if FileAccess.file_exists("res://assets/ruin3/route3.json") else RuinScript.new(self)
 	fx = FxScript.new(self)
+	grapple = GrappleScript.new(self)
 	village = VillageScript.new(self)
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
@@ -208,7 +213,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -333,7 +338,7 @@ func hero_in_grass() -> bool:
 
 func target_for(e: CharacterBody3D) -> CharacterBody3D:
 	## In the forest, knights go for Eliza when she is the closer one.
-	if stage == "forest" and ally != null and ally.alive() and hero.alive():
+	if (stage == "forest" or (stage == "citadel" and not ally_captive)) and ally != null and ally.alive() and hero.alive():
 		if ally.global_position.distance_to(e.global_position) + 1.5 < hero.global_position.distance_to(e.global_position):
 			return ally
 	return hero
@@ -852,6 +857,8 @@ func restart_with(key: String, new_stage: String = "") -> void:
 	cover.clear()
 	peeking = false
 	takedowns = 0
+	ally_captive = false
+	grapple.reset()
 	spawn_cast()
 	cam_pos = hero.global_position
 
@@ -899,8 +906,17 @@ func update_camera(dt: float) -> void:
 		return
 	if mode == "play":
 		var look_d: Vector2 = hud.take_look()
-		cam_yaw -= look_d.x * 0.0065
-		cam_pitch = clampf(cam_pitch + look_d.y * 0.004, 0.02, 1.1)
+		# right analog stick on a gamepad
+		var rs: Vector2 = Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+		rs = rs if rs.length() > 0.18 else Vector2.ZERO
+		if grapple.aiming:
+			# aim: drags turn directly; the aim stick / right stick turn at a rate (squared for fine aim)
+			var st: Vector2 = hud.aim_stick if hud.aim_stick.length() > rs.length() else rs
+			var rate: Vector2 = st * st.length()
+			grapple.aim_turn(look_d.x * 0.004 + rate.x * 2.4 * dt, -look_d.y * 0.003 - rate.y * 1.7 * dt)
+		else:
+			cam_yaw -= look_d.x * 0.0065 + rs.x * 2.6 * dt
+			cam_pitch = clampf(cam_pitch + look_d.y * 0.004 + rs.y * 1.6 * dt, 0.02, 1.1)
 	# Close over-the-shoulder view like the concept screens: the hero fills
 	# the lower-left, the fight reads in the centre.
 	var dist: float = 2.75
@@ -939,6 +955,13 @@ func update_camera(dt: float) -> void:
 		cover_eye = Vector3.ZERO
 		cover_look = Vector3.ZERO
 	# Keep the camera out of walls and pillars.
+	# Grappling-hook aim: close over the right shoulder, looking where the hook goes.
+	if grapple.blend > 0.0:
+		var k2: float = grapple.blend * grapple.blend * (3.0 - 2.0 * grapple.blend)
+		var ad: Vector3 = grapple.aim_dir()
+		var a_eye: Vector3 = hero.global_position + Vector3.UP * 1.62 + cam_right() * 0.62 - ad * 1.55
+		eye = eye.lerp(a_eye, k2)
+		look = look.lerp(a_eye + ad * 10.0, k2)
 	var head: Vector3 = hero.global_position + Vector3.UP * 1.4
 	var block: Dictionary = ray(head, eye)
 	if not block.is_empty():
@@ -971,7 +994,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		mv = Vector2.ZERO
 	if f.state != "block" and f.state != "wallclimb" and (f.is_on_floor() or stage != "citadel"):
 		stamina = minf(100.0, stamina + dt * 28.0)
-	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch" and f.state != "wallclimb":
+	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch" and f.state != "wallclimb" and f.state != "grapple":
 		fell()
 		return
 	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
@@ -980,6 +1003,8 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	if wallclimb_tick(f, dt, mv, dir, jump):
 		return
 	if climb_tick(f, dt, mv, dir, jump):
+		return
+	if grapple.tick(f, dt, mv, dir, attack, jump):
 		return
 	var dodge: bool = hud.take("dodge") or Input.is_action_just_pressed("cc_dodge")
 	var magic: bool = hud.take("magic") or Input.is_action_just_pressed("cc_magic")
@@ -1332,6 +1357,9 @@ func on_death(f: CharacterBody3D) -> void:
 	if f == boss and stage == "forest":
 		hud.popup("BLONDE LANCE IS DOWN", Color("ffd27a"))
 		return
+	if f == boss and stage == "citadel" and ruin.has_method("boss_down"):
+		ruin.boss_down()
+		return
 	if f == boss:
 		hud.popup("DARK KNIGHT DEFEATED", Color("ffd27a"))
 		get_tree().create_timer(2.2).timeout.connect(func() -> void:
@@ -1363,7 +1391,7 @@ func respawn() -> void:
 	stamina = 100
 	hero.global_position = sections[checkpoint].spawn
 	hero.velocity = Vector3.ZERO
-	ally.global_position = hero.global_position + Vector3(1.6, 0, 2.4)
+	ally.global_position = ruin.captive_pos() if stage == "citadel" and ally_captive else hero.global_position + Vector3(1.6, 0, 2.4)
 	ally.hp = ally.max_hp
 	ally.set_state("idle")
 	ally.visible = true
@@ -1781,6 +1809,10 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 
 ## TALK shows only in the village, next to a villager (or while chatting).
 func button_visible(id: String) -> bool:
+	if id == "hook":
+		return stage == "citadel"
+	if grapple.aiming and id in ["dodge", "block", "skill", "magic", "potion", "sheathe"]:
+		return false
 	if id == "talk":
 		return stage == "village" and village.active and (village.chat.is_open() or village.chat.nearest() != null)
 	return true

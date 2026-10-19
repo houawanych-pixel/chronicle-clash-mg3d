@@ -24,6 +24,7 @@ const BUTTONS: Array = [
 	{"id": "skill", "c": Vector2(1196, 412), "r": 54.0, "label": "CHARGE", "glyph": "charge", "color": Color("ffcf6a")},
 	{"id": "magic", "c": Vector2(1222, 292), "r": 44.0, "label": "MAGIC", "glyph": "magic", "color": Color("b48cff")},
 	{"id": "potion", "c": Vector2(1118, 300), "r": 42.0, "label": "POTION", "glyph": "potion", "color": Color("7dffcf")},
+	{"id": "hook", "c": Vector2(1108, 186), "r": 42.0, "label": "HOOK", "glyph": "hook", "color": Color("6fe0ff")},
 	{"id": "talk", "c": Vector2(1108, 186), "r": 40.0, "label": "TALK", "glyph": "talk", "color": Color("7dffcf")},
 	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
 ]
@@ -50,6 +51,11 @@ var stick: Vector2 = Vector2.ZERO
 var stick_id: int = -99
 var stick_origin: Vector2 = STICK_HOME
 var look_delta: Vector2 = Vector2.ZERO
+## Grappling-hook aim stick: in aim mode a thumb on the right side is a floating analog stick.
+var aim_stick: Vector2 = Vector2.ZERO
+var aim_id: int = -99
+var aim_origin: Vector2 = Vector2.ZERO
+const AIM_R: float = 80.0
 var pressed: Dictionary = {}
 var released: Dictionary = {}
 var holds: Dictionary = {}
@@ -106,6 +112,8 @@ func release() -> void:
 	stick_id = -99
 	stick_origin = STICK_HOME
 	look_delta = Vector2.ZERO
+	aim_stick = Vector2.ZERO
+	aim_id = -99
 
 func layout(vs: Vector2) -> void:
 	if vs.x / vs.y >= 1280.0 / 720.0:
@@ -179,6 +187,12 @@ func finger_down(id: int, p: Vector2) -> void:
 		stick_origin = p
 		stick = Vector2.ZERO
 		return
+	if game.grapple.aiming and id < 1000 and aim_id == -99:
+		aim_id = id
+		aim_origin = p
+		aim_stick = Vector2.ZERO
+		fingers[id] = {"kind": "aimstick"}
+		return
 	fingers[id] = {"kind": "look", "start": p, "last": p, "t": Time.get_ticks_msec(), "moved": 0.0}
 
 func finger_move(id: int, p: Vector2) -> void:
@@ -192,6 +206,13 @@ func finger_move(id: int, p: Vector2) -> void:
 			d = p - stick_origin
 		var v: Vector2 = d / STICK_R
 		stick = v if v.length() > 0.12 else Vector2.ZERO
+	elif f.kind == "aimstick":
+		var ad: Vector2 = p - aim_origin
+		if ad.length() > AIM_R:
+			aim_origin = p - ad.normalized() * AIM_R
+			ad = p - aim_origin
+		var av: Vector2 = ad / AIM_R
+		aim_stick = av if av.length() > 0.1 else Vector2.ZERO
 	elif f.kind == "look":
 		var step: Vector2 = p - (f.last as Vector2)
 		f.moved = f.moved + step.length()
@@ -209,6 +230,9 @@ func finger_up(id: int, p: Vector2) -> void:
 			stick_id = -99
 			stick = Vector2.ZERO
 			stick_origin = STICK_HOME
+		"aimstick":
+			aim_id = -99
+			aim_stick = Vector2.ZERO
 		"button":
 			var a: String = f.action
 			holds[a] = maxi(0, holds.get(a, 0) - 1)
@@ -359,6 +383,20 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 			draw_line(c + Vector2(-r * 0.3, r * 0.34), c + Vector2(r * 0.06, -r * 0.02), Color("6b4a2a"), 9)
 			draw_line(c + Vector2(-r * 0.12, r * 0.04), tip, WHITE, 5)
 			draw_line(c + Vector2(-r * 0.26, -r * 0.04), c + Vector2(-r * 0.02, r * 0.2), GOLD, 5)
+		"hook":
+			# grappling hook: shaft, three tines and a coil of rope
+			draw_line(c + Vector2(-r * 0.3, r * 0.3), c + Vector2(r * 0.18, -r * 0.18), WHITE, 5)
+			for k in 3:
+				var a2: float = -PI / 4.0 + (k - 1) * 0.75
+				var tip2: Vector2 = c + Vector2(r * 0.18, -r * 0.18)
+				draw_line(tip2, tip2 + Vector2(cos(a2), sin(a2)) * r * 0.24, Color("6fe0ff"), 4)
+			draw_arc(c + Vector2(-r * 0.22, r * 0.22), r * 0.16, 0, TAU, 16, GOLD, 3)
+		"fire":
+			draw_arc(c, r * 0.3, 0, TAU, 32, WHITE, 5)
+			draw_circle(c, r * 0.09, Color("6fe0ff"))
+			for k in 4:
+				var a3: float = k * PI / 2.0
+				draw_line(c + Vector2(cos(a3), sin(a3)) * r * 0.36, c + Vector2(cos(a3), sin(a3)) * r * 0.5, WHITE, 4)
 		"potion":
 			draw_circle(c + Vector2(0, r * 0.08), r * 0.26, Color("7dffcf"))
 			draw_rect(Rect2(c + Vector2(-r * 0.09, -r * 0.38), Vector2(r * 0.18, r * 0.22)), WHITE)
@@ -375,9 +413,14 @@ func round_btn(b: Dictionary) -> void:
 	var fill: float = game.button_fill(b.id)
 	if fill > 0.0:
 		draw_arc(c, r + 6, -PI / 2, -PI / 2 + TAU * fill, 64, color, 6.0, true)
-	glyph(b.glyph, c, r)
+	var aiming: bool = game.grapple.aiming
+	glyph("fire" if aiming and b.id == "attack" else b.glyph, c, r)
 	var label: String = b.label
-	if b.id == "sheathe":
+	if aiming and b.id == "attack":
+		label = "FIRE"
+	elif b.id == "hook":
+		label = "CANCEL" if aiming else "HOOK"
+	elif b.id == "sheathe":
 		label = "SHEATHE" if game.sword_out else "DRAW"
 	elif b.id == "talk":
 		label = "BYE" if game.village.chat.is_open() else "TALK"
@@ -435,6 +478,7 @@ func _draw() -> void:
 	if game.mode == "play":
 		draw_dialogue()
 		group(0)
+		draw_aim()
 		draw_left()
 		group(dx_r)
 		for b: Dictionary in BUTTONS:
@@ -481,7 +525,7 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Climb the sky ruin to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight, save Elyza", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
 	for i in stages.size():
 		var st: Array = stages[i]
 		var sr: Rect2 = Rect2(175 + i * 315, 392, 300, 82)
@@ -720,3 +764,28 @@ func draw_map(r: Rect2) -> void:
 	var dir: Vector2 = Vector2(f.x, f.z)
 	var side: Vector2 = Vector2(-dir.y, dir.x)
 	draw_colored_polygon(PackedVector2Array([c + dir * 10, c - dir * 6 + side * 6, c - dir * 6 - side * 6]), CYAN)
+
+## Grappling-hook crosshair and the floating aim stick.
+func draw_aim() -> void:
+	var g: RefCounted = game.grapple
+	if g.blend < 0.3 or not g.aiming:
+		return
+	var c: Vector2 = to_ui(get_viewport_rect().size * 0.5)
+	var ok: bool = g.target.get("ok", false)
+	var col: Color = Color("6fe0ff") if ok else Color(1, 1, 1, 0.55)
+	var r: float = 18.0 + (2.0 * sin(clock * 8.0) if ok else 0.0)
+	draw_arc(c, r, 0, TAU, 40, col, 3.0, true)
+	for k in 4:
+		var a: float = k * PI / 2.0 + PI / 4.0
+		draw_line(c + Vector2(cos(a), sin(a)) * (r + 4), c + Vector2(cos(a), sin(a)) * (r + 14), col, 3)
+	draw_circle(c, 3.0, col)
+	if ok:
+		var d: float = (g.target.pos as Vector3).distance_to(game.hero.global_position)
+		text(c + Vector2(0, r + 34), "%dm" % int(round(d)), 18, col)
+	else:
+		text(c + Vector2(0, r + 34), "OUT OF REACH" if g.target.has("pos") else "", 16, col, false)
+	if aim_id != -99:
+		draw_arc(aim_origin, AIM_R, 0, TAU, 48, Color(0.37, 0.89, 1.0, 0.6), 3.0, true)
+		draw_circle(aim_origin + aim_stick * AIM_R, 30, Color(0.37, 0.89, 1.0, 0.45))
+	else:
+		text(Vector2(W - 330, 120), "Drag here to aim", 18, Color(WHITE, 0.7), false)

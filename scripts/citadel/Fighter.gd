@@ -123,7 +123,7 @@ func _physics_process(dt: float) -> void:
 	state_t += dt
 	anim_t += dt
 	flash = maxf(0.0, flash - dt * 4.0)
-	if not is_on_floor() and state != "wallclimb":
+	if not is_on_floor() and state != "wallclimb" and state != "grapple":
 		velocity.y -= GRAVITY * dt
 	match kind:
 		"hero":
@@ -199,6 +199,11 @@ func animate(dt: float) -> void:
 		"climb", "wallclimb":
 			pose = P.climb(game.climb_phase)
 			rate = 18.0
+		"grapple":
+			pose = P.airborne(4.0)
+			pose["R_Upperarm"] = P.d(1.0, 0.45, 0.2)
+			pose["R_Forearm"] = P.d(1.0, 0.5, 0.0)
+			rate = 18.0
 		_:
 			var hs: float = Vector2(velocity.x, velocity.z).length()
 			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
@@ -221,6 +226,8 @@ func animate(dt: float) -> void:
 				var dp: Dictionary = P.reach_back(1.0 - game.draw_t / game.DRAW_TIME)
 				for key: String in ["R_Upperarm", "R_Forearm", "blade", "Spine02"]:
 					pose[key] = dp[key]
+			if kind == "ally" and game.ally_captive:
+				pose = P.crouch(0.0, 0.0)
 			if kind == "ally" and game.stage == "forest" and game.hero_low():
 				run_phase += dt * 6.0 * speed_now / 0.45
 				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
@@ -451,6 +458,12 @@ func boss_tick(dt: float) -> void:
 ## Eliza follows the hero and heals once the hero is hurt.
 func ally_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.hero
+	if game.ally_captive:
+		# held in the crystal cage: kneel and watch the fight
+		velocity.x = 0
+		velocity.z = 0
+		face_toward(hero.global_position, dt, 2.0)
+		return
 	heal_cd -= dt
 	# Stay at Lance's left shoulder, out of the over-the-shoulder camera's view line.
 	var spot: Vector3 = hero.global_position - game.cam_right() * 1.8 + game.cam_forward() * 0.4

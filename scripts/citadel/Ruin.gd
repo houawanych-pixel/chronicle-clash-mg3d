@@ -443,6 +443,9 @@ func guard_routes(_guards: Array) -> Array:
 		[d + Vector2(0, -6.5), d + Vector2(-7, -5.5), d + Vector2(-2, 2)],
 	]
 
+func captive_pos() -> Vector3:
+	return sections[0].spawn
+
 func boss_pos() -> Vector3:
 	return Vector3(0, core_y + 0.2, -4.0)
 

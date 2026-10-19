@@ -1061,7 +1061,16 @@ func ruin3_tests() -> void:
 	await wait(2.4)
 	check("beating the Dark Knight frees Elyza (the stage isn't cleared yet)", not game.ally_captive and game.mode == "play" and game.ruin.rescue == "freed" and is_instance_valid(game.ruin.escape), "mode=%s rescue=%s" % [game.mode, game.ruin.rescue])
 	await shot("w8_freed")
-	ok = await walk_to(game.ruin.ESCAPE_PAD, 10.0)
+	# step onto the escape pad (walk_to would keep steering after the launch)
+	h.global_position = game.ruin.ESCAPE_PAD + Vector3(0, 0.3, 2.0)
+	h.velocity = Vector3.ZERO
+	await wait(0.4)
+	game.cam_yaw = 0.0
+	game.hud.stick = Vector2(0, -0.6)
+	t0 = Time.get_ticks_msec()
+	while game.ruin.rescue != "escort" and Time.get_ticks_msec() - t0 < 3000:
+		await wait(0.03)
+	game.hud.stick = Vector2.ZERO
 	t0 = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 6000 and not (game.ruin.rescue == "escort" and h.state == "idle" and h.is_on_floor()):
 		await wait(0.05)

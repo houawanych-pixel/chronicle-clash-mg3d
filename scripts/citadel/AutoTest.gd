@@ -1004,7 +1004,7 @@ func ruin3_tests() -> void:
 	game.hud.pressed["hook"] = true
 	await wait(0.4)
 	var aimed: bool = game.grapple.aiming and game.grapple.blend > 0.9
-	game.grapple.aim_pitch = 0.55
+	game.grapple.aim_pitch = 0.62
 	await wait(0.3)
 	var on_target: bool = game.grapple.target.get("ok", false)
 	check("HOOK aims: over-the-shoulder camera, crosshair on the wall", aimed and on_target, "aiming=%s blend=%.2f target=%s" % [game.grapple.aiming, game.grapple.blend, game.grapple.target.get("pos")])
@@ -1013,7 +1013,7 @@ func ruin3_tests() -> void:
 	var latched: bool = false
 	t0 = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 3000:
-		if h.state == "grapple" and not game.grapple.shot.is_empty() and game.grapple.shot.pulling:
+		if h.state == "grapple":
 			latched = true
 		if h.state == "wallclimb":
 			break

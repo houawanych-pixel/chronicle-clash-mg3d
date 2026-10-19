@@ -203,7 +203,7 @@ func walk(a: Vector3, b: Vector3, width: float = 3.0) -> void:
 ## ride the escape pad up through the eye, then bring her to the skyship landing
 ## on the crown (the safe area) to clear the stage.
 const CAPTIVE: Vector3 = Vector3(-7.5, 105.0, -4.5)
-const ESCAPE_PAD: Vector3 = Vector3(0.0, 105.0, 3.0)
+const ESCAPE_PAD: Vector3 = Vector3(6.0, 105.0, 1.0)
 const ESCAPE_TO: Vector3 = Vector3(0.0, 139.3, 10.5)
 const SAFE: Vector3 = Vector3(-5.3, 139.3, 18.5)
 var cage: Node3D
@@ -301,19 +301,21 @@ func rescue_tick(dt: float) -> void:
 		return
 	var h: CharacterBody3D = game.hero
 	var hp: Vector3 = h.global_position
-	if rescue == "freed" and is_instance_valid(escape):
+	if is_instance_valid(escape):
 		escape.rotation.y += dt * 1.5
+		# the pad works every time (in case you drop back through the eye)
 		if h.state == "idle" and h.is_on_floor() and Vector2(hp.x - ESCAPE_PAD.x, hp.z - ESCAPE_PAD.z).length() < 1.6 and absf(hp.y - ESCAPE_PAD.y) < 1.2:
 			game.start_launch(h, ESCAPE_TO)
+			var first: bool = rescue == "freed"
 			rescue = "escort"
-			game.checkpoint = 3
+			if first:
+				game.get_tree().create_timer(1.6).timeout.connect(spawn_ambush)
 			game.get_tree().create_timer(0.6).timeout.connect(func() -> void:
-				if is_instance_valid(game.ally):
+				if is_instance_valid(game.ally) and game.ally.global_position.y < 130.0:
 					game.ally.global_position = ESCAPE_TO + Vector3(1.8, 0.4, 1.2)
 					game.ally.velocity = Vector3.ZERO
 					game.burst(game.ally.global_position + Vector3.UP, Color("bfe9ff"), 20, 4.0))
-			game.get_tree().create_timer(1.6).timeout.connect(spawn_ambush)
-		return
+			return
 	if rescue != "escort":
 		return
 	var a: CharacterBody3D = game.ally

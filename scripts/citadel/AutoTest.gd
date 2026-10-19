@@ -1009,7 +1009,7 @@ func ruin3_tests() -> void:
 	var on_target: bool = game.grapple.target.get("ok", false)
 	check("HOOK aims: over-the-shoulder camera, crosshair on the wall", aimed and on_target, "aiming=%s blend=%.2f target=%s" % [game.grapple.aiming, game.grapple.blend, game.grapple.target.get("pos")])
 	var y_before: float = h.global_position.y
-	game.hud.pressed["attack"] = true
+	game.hud.released["hook"] = true
 	var latched: bool = false
 	t0 = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 3000:
@@ -1034,9 +1034,21 @@ func ruin3_tests() -> void:
 	game.grapple.aim_pitch = 1.3
 	await wait(0.2)
 	var p_miss: Vector3 = h.global_position
-	game.hud.pressed["attack"] = true
+	game.hud.released["hook"] = true
 	await wait(1.4)
 	check("a miss (open sky) reels the hook back; you stay put", h.state == "idle" and game.grapple.shot.is_empty() and not game.grapple.aiming and h.global_position.distance_to(p_miss) < 1.5, "state=%s pos=%s" % [h.state, h.global_position])
+	# --- chase camera: backed against a wall, it stays on your side of it
+	h.global_position = stand
+	h.velocity = Vector3.ZERO
+	h.state = "idle"
+	game.cam_yaw = atan2(tw.x, tw.z)   # looking away from the wall: the camera would sit inside it
+	game.look_hold = 2.0
+	await wait(1.0)
+	var head: Vector3 = h.global_position + Vector3.UP * 1.45
+	var cam_p: Vector3 = game.camera.global_position
+	var through: Dictionary = game.ray(head, cam_p)
+	check("chase camera never goes through a wall behind you", through.is_empty() and (cam_p - wallp).dot(-tw) > 0.0, "cam=%s" % [cam_p])
+	await shot("w10_wallcam")
 	# --- A: the outer ledges, all the way to the boss
 	await ruin3_start()
 	h = game.hero

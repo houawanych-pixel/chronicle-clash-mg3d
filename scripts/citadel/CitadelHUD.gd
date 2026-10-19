@@ -178,6 +178,12 @@ func finger_down(id: int, p: Vector2) -> void:
 		if game.button_visible(b.id) and p.distance_to(button_pos(b)) <= b.r * 1.12:
 			var a: String = b.id
 			fingers[id] = {"kind": "button", "action": a}
+			if a == "hook":
+				# held HOOK is an analog aim stick; letting go fires
+				fingers[id]["aim"] = true
+				aim_id = id
+				aim_origin = button_pos(b)
+				aim_stick = Vector2.ZERO
 			pressed[a] = true
 			holds[a] = holds.get(a, 0) + 1
 			return
@@ -206,11 +212,14 @@ func finger_move(id: int, p: Vector2) -> void:
 			d = p - stick_origin
 		var v: Vector2 = d / STICK_R
 		stick = v if v.length() > 0.12 else Vector2.ZERO
-	elif f.kind == "aimstick":
+	elif f.kind == "aimstick" or f.get("aim", false):
 		var ad: Vector2 = p - aim_origin
 		if ad.length() > AIM_R:
-			aim_origin = p - ad.normalized() * AIM_R
-			ad = p - aim_origin
+			if f.get("aim", false):
+				ad = ad.normalized() * AIM_R   # the HOOK stick stays on its button
+			else:
+				aim_origin = p - ad.normalized() * AIM_R
+				ad = p - aim_origin
 		var av: Vector2 = ad / AIM_R
 		aim_stick = av if av.length() > 0.1 else Vector2.ZERO
 	elif f.kind == "look":
@@ -234,6 +243,9 @@ func finger_up(id: int, p: Vector2) -> void:
 			aim_id = -99
 			aim_stick = Vector2.ZERO
 		"button":
+			if f.get("aim", false):
+				aim_id = -99
+				aim_stick = Vector2.ZERO
 			var a: String = f.action
 			holds[a] = maxi(0, holds.get(a, 0) - 1)
 			if holds[a] == 0:
@@ -419,7 +431,10 @@ func round_btn(b: Dictionary) -> void:
 	if aiming and b.id == "attack":
 		label = "FIRE"
 	elif b.id == "hook":
-		label = "CANCEL" if aiming else "HOOK"
+		label = "RELEASE" if aiming else "HOOK"
+		if aiming:
+			draw_arc(c, AIM_R, 0, TAU, 48, Color(0.37, 0.89, 1.0, 0.7), 3.0, true)
+			draw_circle(c + aim_stick * AIM_R, 26, Color(0.37, 0.89, 1.0, 0.55))
 	elif b.id == "sheathe":
 		label = "SHEATHE" if game.sword_out else "DRAW"
 	elif b.id == "talk":
@@ -784,8 +799,6 @@ func draw_aim() -> void:
 		text(c + Vector2(0, r + 34), "%dm" % int(round(d)), 18, col)
 	else:
 		text(c + Vector2(0, r + 34), "OUT OF REACH" if g.target.has("pos") else "", 16, col, false)
-	if aim_id != -99:
+	if aim_id != -99 and not (fingers.has(aim_id) and fingers[aim_id].get("aim", false)):
 		draw_arc(aim_origin, AIM_R, 0, TAU, 48, Color(0.37, 0.89, 1.0, 0.6), 3.0, true)
 		draw_circle(aim_origin + aim_stick * AIM_R, 30, Color(0.37, 0.89, 1.0, 0.45))
-	else:
-		text(Vector2(W - 330, 120), "Drag here to aim", 18, Color(WHITE, 0.7), false)

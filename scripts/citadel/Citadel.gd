@@ -851,7 +851,7 @@ func restart_with(key: String, new_stage: String = "") -> void:
 			b.node.queue_free()
 	bolts.clear()
 	cam_yaw = 0.0
-	cam_pitch = 0.2
+	cam_pitch = 0.3 if stage == "citadel" else 0.2
 	crouched = false
 	prone = false
 	cover.clear()
@@ -917,18 +917,28 @@ func update_camera(dt: float) -> void:
 		else:
 			cam_yaw -= look_d.x * 0.0065 + rs.x * 2.6 * dt
 			cam_pitch = clampf(cam_pitch + look_d.y * 0.004 + rs.y * 1.6 * dt, 0.02, 1.1)
-	# Close over-the-shoulder view like the concept screens: the hero fills
-	# the lower-left, the fight reads in the centre.
+		if look_d.length() > 0.5 or rs.length() > 0.0:
+			look_hold = 1.4
+		look_hold = maxf(0.0, look_hold - dt)
+		chase_follow(dt)
+	# Chase camera: behind and above the hero, looking ahead so you see where
+	# you're going (citadel). Other stages keep the close over-the-shoulder view.
 	var dist: float = 2.75
+	var ahead: float = 3.0
+	var side: float = 0.62
+	if stage == "citadel":
+		dist = 4.3
+		ahead = 6.0
+		side = 0.35
 	if stage == "classic" and section >= 3 and hero.global_position.z < -130:
 		dist = 4.4
 	elif stage == "citadel" and ruin.in_core():
-		dist = 4.4
-	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * 0.62
+		dist = 5.2
+	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * side
 	cam_pos = cam_pos.lerp(hero.global_position, 1.0 - exp(-7.0 * dt))
 	var jitter: Vector3 = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.25
 	shake = maxf(0.0, shake - dt * 3.0)
-	var look: Vector3 = cam_pos + Vector3(0, 1.3, 0) + cam_forward() * 3.0 + cam_right() * 0.3
+	var look: Vector3 = cam_pos + Vector3(0, 1.3, 0) + cam_forward() * ahead + cam_right() * side * 0.5
 	var eye: Vector3 = cam_pos + back
 	if prone:
 		eye.y -= 1.0
@@ -962,11 +972,62 @@ func update_camera(dt: float) -> void:
 		var a_eye: Vector3 = hero.global_position + Vector3.UP * 1.62 + cam_right() * 0.62 - ad * 1.55
 		eye = eye.lerp(a_eye, k2)
 		look = look.lerp(a_eye + ad * 10.0, k2)
-	var head: Vector3 = hero.global_position + Vector3.UP * 1.4
-	var block: Dictionary = ray(head, eye)
-	if not block.is_empty():
-		eye = (block.position as Vector3) + (head - eye).normalized() * 0.3
+	eye = camera_clip(eye, dt)
 	camera.look_at_from_position(eye + jitter, look + jitter)
+
+## Keep the camera on the hero's side of walls: sweep a ball from the hero's
+## head to the camera spot and stop it short of anything solid, so you never see
+## through or behind a wall. Pulls in at once, eases back out.
+var cam_clip: float = 1.0
+var look_hold: float = 0.0
+func camera_clip(eye: Vector3, dt: float) -> Vector3:
+	var head: Vector3 = hero.global_position + Vector3.UP * 1.45
+	var to: Vector3 = eye - head
+	var full: float = to.length()
+	if full < 0.05:
+		return eye
+	var sh: SphereShape3D = SphereShape3D.new()
+	sh.radius = 0.35
+	var q: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	q.shape = sh
+	q.transform = Transform3D(Basis.IDENTITY, head)
+	q.motion = to
+	q.collision_mask = 1
+	var r: PackedFloat32Array = get_world_3d().direct_space_state.cast_motion(q)
+	var safe: float = r[0] if r.size() > 0 else 1.0
+	if safe <= 0.0:
+		# the head itself is against stone (climbing): fall back to a thin ray
+		var hit: Dictionary = ray(head, eye)
+		safe = 1.0 if hit.is_empty() else maxf(0.0, head.distance_to(hit.position) - 0.3) / full
+	if safe < cam_clip:
+		cam_clip = safe
+	else:
+		cam_clip = move_toward(cam_clip, safe, dt * 1.5)
+	var out: Vector3 = head + to * cam_clip
+	# squeezed against a wall: rise a little so you look down past the hero
+	var squeeze: float = 1.0 - cam_clip
+	if squeeze > 0.3:
+		var up: Vector3 = out + Vector3.UP * squeeze * 0.8
+		if ray(out, up + Vector3.UP * 0.35).is_empty():
+			out = up
+	return out
+
+## Chase camera: while you run (and haven't turned the view yourself for a
+## moment), the camera swings round behind the hero.
+func chase_follow(dt: float) -> void:
+	if stage != "citadel" or look_hold > 0.0 or grapple.aiming or in_cover():
+		return
+	if hero.state != "idle" or not hero.is_on_floor():
+		return
+	var v: Vector2 = Vector2(hero.velocity.x, hero.velocity.z)
+	if v.length() < 1.5:
+		return
+	var heading: float = atan2(-v.x, -v.y)
+	var diff: float = wrapf(heading - cam_yaw, -PI, PI)
+	# running back toward the camera: don't spin round
+	if absf(diff) > 2.3:
+		return
+	cam_yaw += diff * (1.0 - exp(-1.6 * dt)) * clampf(v.length() / 6.6, 0.0, 1.0)
 
 func move_input() -> Vector2:
 	var v: Vector2 = hud.stick
@@ -1811,7 +1872,7 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 func button_visible(id: String) -> bool:
 	if id == "hook":
 		return stage == "citadel"
-	if grapple.aiming and id in ["dodge", "block", "skill", "magic", "potion", "sheathe"]:
+	if grapple.aiming and id in ["attack", "dodge", "block", "skill", "magic", "potion", "sheathe"]:
 		return false
 	if id == "talk":
 		return stage == "village" and village.active and (village.chat.is_open() or village.chat.nearest() != null)

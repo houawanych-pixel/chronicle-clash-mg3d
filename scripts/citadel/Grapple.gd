@@ -1,9 +1,9 @@
 extends RefCounted
-## Grappling hook (Sky Citadel). Tap HOOK (G, or hold LT on a pad) to aim: the
-## camera moves in over the shoulder, a crosshair shows, and the right side of
-## the screen becomes an aim stick (right analog stick on a pad, mouse drag on
-## desktop). FIRE (the ATTACK button, E, J or RT) shoots the hook along the
-## crosshair. It latches onto stone (walls, ledges, floating platforms) and
+## Grappling hook (Sky Citadel). Press and HOLD the HOOK button: the camera moves
+## in over the shoulder, a crosshair shows and the button becomes an analog stick;
+## drag it to aim (the left stick still walks). LET GO to fire. Keyboard: hold G,
+## aim with the mouse, release G (or press E). Pad: hold LT, aim with the right
+## stick, release LT (or press RT). DODGE cancels. It latches onto stone (walls, ledges, floating platforms) and
 ## pulls the hero in: on a wall he ends up climbing, on a ledge he lands on it.
 ## Gates can't be hooked.
 
@@ -79,11 +79,10 @@ func aim_dir() -> Vector3:
 func hand(f: CharacterBody3D) -> Vector3:
 	return f.global_position + Vector3.UP * 1.35 + game.cam_right() * 0.25 + f.forward() * 0.3
 
-## What the crosshair is on: a ray from the camera through the screen centre.
+## What the crosshair is on: a ray from the aim camera spot through the screen centre.
 func probe() -> Dictionary:
-	var cam: Camera3D = game.camera
-	var from: Vector3 = cam.global_position
-	var dir: Vector3 = -cam.global_transform.basis.z
+	var dir: Vector3 = aim_dir()
+	var from: Vector3 = game.hero.global_position + Vector3.UP * 1.62 + game.cam_right() * 0.62 - dir * 1.55
 	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, from + dir * (RANGE + 4.0), 1)
 	q.exclude = [game.hero.get_rid()]
 	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
@@ -107,28 +106,28 @@ func tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, attack: bool
 	if not available():
 		return false
 	ensure_nodes()
-	var toggle: bool = game.hud.take("hook") or Input.is_action_just_pressed("cc_aim")
+	var press: bool = game.hud.take("hook") or Input.is_action_just_pressed("cc_aim")
+	var release: bool = game.hud.took_release("hook") or Input.is_action_just_released("cc_aim")
 	var fire: bool = Input.is_action_just_pressed("cc_fire")
-	# gamepad triggers: hold LT to aim, RT fires
+	# gamepad triggers: hold LT to aim, let go (or RT) to fire
 	var lt: bool = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
 	var rt: bool = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) > 0.5
 	if lt and not lt_prev:
-		toggle = not aiming or toggle
-	if not lt and lt_prev and aiming:
-		toggle = true
+		press = true
+	if not lt and lt_prev:
+		release = true
 	if rt and not rt_prev:
 		fire = true
 	lt_prev = lt
 	rt_prev = rt
 	if game.mode != "play":
-		toggle = false
+		press = false
+		release = false
 		fire = false
 	if not shot.is_empty():
 		return pull_tick(f, dt)
-	if toggle and not aiming and f.state in ["idle", "block"]:
+	if press and not aiming and f.state in ["idle", "block"]:
 		start_aim(f)
-	elif toggle and aiming:
-		stop_aim()
 	if not aiming:
 		blend = move_toward(blend, 0.0, dt / 0.18)
 		return false
@@ -139,23 +138,23 @@ func tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, attack: bool
 	# aim: right stick / right-side aim stick / mouse drag (cam_yaw is turned in update_camera)
 	f.state = "idle"
 	f.yaw = game.cam_yaw
-	f.velocity.x = dir.x * 2.2
-	f.velocity.z = dir.z * 2.2
+	f.velocity.x = dir.x * 3.0
+	f.velocity.z = dir.z * 3.0
 	target = probe()
 	if jump and f.is_on_floor():
 		f.velocity.y = 9.6
-	if fire or attack or game.hud.take("fire"):
+	if release or fire or attack:
 		shoot(f)
 	return true
 
 func start_aim(f: CharacterBody3D) -> void:
 	aiming = true
 	# start level with where the camera was looking
-	aim_pitch = clampf(-(game.cam_pitch - 0.2) * 0.6, -0.9, 1.25)
+	aim_pitch = 0.12
 	if game.crouched:
 		game.set_crouch(false)
 	game.sound("bleep", -14)
-	game.say_once("hook_tip", "tip", "Aim with the right stick (or drag the right side). FIRE to hook stone and pull yourself in.")
+	game.say_once("hook_tip", "tip", "Keep holding HOOK and drag to aim. Let go to fire: it grabs stone and pulls you in.")
 
 func stop_aim() -> void:
 	aiming = false

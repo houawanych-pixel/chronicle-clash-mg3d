@@ -2,8 +2,22 @@
 
 The project now opens on the Sky Citadel. The old MG labs are still in the build: **MG LABS (OLD)** on the title and pause screens loads `scenes/main.tscn`.
 
-## Stage
-Courtyard guards → broken sky bridge (two gaps to jump) → plaza → Dark Knight throne hall. Glowing barriers open when a section is cleared. Falling costs 15 health and returns you to the bridge. Eliza follows the hero and heals once when health drops below half.
+## Stage: the Sky Citadel (sky ruin)
+The citadel is now the owner's floating sky ruin (Tripo `cc_skyruin04`, 70 m tall, reduced to 100k triangles: `assets/ruin/skyruin.glb`, with a lighter solid copy `skyruin_col.glb`). The climb winds in and out of the ruin's hollow centre:
+
+1. **Sky dock** (y 26): three guards on patrol with vision cones; low planters are cover.
+2. **Broken bridge** up to the ruin's porch: two gaps to jump.
+3. **Ladder 1** up the front of the main deck. Knights on the **main deck** (y 35).
+4. **Ladder 2** to the **upper ring** (y 41), then the **Hollow Span**, a stair-bridge straight across the hollow middle to the **back ring** (y 44).
+5. **Ladder 3** into the **Core** (y 52.5), the roofed chamber at the top, where the Dark Knight waits.
+
+Glowing barriers in front of each ladder open when that section is cleared. Falling off costs 15 health and returns you to the last checkpoint. Elyza follows and magic-steps to you when a climb leaves her behind.
+
+**Ladders**: walk into one and push forward to grab it; stick up/down to climb, JUMP to let go; you step off at the top automatically. Any stage can add ladders (`game.ladders`).
+
+**How the route is built** (`scripts/citadel/Ruin.gd`): the ruin's floors are uneven Tripo surfaces with holes, so the route is laid with clean walkways, stairs (visible steps over a hidden ramp), the bridge and ladders at the ruin's real floor heights, and the ruin's collision is removed under those walkways so its bumps never trip you. A few small passages were carved out of the model along the route (ladder shafts, the Hollow Span, a clean core floor); the carve boxes are listed in the build notes. The ruin's walls and its other floors stay solid, so you can wander off the route.
+
+The original boxed layout (courtyard, bridge, plaza, throne hall) is kept as stage `classic` for the combat and stealth regression tests.
 
 ## Controls (touch / keyboard)
 | Action | Touch | Keys |
@@ -66,7 +80,8 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 `assets/characters/` holds the owner's Tripo GLBs, reduced from ~2M to ~38k triangles with 1024 textures (`knight_lite` is ~17k for the minions). They have a 78-bone rig and no animation clips yet, so `scripts/citadel/Rig.gd` + `Poses.gd` pose the bones procedurally. The owner's Animation Library packs (Drive) use the same rig and can replace these poses once attached.
 
 ## Code
-- `scripts/citadel/Citadel.gd` — world, flow, hero control, combat, lock-on, magic, camera
+- `scripts/citadel/Citadel.gd` — world, flow, hero control, combat, lock-on, magic, camera, ladders
+- `scripts/citadel/Ruin.gd` — the sky ruin citadel: route pieces, sections, cast, checkpoints
 - `scripts/citadel/Fighter.gd` — shared body for hero, knights, boss, ally (AI state machines)
 - `scripts/citadel/CitadelHUD.gd` — touch HUD (edge-anchored for wide phones)
 - `scripts/citadel/AutoTest.gd` — scripted run
@@ -77,4 +92,4 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 76/76 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 89/89 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.

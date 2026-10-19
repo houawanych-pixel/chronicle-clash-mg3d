@@ -47,7 +47,16 @@ func knight(i: int) -> CharacterBody3D:
 
 func run() -> void:
 	await wait(0.8)
+	if "--ruin-only" in OS.get_cmdline_user_args():
+		await ruin_tests()
+		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
+		get_tree().quit()
+		return
 	await shot("00_title")
+	# Combat and stealth checks run on the classic boxed citadel; the sky ruin
+	# that replaced it has its own checks at the end.
+	game.restart_with(game.hero_key, "classic")
+	await wait(0.3)
 	game.start_game()
 	await wait(0.6)
 	check("hero and cast spawn", game.hero.hp == 100 and game.enemies.size() == 11 and game.ally != null)
@@ -213,6 +222,7 @@ func run() -> void:
 	await shot("07_win")
 	await forest_tests()
 	await village_tests()
+	await ruin_tests()
 	var passed: int = results.count(true)
 	print("CITADEL RESULT %d/%d %s" % [passed, results.size(), "PASS" if passed == results.size() else "FAIL"])
 	if OS.has_feature("web"):
@@ -543,9 +553,9 @@ func village_tests() -> void:
 	for v: Node in vg.villagers:
 		before[v.vid] = [v.global_position, v.state, v.work_count]
 	var clock_before: float = vg.clock
-	game.restart_with("blonde_lance", "citadel")
+	game.restart_with("blonde_lance", "classic")
 	await wait(0.4)
-	check("leaving the village frees its villagers and keeps the castle working", game.stage == "citadel" and vg.villagers.is_empty() and game.enemies.size() == 11)
+	check("leaving the village frees its villagers and keeps the castle working", game.stage == "classic" and vg.villagers.is_empty() and game.enemies.size() == 11)
 	await wait(1.0)
 	game.restart_with("blonde_lance", "village")
 	await wait(0.4)
@@ -609,3 +619,130 @@ func village_tests() -> void:
 	await shot("v4_night")
 	vg.speed = 1.0
 	SaveScript.clear()
+
+# ---------------------------------------------------------------- sky ruin
+
+## Drive the hero toward a point like a player would: camera behind, stick forward.
+func walk_to(p: Vector3, timeout: float = 12.0, jumps: Array = []) -> bool:
+	var h: CharacterBody3D = game.hero
+	var t0: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(timeout * 1000):
+		var to: Vector3 = p - h.global_position
+		var flat: Vector2 = Vector2(to.x, to.z)
+		if flat.length() < 0.7 and absf(to.y) < 1.4:
+			game.hud.stick = Vector2.ZERO
+			return true
+		if h.state != "climb":
+			game.cam_yaw = atan2(-to.x, -to.z)
+		game.hud.stick = Vector2(0, -1)
+		for jz: float in jumps:
+			if absf(h.global_position.z - jz) < 0.6 and h.is_on_floor():
+				game.hud.pressed["jump"] = true
+		await wait(0.05)
+	game.hud.stick = Vector2.ZERO
+	var hits: Array = []
+	for i in h.get_slide_collision_count():
+		var c: KinematicCollision3D = h.get_slide_collision(i)
+		var o: Object = c.get_collider()
+		hits.append("%s@%s" % [(o as Node).get_path() if o is Node else o, c.get_position()])
+	print("WALK STUCK at ", h.global_position, " -> ", p, " state=", h.state, " cover=", game.in_cover(), " crouch=", game.crouched, " mode=", game.mode, " vel=", h.velocity, " input=", game.move_input(), " paused=", game.paused(), " floor=", h.is_on_floor())
+	return false
+
+func climb(l: Dictionary, timeout: float = 10.0) -> bool:
+	var h: CharacterBody3D = game.hero
+	var face: Vector3 = l.face
+	game.cam_yaw = atan2(-face.x, -face.z)
+	game.hud.stick = Vector2(0, -1)
+	var t0: int = Time.get_ticks_msec()
+	var climbed: bool = false
+	while Time.get_ticks_msec() - t0 < int(timeout * 1000):
+		if h.state == "climb":
+			climbed = true
+		if climbed and h.state != "climb":
+			break
+		await wait(0.05)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.6)
+	var top: Vector3 = l.top
+	return climbed and absf(h.global_position.y - top.y) < 0.8 and h.is_on_floor()
+
+func ruin_tests() -> void:
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.6)
+	game.start_game()
+	await wait(1.2)
+	var h: CharacterBody3D = game.hero
+	check("the sky ruin loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.enemies.size() == 12, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	check("the hero stands on the sky dock", h.is_on_floor() and absf(h.global_position.y - 26.0) < 0.6, "y=%.2f" % h.global_position.y)
+	await shot("r0_dock")
+	# Clear the way so the route itself is tested: defeat the guards, open the gates.
+	for e: CharacterBody3D in game.enemies:
+		if e != game.boss:
+			e.hp = 0
+			e.set_state("dead")
+			e.visible = false
+			e.global_position.y -= 200.0
+	for i in 4:
+		await wait(0.1)
+	check("clearing each section opens its gate", game.section == 4 and game.barriers.all(func(b): return not is_instance_valid(b) or b.is_queued_for_deletion()), "section=%d" % game.section)
+	var hp0: float = h.hp
+	if "--ruin-debug" in OS.get_cmdline_user_args():
+		h.global_position = Vector3(0, 28.6, 16.9)
+		await wait(0.5)
+		for tgt: Vector3 in [Vector3(-2.0, 28.6, 17.8), Vector3(2.0, 28.6, 17.8), Vector3(0, 28.6, 19.5)]:
+			game.cam_yaw = atan2(-(tgt.x - h.global_position.x), -(tgt.z - h.global_position.z))
+			game.hud.stick = Vector2(0, -1)
+			for i in 6:
+				await wait(0.1)
+				print("DBG ", tgt, " pos ", h.global_position, " vel ", h.velocity, " wall ", h.is_on_wall(), " n=", h.get_slide_collision_count())
+			game.hud.stick = Vector2.ZERO
+			await wait(0.2)
+	var ok: bool = await walk_to(Vector3(0, 26.3, 44.5))
+	ok = ok and await walk_to(Vector3(0, 27.4, 30.0), 12.0, [36.4])
+	await shot("r1_bridge")
+	ok = ok and await walk_to(Vector3(0, 28.6, 16.5), 12.0, [27.6])
+	check("the broken bridge can be jumped to the porch", ok and h.global_position.y > 27.8, "pos=%s" % [h.global_position])
+	ok = await walk_to(Vector3(2.0, 28.6, 17.8), 6.0)
+	ok = ok and await walk_to(Vector3(1.6, 28.6, 14.9), 6.0)
+	ok = ok and await climb(game.ladders[0])
+	check("ladder one climbs from the porch to the main deck", ok, "pos=%s state=%s" % [h.global_position, h.state])
+	await shot("r2_deck")
+	ok = await walk_to(Vector3(-6, 35.3, 11.3), 8.0)
+	ok = ok and await climb(game.ladders[1])
+	check("ladder two climbs to the upper ring", ok, "pos=%s" % [h.global_position])
+	ok = await walk_to(Vector3(-4, 41.5, 6.0), 8.0)
+	ok = ok and await walk_to(Vector3(0, 41.5, 4.4), 8.0)
+	ok = ok and await walk_to(Vector3(-0.6, 44.6, -9.8), 12.0)
+	await shot("r3_span")
+	check("the Hollow Span crosses the centre to the back ring", ok and absf(h.global_position.y - 44.35) < 0.8, "pos=%s" % [h.global_position])
+	ok = await walk_to(Vector3(1.2, 44.6, -10.2), 6.0)
+	ok = ok and await walk_to(Vector3(1.2, 44.6, -7.8), 6.0)
+	ok = ok and await climb(game.ladders[2])
+	await wait(0.5)
+	check("ladder three climbs into the Core and wakes the Dark Knight", ok and game.ruin.in_core() and game.boss.active and game.boss_seen, "pos=%s" % [h.global_position])
+	await shot("r4_core")
+	check("the whole climb is made without falling", h.hp >= hp0, "hp=%d" % h.hp)
+	# The Dark Knight fights inside the Core and stays on its floor.
+	h.hp = h.max_hp
+	await wait(5.0)
+	var bp: Vector3 = game.boss.global_position
+	check("the Dark Knight fights inside the Core", game.boss.alive() and bp.y > 51.5 and bp.y < 58.0 and absf(bp.x) < 10.0 and absf(bp.z + 1.0) < 6.0 and h.hp < h.max_hp, "boss=%s hero hp=%d" % [bp, h.hp])
+	game.boss.global_position = Vector3(30, 20, 0)
+	await wait(0.4)
+	check("a Dark Knight who falls off the Core comes back", absf(game.boss.global_position.y - 52.7) < 1.5, "boss=%s" % [game.boss.global_position])
+	game.boss.damage(9999, h.global_position, 0)
+	await wait(2.8)
+	check("defeating the Dark Knight in the Core clears the citadel", game.mode == "win", "mode=%s" % game.mode)
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.6)
+	game.start_game()
+	await wait(0.4)
+	h = game.hero
+	hp0 = h.hp
+	# Falling off sends you back to the last checkpoint.
+	game.boss.active = false
+	h.global_position = Vector3(0, 30.0, 0.0)
+	h.velocity = Vector3.ZERO
+	await wait(1.6)
+	var cp: Vector3 = game.sections[game.checkpoint].spawn
+	check("falling off the ruin returns you to the checkpoint", h.global_position.distance_to(cp) < 3.0 and h.hp < hp0, "pos=%s cp=%s hp=%d" % [h.global_position, cp, h.hp])

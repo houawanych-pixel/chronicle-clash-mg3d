@@ -481,7 +481,7 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Sword fights to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the sky ruin to the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
 	for i in stages.size():
 		var st: Array = stages[i]
 		var sr: Rect2 = Rect2(175 + i * 315, 392, 300, 82)

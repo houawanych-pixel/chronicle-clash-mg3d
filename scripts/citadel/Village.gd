@@ -143,6 +143,7 @@ func configure_stage() -> void:
 
 func look() -> void:
 	game.env_res.fog_density = 0.006
+	game.env_res.tonemap_exposure = 0.82
 	game.sun.rotation_degrees = Vector3(-50, 40, 0)
 	apply_daylight()
 

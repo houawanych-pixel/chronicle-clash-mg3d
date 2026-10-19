@@ -138,6 +138,18 @@ func _physics_process(dt: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, 20 * dt)
 		velocity.z = move_toward(velocity.z, 0, 20 * dt)
 	move_and_slide()
+	# Nobody stands on anyone's head: slide off another character's top.
+	for i in get_slide_collision_count():
+		var c: KinematicCollision3D = get_slide_collision(i)
+		var other: Object = c.get_collider()
+		if other is CharacterBody3D and c.get_normal().y > 0.4:
+			var away: Vector3 = global_position - (other as Node3D).global_position
+			away.y = 0
+			if away.length() < 0.05:
+				away = Vector3(1, 0, 0)
+			global_position += away.normalized() * 6.0 * dt
+			velocity.y = minf(velocity.y, -3.0)
+			break
 	animate(dt)
 
 ## Hero with the sword on his back walks and stands with loose arms.
@@ -184,6 +196,9 @@ func animate(dt: float) -> void:
 			rate = 8.0
 		"cast":
 			pose = P.cast(anim_t)
+		"climb":
+			pose = P.climb(game.climb_phase)
+			rate = 18.0
 		_:
 			var hs: float = Vector2(velocity.x, velocity.z).length()
 			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
@@ -260,6 +275,12 @@ func knight_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.target_for(self)
 	if not alive():
 		return
+	if global_position.y < home.y - 15.0:
+		# Knocked off the sky ruin: counts as defeated so the section can clear.
+		hp = 0
+		set_state("dead")
+		game.on_death(self)
+		return
 	attack_cd -= dt
 	var to: Vector3 = hero.global_position - global_position
 	to.y = 0
@@ -270,7 +291,7 @@ func knight_tick(dt: float) -> void:
 			return
 		velocity.x = 0
 		velocity.z = 0
-		if section <= game.section and dist < 13.0:
+		if section <= game.section and dist < 13.0 and absf(hero.global_position.y - global_position.y) < 3.5:
 			active = true
 			game.sound("alarm", -18)
 		return
@@ -337,6 +358,11 @@ func boss_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.hero
 	if not alive():
 		return
+	if global_position.y < home.y - 6.0:
+		# Leapt off the sky ruin's core: he returns in a burst, the fight goes on.
+		global_position = home
+		velocity = Vector3.ZERO
+		game.burst(home + Vector3.UP, Color("ff3346"), 30, 5.0)
 	attack_cd -= dt
 	var to: Vector3 = hero.global_position - global_position
 	to.y = 0

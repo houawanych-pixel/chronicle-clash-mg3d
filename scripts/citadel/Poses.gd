@@ -348,3 +348,19 @@ static func reach_back(t: float) -> Dictionary:
 	p["blade"] = d(-0.2, -1, -0.3)
 	p["Spine02"] = yaw(-0.18 * up)
 	return p
+
+static func climb(phase: float) -> Dictionary:
+	## On a ladder, facing the rungs (+X). Hands and feet alternate.
+	var s: float = sin(phase)
+	var p: Dictionary = {}
+	p["L_Upperarm"] = d(0.35, 1.0 + 0.35 * s, -0.32)
+	p["L_Forearm"] = d(0.55, 0.9 + 0.3 * s, -0.05)
+	p["R_Upperarm"] = d(0.35, 1.0 - 0.35 * s, 0.32)
+	p["R_Forearm"] = d(0.55, 0.9 - 0.3 * s, 0.05)
+	p["L_Thigh"] = leg(0.35 + 0.45 * maxf(0.0, s), -0.14)
+	p["L_Calf"] = leg(-0.5 - 0.5 * maxf(0.0, s), -0.06)
+	p["R_Thigh"] = leg(0.35 + 0.45 * maxf(0.0, -s), 0.14)
+	p["R_Calf"] = leg(-0.5 - 0.5 * maxf(0.0, -s), 0.06)
+	p["blade"] = d(0, -1, 0)
+	p["Spine01"] = lean(0.12)
+	return p

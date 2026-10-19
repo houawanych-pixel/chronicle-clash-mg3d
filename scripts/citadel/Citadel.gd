@@ -7,6 +7,7 @@ const HUDScript = preload("res://scripts/citadel/CitadelHUD.gd")
 const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
 const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
 const ForestScript = preload("res://scripts/citadel/Forest.gd")
+const RuinScript = preload("res://scripts/citadel/Ruin.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
@@ -27,6 +28,14 @@ var stage: String = "citadel"
 var sections: Array = SECTIONS
 var map_zones: Array = CITADEL_ZONES
 var forest: RefCounted
+## The Sky Citadel (the floating ruin). "classic" is the original boxed layout,
+## kept for the combat and stealth regression tests.
+var ruin: RefCounted
+## Ladders in the current stage: {bottom, top, face}. Used by any stage.
+var ladders: Array = []
+var climb_ladder: Dictionary = {}
+var climb_phase: float = 0.0
+var climb_mask: int = 1
 var fx: RefCounted
 var village: RefCounted
 var env_res: Environment
@@ -150,6 +159,7 @@ func _ready() -> void:
 	print("CITADEL performance mode: ", "PHONE" if phone else "FULL")
 	patrol = PatrolScript.new(self)
 	forest = ForestScript.new(self)
+	ruin = RuinScript.new(self)
 	fx = FxScript.new(self)
 	village = VillageScript.new(self)
 	setup_input()
@@ -279,6 +289,9 @@ func citadel_look() -> void:
 	env_res.fog_light_color = Color("cfe0ff")
 	env_res.fog_density = 0.0022
 	env_res.ambient_light_color = Color("aebfe0")
+	env_res.ambient_light_energy = 0.6
+	env_res.tonemap_exposure = 0.82
+	sun.light_energy = 1.15
 	sun.light_color = Color("fff3dc")
 	sun.rotation_degrees = Vector3(-52, -28, 0)
 
@@ -291,7 +304,10 @@ func build_stage() -> void:
 	wall_heights.clear()
 	barriers.clear()
 	grass.clear()
-	if stage == "forest":
+	ladders.clear()
+	if stage == "citadel":
+		ruin.build()
+	elif stage == "forest":
 		sections = ForestScript.SECTIONS
 		map_zones = ForestScript.MAP_ZONES
 		win_text = "ESCAPED THE FOREST"
@@ -387,6 +403,9 @@ func mat(id: String) -> StandardMaterial3D:
 		"stone":
 			m.albedo_color = Color("c9c5bd")
 			m.roughness = 0.7
+		"wood":
+			m.albedo_color = Color("6b4a2c")
+			m.roughness = 0.85
 		"gold":
 			m.albedo_color = Color("d5ad55")
 			m.metallic = 0.85
@@ -738,6 +757,9 @@ func spawn_cast() -> void:
 	if stage == "village":
 		village.spawn_cast()
 		return
+	if stage == "citadel":
+		ruin.spawn_cast()
+		return
 	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
 	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.25, sections[0].spawn)
@@ -841,6 +863,9 @@ func start_game() -> void:
 	if stage == "village":
 		village.start()
 		return
+	if stage == "citadel":
+		ruin.start()
+		return
 	say_once("start", "ally", "Guards ahead. Stay sharp!")
 	say_once("tip", "tip", "Hold BLOCK when a knight glows red. Block just before the hit to parry.")
 
@@ -878,7 +903,9 @@ func update_camera(dt: float) -> void:
 	# Close over-the-shoulder view like the concept screens: the hero fills
 	# the lower-left, the fight reads in the centre.
 	var dist: float = 2.75
-	if stage == "citadel" and section >= 3 and hero.global_position.z < -130:
+	if stage == "classic" and section >= 3 and hero.global_position.z < -130:
+		dist = 4.4
+	elif stage == "citadel" and ruin.in_core():
 		dist = 4.4
 	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * 0.62
 	cam_pos = cam_pos.lerp(hero.global_position, 1.0 - exp(-7.0 * dt))
@@ -943,10 +970,12 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		mv = Vector2.ZERO
 	if f.state != "block":
 		stamina = minf(100.0, stamina + dt * 28.0)
-	if f.global_position.y < -9.0 and f.alive():
+	if f.global_position.y < fall_line() and f.alive() and f.state != "climb":
 		fell()
 		return
 	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
+	if climb_tick(f, dt, mv, dir, jump):
+		return
 	var dodge: bool = hud.take("dodge") or Input.is_action_just_pressed("cc_dodge")
 	var magic: bool = hud.take("magic") or Input.is_action_just_pressed("cc_magic")
 	var potion: bool = hud.take("potion") or Input.is_action_just_pressed("cc_potion")
@@ -1314,7 +1343,7 @@ func fell() -> void:
 		hero.set_state("dead")
 		on_death(hero)
 	var safe: Vector3 = sections[checkpoint].spawn
-	if checkpoint == 1 and stage == "citadel":
+	if checkpoint == 1 and stage == "classic":
 		# Back to the last bridge segment the hero reached.
 		var z: float = hero.global_position.z
 		safe.z = -40.0 if z > -54 else (-56.5 if z > -70 else -72.5)
@@ -1360,6 +1389,65 @@ func respawn() -> void:
 	mode = "play"
 	hud.release()
 
+func fall_line() -> float:
+	if stage == "citadel":
+		return ruin.fall_line()
+	return -9.0
+
+## Ladders: walk into one and push forward to climb (stick up/down while on it).
+## The climber moves straight up the rails with collisions off, so ledges and
+## overhangs never snag; at the top they step onto the landing. JUMP lets go.
+func climb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: bool) -> bool:
+	if f.state == "climb":
+		var l: Dictionary = climb_ladder
+		var bottom: Vector3 = l.bottom
+		var top: Vector3 = l.top
+		var face: Vector3 = l.face
+		var v: float = -mv.y
+		if dir.length() > 0.2 and absf(mv.y) < 0.2:
+			v = clampf(dir.normalized().dot(face), -1.0, 1.0)
+		f.velocity = Vector3.ZERO
+		var y: float = f.global_position.y + v * 3.0 * dt
+		climb_phase += absf(v) * dt * 5.5
+		f.yaw = atan2(-face.x, -face.z)
+		if jump:
+			end_climb(f, f.global_position - face * 0.4)
+			f.velocity = -face * 3.0 + Vector3.UP * 3.5
+			return true
+		if y >= top.y - 0.05:
+			end_climb(f, top + Vector3.UP * 0.2)
+			f.velocity = face * 1.5
+			say_once("climbed", "tip", "Push the stick up to climb, down to go back, JUMP to let go.")
+			return true
+		if y <= bottom.y + 0.02 and v < -0.1:
+			end_climb(f, bottom + Vector3.UP * 0.05)
+			return true
+		f.global_position = Vector3(bottom.x, maxf(y, bottom.y), bottom.z)
+		return true
+	if f.state != "idle" or prone or in_cover() or ladders.is_empty():
+		return false
+	for l: Dictionary in ladders:
+		var b: Vector3 = l.bottom
+		var p: Vector3 = f.global_position
+		if Vector2(p.x - b.x, p.z - b.z).length() < 0.95 and p.y > b.y - 0.6 and p.y < (l.top as Vector3).y - 0.8 \
+				and dir.length() > 0.3 and dir.normalized().dot(l.face) > 0.5:
+			climb_ladder = l
+			climb_mask = f.collision_mask
+			f.collision_mask = 0
+			f.state = "climb"
+			f.state_t = 0.0
+			if crouched:
+				set_crouch(false)
+			sound("step", -10)
+			return true
+	return false
+
+func end_climb(f: CharacterBody3D, at: Vector3) -> void:
+	f.global_position = at
+	f.collision_mask = climb_mask
+	f.state = "idle"
+	f.state_t = 0.0
+
 func section_clear(s: int) -> bool:
 	for e: CharacterBody3D in enemies:
 		if e.section == s and e.alive():
@@ -1373,6 +1461,9 @@ func progress_check() -> void:
 	if stage == "forest":
 		forest.progress()
 		forest.tick(get_process_delta_time())
+		return
+	if stage == "citadel":
+		ruin.progress()
 		return
 	if section < 3 and section_clear(section):
 		open_barrier(section)

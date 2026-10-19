@@ -224,6 +224,9 @@ func build() -> void:
 	e.fog_light_color = Color("a9c7a6")
 	e.fog_density = 0.012
 	e.ambient_light_color = Color("a7c2a0")
+	e.ambient_light_energy = 0.6
+	e.tonemap_exposure = 0.82
+	game.sun.light_energy = 1.15
 	game.sun.light_color = Color("ffe6b8")
 	game.sun.rotation_degrees = Vector3(-48, 35, 0)
 	game.box(Vector3(0, -0.5, -52), Vector3(44, 1, 124), "marble", true).material_override = mat("forestfloor")

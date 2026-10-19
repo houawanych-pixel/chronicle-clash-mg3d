@@ -969,13 +969,15 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		jump = false
 		blocking = false
 		mv = Vector2.ZERO
-	if f.state != "block":
+	if f.state != "block" and f.state != "wallclimb" and (f.is_on_floor() or stage != "citadel"):
 		stamina = minf(100.0, stamina + dt * 28.0)
-	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch":
+	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch" and f.state != "wallclimb":
 		fell()
 		return
 	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
 	if launch_tick(f, dt):
+		return
+	if wallclimb_tick(f, dt, mv, dir, jump):
 		return
 	if climb_tick(f, dt, mv, dir, jump):
 		return
@@ -1444,6 +1446,109 @@ func climb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: 
 			sound("step", -10)
 			return true
 	return false
+
+## Free climbing (Breath of the Wild style): jump at a castle wall and push into it to grab on.
+## Stick moves you over the wall, stamina drains while you hang and climb, JUMP leaps up
+## (or kicks off when you pull away), you pull yourself up over ledges, and at zero stamina
+## you let go. Stamina refills only on the ground.
+const CLIMB_SPEED: float = 2.3
+var wall_n: Vector3 = Vector3.ZERO
+var climb_leap: float = 0.0
+
+func wall_ray(f: CharacterBody3D, h: float, dir: Vector3, length: float = 1.1) -> Dictionary:
+	var from: Vector3 = f.global_position + Vector3.UP * h
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, from + dir * length)
+	q.collision_mask = 1
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return hit
+	var c: Object = hit.collider
+	# gates can't be climbed
+	if c is Node and (c as Node).get_parent() in barriers:
+		return {}
+	if absf((hit.normal as Vector3).y) > 0.55:
+		return {}
+	return hit
+
+func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: bool) -> bool:
+	if stage != "citadel":
+		return false
+	if f.state != "wallclimb":
+		# grab a wall: in the air (after a jump) and pushing into it, with some stamina left
+		if f.state != "idle" or f.is_on_floor() or stamina < 8.0 or dir.length() < 0.3 or f.velocity.y > 6.0:
+			return false
+		var hit: Dictionary = wall_ray(f, 1.1, dir.normalized(), 0.95)
+		if hit.is_empty() or dir.normalized().dot(-(hit.normal as Vector3)) < 0.5:
+			return false
+		wall_n = hit.normal
+		wall_n.y = 0
+		wall_n = wall_n.normalized()
+		f.state = "wallclimb"
+		f.state_t = 0.0
+		climb_leap = 0.0
+		f.velocity = Vector3.ZERO
+		sound("step", -8)
+		say_once("wallclimb_tip", "tip", "Climbing! Stick to move, JUMP to leap up. Watch your stamina.")
+		return true
+	# hanging on the wall
+	f.yaw = atan2(wall_n.x, wall_n.z)
+	var right: Vector3 = Vector3.UP.cross(wall_n).normalized()
+	if right.dot(cam_right()) < 0:
+		right = -right
+	var up_in: float = -mv.y
+	var side_in: float = mv.x
+	var moving: bool = absf(up_in) > 0.2 or absf(side_in) > 0.2
+	stamina -= dt * (11.0 if moving else 3.0)
+	if jump:
+		if up_in < -0.3:
+			# kick off backwards
+			f.state = "idle"
+			f.velocity = wall_n * 5.0 + Vector3.UP * 5.5
+			return true
+		if stamina > 12.0:
+			stamina -= 18.0
+			climb_leap = 0.32
+			sound("step", -6)
+	if stamina <= 0.0:
+		stamina = 0.0
+		f.state = "idle"
+		f.velocity = wall_n * 1.5
+		hud.popup("OUT OF STAMINA", Color("ffd36b"))
+		return true
+	var v: Vector3 = right * side_in * CLIMB_SPEED + Vector3.UP * up_in * CLIMB_SPEED
+	if climb_leap > 0.0:
+		climb_leap -= dt
+		v = Vector3.UP * 7.5 + right * side_in * 1.5
+	climb_phase += (v.length() / CLIMB_SPEED) * dt * 4.0
+	# stay on the wall: follow its surface and lean in
+	var chest: Dictionary = wall_ray(f, 1.2, -wall_n, 1.2)
+	var knee: Dictionary = wall_ray(f, 0.35, -wall_n, 1.2)
+	if not chest.is_empty():
+		var n: Vector3 = chest.normal
+		n.y = 0
+		if n.length() > 0.1:
+			wall_n = wall_n.lerp(n.normalized(), 0.3).normalized()
+	elif v.y > 0.0 and not knee.is_empty():
+		# top of the wall: pull up onto the ledge
+		var from: Vector3 = f.global_position + Vector3.UP * 2.6 - wall_n * 0.9
+		var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 2.6)
+		q.collision_mask = 1
+		var top: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+		if not top.is_empty() and (top.normal as Vector3).y > 0.6:
+			f.global_position = (top.position as Vector3) + Vector3.UP * 0.1
+			f.velocity = -wall_n * 1.0
+			f.state = "idle"
+			sound("step", -8)
+			return true
+	if chest.is_empty() and knee.is_empty():
+		f.state = "idle"
+		f.velocity = Vector3.ZERO
+		return true
+	if f.is_on_floor() and up_in < -0.2:
+		f.state = "idle"
+		return true
+	f.velocity = v - wall_n * 1.2
+	return true
 
 ## Crystal launch pads: the hero flies on an arc to the pad's target (collisions off, like the ladders).
 var launch: Dictionary = {}

@@ -136,6 +136,26 @@ def build_object(name, buckets):
     return ob
 
 
+MULTI = os.environ.get('MULTI', '')
+if MULTI:
+    objs = []
+    for item in MULTI.split(','):
+        pk, nm = item.split(':')
+        d = pickle.load(open(os.path.join(HERE, pk), 'rb'))
+        o = build_object(nm, d['P'])
+        for p in o.data.polygons:
+            p.use_smooth = False
+        objs.append(o)
+    for im in bpy.data.images:
+        if im.size[0] > 1024:
+            im.scale(1024, 1024)
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in objs:
+        o.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NAME + '.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_yup=True, export_image_format='JPEG', export_jpeg_quality=80)
+    print('prop exported', NAME, len(objs))
+    sys.exit(0)
 vis = build_object(NAME or 'CC_castle_skycitadel', data['P'])
 if NAME:
     for p in vis.data.polygons:

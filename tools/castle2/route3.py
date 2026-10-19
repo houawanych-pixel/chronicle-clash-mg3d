@@ -197,7 +197,16 @@ tB2[-1]['pad'] = {'to': [H3[0], H3[1], H3[2]], 'unlock': 'ring2'}
 tC = chain_auto((-9.5, 103.1, 48.2), (4.0, 105.8, 57.0), 'C', start=(H3[0] - 1.0, H3[1], H3[2] + 1.6), max_gap=2.2, max_rise=1.0)
 repC = check_chain(tC, start=(H3[0] - 1.0, H3[1], H3[2] + 1.6), label='tier C')
 tC[-1]['pad'] = {'to': [SUMMIT[0], SUMMIT[1], SUMMIT[2]], 'unlock': 'core'}
+for ch in (tA, tB1, tB2, tC):
+    for i, c in enumerate(ch):
+        a = ch[i - 1]['pos'] if i > 0 else None
+        b = ch[i + 1]['pos'] if i + 1 < len(ch) else None
+        p = c['pos']
+        d = (b[0] - p[0], b[2] - p[2]) if b else (p[0] - a[0], p[2] - a[2])
+        c['yaw'] = math.atan2(d[0], d[1])
 plats = tA + tB1 + tB2 + tC
+for i, c in enumerate(plats):
+    c['variant'] = (i * 3 + 1) % 4
 print('tier A gaps/rises', repA)
 print('tier B right', repB1, 'tier B left', repB2)
 print('tier C', repC)

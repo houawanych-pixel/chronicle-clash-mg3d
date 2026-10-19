@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dietjpo3mdvpe"
-path="res://.godot/imported/hover_platform.glb-80535e51c4a5dc965171ecbf46d1cc25.scn"
+uid="uid://cdqgdu21m1nkg"
+path="res://.godot/imported/fragments.glb-079b36a02339b6df171d5dad2a59ee5b.scn"
 
 [deps]
 
-source_file="res://assets/ruin3/hover_platform.glb"
-dest_files=["res://.godot/imported/hover_platform.glb-80535e51c4a5dc965171ecbf46d1cc25.scn"]
+source_file="res://assets/ruin3/fragments.glb"
+dest_files=["res://.godot/imported/fragments.glb-079b36a02339b6df171d5dad2a59ee5b.scn"]
 
 [params]
 

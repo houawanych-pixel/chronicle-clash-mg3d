@@ -950,6 +950,49 @@ func ruin3_tests() -> void:
 	await wait(0.8)
 	check("knights appear (with a flash) when you reach their area", game.enemies.size() > n0 and not game.ruin.has_pending(1), "enemies=%d" % game.enemies.size())
 	await shot("w0_summon")
+	# --- free climbing with stamina (Breath of the Wild style)
+	await ruin3_start()
+	h = game.hero
+	var stand: Vector3 = Vector3(-42.5, 70.3, 6.0)
+	var wallp: Vector3 = Vector3(-41.3, 70.3, 5.5)
+	h.global_position = stand
+	h.velocity = Vector3.ZERO
+	await wait(0.5)
+	var tw: Vector3 = wallp - stand
+	game.cam_yaw = atan2(-tw.x, -tw.z)
+	game.stamina = 100.0
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.15)
+	game.hud.pressed["jump"] = true
+	var grabbed: bool = false
+	var st0: float = 100.0
+	var t0: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 6000:
+		if h.state == "wallclimb":
+			grabbed = true
+			st0 = minf(st0, game.stamina)
+		if grabbed and h.state != "wallclimb" and h.is_on_floor():
+			break
+		await wait(0.03)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.3)
+	check("jump at a wall to grab it and climb up and over the ledge", grabbed and h.is_on_floor() and h.global_position.y > 73.5 and st0 < 95.0, "grabbed=%s pos=%s lowest stamina=%.0f" % [grabbed, h.global_position, st0])
+	await shot("w6_climb")
+	# out of stamina: you let go
+	h.global_position = stand
+	h.velocity = Vector3.ZERO
+	await wait(0.5)
+	game.stamina = 100.0
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.15)
+	game.hud.pressed["jump"] = true
+	t0 = Time.get_ticks_msec()
+	while h.state != "wallclimb" and Time.get_ticks_msec() - t0 < 3000:
+		await wait(0.03)
+	game.hud.stick = Vector2.ZERO
+	game.stamina = 1.0
+	await wait(0.8)
+	check("climbing runs on stamina: at zero you let go", h.state != "wallclimb" and h.global_position.y < 73.5, "state=%s pos=%s" % [h.state, h.global_position])
 	# --- A: the outer ledges, all the way to the boss
 	await ruin3_start()
 	h = game.hero

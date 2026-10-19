@@ -9,7 +9,7 @@ extends "res://scripts/citadel/Ruin.gd"
 ## is written by route3.py (positions, gaps and the test bot's moves).
 
 const ROUTE3: String = "res://assets/ruin3/route3.json"
-const PLATFORM: String = "res://assets/ruin3/hover_platform.glb"
+const FRAGMENTS: String = "res://assets/ruin3/fragments.glb"
 const PAD: String = "res://assets/ruin3/crystal_pad.glb"
 
 var plats: Array = []          # {body, base, phase}
@@ -76,7 +76,7 @@ func add_castle3() -> void:
 func add_platforms() -> void:
 	plats.clear()
 	pads.clear()
-	var pscene: PackedScene = load(PLATFORM)
+	var frags: Node3D = (load(FRAGMENTS) as PackedScene).instantiate()
 	var padscene: PackedScene = load(PAD)
 	var i: int = 0
 	for pd: Dictionary in route.platforms:
@@ -84,16 +84,19 @@ func add_platforms() -> void:
 		var body: AnimatableBody3D = AnimatableBody3D.new()
 		body.sync_to_physics = true
 		var cs: CollisionShape3D = CollisionShape3D.new()
-		var sh: CylinderShape3D = CylinderShape3D.new()
-		sh.radius = 2.0
-		sh.height = 0.6
+		var sh: BoxShape3D = BoxShape3D.new()
+		sh.size = Vector3(4.0, 0.6, 3.8)
 		cs.shape = sh
 		cs.position = Vector3(0, -0.3, 0)
 		body.add_child(cs)
-		var mesh: Node3D = pscene.instantiate()
-		body.add_child(mesh)
+		var src: Node = frags.find_child("frag%d" % int(pd.get("variant", i % 4)), true, false)
+		if src:
+			var mesh: Node3D = src.duplicate()
+			mesh.transform = Transform3D.IDENTITY
+			body.add_child(mesh)
 		root.add_child(body)
 		body.global_position = base
+		body.rotation.y = float(pd.get("yaw", 0.0))
 		var rec: Dictionary = {"body": body, "base": base, "phase": float(i) * 0.9}
 		plats.append(rec)
 		if pd.get("pad") != null:
@@ -102,6 +105,7 @@ func add_platforms() -> void:
 			pad.position = Vector3(0, 0.02, 0)
 			pads.append({"plat": rec, "node": pad, "to": v3(pd.pad.to), "unlock": pd.pad.unlock, "active": false})
 		i += 1
+	frags.free()
 
 func pad_unlocked(p: Dictionary) -> bool:
 	match p.unlock:

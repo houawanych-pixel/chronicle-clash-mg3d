@@ -123,7 +123,7 @@ func _physics_process(dt: float) -> void:
 	state_t += dt
 	anim_t += dt
 	flash = maxf(0.0, flash - dt * 4.0)
-	if not is_on_floor():
+	if not is_on_floor() and state != "wallclimb":
 		velocity.y -= GRAVITY * dt
 	match kind:
 		"hero":
@@ -196,7 +196,7 @@ func animate(dt: float) -> void:
 			rate = 8.0
 		"cast":
 			pose = P.cast(anim_t)
-		"climb":
+		"climb", "wallclimb":
 			pose = P.climb(game.climb_phase)
 			rate = 18.0
 		_:

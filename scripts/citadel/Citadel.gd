@@ -973,12 +973,16 @@ func update_camera(dt: float) -> void:
 		eye = eye.lerp(a_eye, k2)
 		look = look.lerp(a_eye + ad * 10.0, k2)
 	eye = camera_clip(eye, dt)
+	if cam_squeeze > 0.0:
+		# pressed to a wall: look down over the hero toward where he's facing
+		look = look.lerp(hero.global_position + Vector3.UP * 0.6 + cam_forward() * 3.5, cam_squeeze)
 	camera.look_at_from_position(eye + jitter, look + jitter)
 
 ## Keep the camera on the hero's side of walls: sweep a ball from the hero's
 ## head to the camera spot and stop it short of anything solid, so you never see
 ## through or behind a wall. Pulls in at once, eases back out.
 var cam_clip: float = 1.0
+var cam_squeeze: float = 0.0
 var look_hold: float = 0.0
 func camera_clip(eye: Vector3, dt: float) -> Vector3:
 	var head: Vector3 = hero.global_position + Vector3.UP * 1.45
@@ -1005,11 +1009,16 @@ func camera_clip(eye: Vector3, dt: float) -> Vector3:
 		cam_clip = move_toward(cam_clip, safe, dt * 1.5)
 	var out: Vector3 = head + to * cam_clip
 	# squeezed against a wall: rise a little so you look down past the hero
-	var squeeze: float = 1.0 - cam_clip
-	if squeeze > 0.3:
-		var up: Vector3 = out + Vector3.UP * squeeze * 0.8
-		if ray(out, up + Vector3.UP * 0.35).is_empty():
+	var squeeze: float = clampf((0.7 - cam_clip) / 0.5, 0.0, 1.0)
+	cam_squeeze = 0.0
+	if squeeze > 0.0:
+		var up: Vector3 = out + Vector3.UP * squeeze * 1.6
+		var hit: Dictionary = ray(out, up + Vector3.UP * 0.35)
+		if hit.is_empty():
 			out = up
+			cam_squeeze = squeeze
+		else:
+			out.y = maxf(out.y, (hit.position as Vector3).y - 0.4)
 	return out
 
 ## Chase camera: while you run (and haven't turned the view yourself for a

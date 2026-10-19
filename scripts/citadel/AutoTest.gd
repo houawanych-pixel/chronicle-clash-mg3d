@@ -645,7 +645,7 @@ func walk_to(p: Vector3, timeout: float = 12.0, jumps: Array = []) -> bool:
 		var c: KinematicCollision3D = h.get_slide_collision(i)
 		var o: Object = c.get_collider()
 		hits.append("%s@%s" % [(o as Node).get_path() if o is Node else o, c.get_position()])
-	print("WALK STUCK at ", h.global_position, " -> ", p, " state=", h.state, " cover=", game.in_cover(), " crouch=", game.crouched, " mode=", game.mode, " vel=", h.velocity, " input=", game.move_input(), " paused=", game.paused(), " floor=", h.is_on_floor())
+	print("WALK STUCK at ", h.global_position, " -> ", p, " state=", h.state, " cover=", game.in_cover(), " crouch=", game.crouched, " mode=", game.mode, " vel=", h.velocity, " input=", game.move_input(), " paused=", game.paused(), " floor=", h.is_on_floor(), " hits=", hits)
 	return false
 
 func climb(l: Dictionary, timeout: float = 10.0) -> bool:
@@ -666,70 +666,130 @@ func climb(l: Dictionary, timeout: float = 10.0) -> bool:
 	var top: Vector3 = l.top
 	return climbed and absf(h.global_position.y - top.y) < 0.8 and h.is_on_floor()
 
+## Run a jump like a player: run at the take-off point toward the landing, jump at the edge.
+func jump_to(take: Vector3, land: Vector3, from: Variant = null, timeout: float = 6.0) -> bool:
+	var h: CharacterBody3D = game.hero
+	var dir: Vector3 = Vector3(land.x - take.x, 0, land.z - take.z).normalized()
+	var start: Vector3 = take - dir * 2.2
+	if from is Vector3:
+		start = from
+		dir = Vector3(take.x - start.x, 0, take.z - start.z).normalized()
+	if Vector2(h.global_position.x - take.x, h.global_position.z - take.z).length() > 2.6:
+		if not await walk_to(Vector3(start.x, take.y, start.z), 8.0):
+			return false
+	var t0: int = Time.get_ticks_msec()
+	var jumped: bool = false
+	while Time.get_ticks_msec() - t0 < int(timeout * 1000):
+		var p: Vector3 = h.global_position
+		var to: Vector3 = land - p
+		game.cam_yaw = atan2(-to.x, -to.z)
+		game.hud.stick = Vector2(0, -1)
+		if not jumped and h.is_on_floor() and (p - take).dot(dir) > -0.35:
+			game.hud.pressed["jump"] = true
+			jumped = true
+		elif jumped and h.is_on_floor() and Vector2(to.x, to.z).length() < 0.9:
+			game.hud.stick = Vector2.ZERO
+			return true
+		elif jumped and h.is_on_floor() and (p - land).dot(dir) > 0.6:
+			game.hud.stick = Vector2.ZERO
+			return absf(p.y - land.y) < 1.0
+		if p.y < land.y - 6.0:
+			break
+		await wait(0.03)
+	game.hud.stick = Vector2.ZERO
+	print("JUMP FAILED at ", h.global_position, " take ", take, " land ", land)
+	return false
+
+## Follow the route's own moves (route.json "bot") from step i0 to i1.
+func run_route(i0: int, i1: int) -> bool:
+	var R: Dictionary = game.ruin.route
+	for i in range(i0, i1):
+		var st: Dictionary = R.bot[i]
+		var ok: bool = true
+		match st.act:
+			"walk":
+				ok = await walk_to(game.ruin.v3(st.p), 14.0)
+			"jump":
+				ok = await jump_to(game.ruin.v3(st.p), game.ruin.v3(st.to), game.ruin.v3(st["from"]) if st.has("from") else null)
+			"ladder":
+				ok = await climb(game.ladders[int(st.i)], 14.0)
+			"drop":
+				# Run off the crown's inner edge into the eye, then fall to the Core.
+				var h: CharacterBody3D = game.hero
+				var tgt: Vector3 = game.ruin.v3(st.p)
+				var t0: int = Time.get_ticks_msec()
+				while h.global_position.y > game.ruin.crown_y - 2.0 and Time.get_ticks_msec() - t0 < 6000:
+					game.cam_yaw = atan2(-(tgt.x - h.global_position.x), -(tgt.z - h.global_position.z))
+					game.hud.stick = Vector2(0, -1)
+					await wait(0.03)
+				game.hud.stick = Vector2.ZERO
+				while not (h.is_on_floor() and h.global_position.y < game.ruin.core_y + 2.0) and Time.get_ticks_msec() - t0 < 10000:
+					await wait(0.05)
+				ok = game.ruin.in_core()
+		if not ok:
+			print("ROUTE STEP FAILED ", i, " ", st, " at ", game.hero.global_position)
+			return false
+	return true
+
+func route_index(act: String, n: int) -> int:
+	## Index of the n-th bot step of this kind (0-based).
+	var c: int = 0
+	var R: Dictionary = game.ruin.route
+	for i in R.bot.size():
+		if R.bot[i].act == act:
+			if c == n:
+				return i
+			c += 1
+	return R.bot.size()
+
 func ruin_tests() -> void:
 	game.restart_with("blonde_lance", "citadel")
 	await wait(0.6)
 	game.start_game()
 	await wait(1.2)
 	var h: CharacterBody3D = game.hero
-	check("the sky ruin loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.enemies.size() == 12, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
-	check("the hero stands on the sky dock", h.is_on_floor() and absf(h.global_position.y - 26.0) < 0.6, "y=%.2f" % h.global_position.y)
+	var R: Dictionary = game.ruin.route
+	check("the sky ruin loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.enemies.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	check("the hero stands on the sky dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.6, "y=%.2f" % h.global_position.y)
 	await shot("r0_dock")
-	# Clear the way so the route itself is tested: defeat the guards, open the gates.
 	for e: CharacterBody3D in game.enemies:
 		if e != game.boss:
 			e.hp = 0
 			e.set_state("dead")
 			e.visible = false
 			e.global_position.y -= 200.0
-	for i in 4:
+	for i in 8:
 		await wait(0.1)
-	check("clearing each section opens its gate", game.section == 4 and game.barriers.all(func(b): return not is_instance_valid(b) or b.is_queued_for_deletion()), "section=%d" % game.section)
+	check("clearing each section opens its gate", game.section == game.ruin.last and game.barriers.all(func(b): return not is_instance_valid(b) or b.is_queued_for_deletion()), "section=%d" % game.section)
 	var hp0: float = h.hp
-	if "--ruin-debug" in OS.get_cmdline_user_args():
-		h.global_position = Vector3(0, 28.6, 16.9)
-		await wait(0.5)
-		for tgt: Vector3 in [Vector3(-2.0, 28.6, 17.8), Vector3(2.0, 28.6, 17.8), Vector3(0, 28.6, 19.5)]:
-			game.cam_yaw = atan2(-(tgt.x - h.global_position.x), -(tgt.z - h.global_position.z))
-			game.hud.stick = Vector2(0, -1)
-			for i in 6:
-				await wait(0.1)
-				print("DBG ", tgt, " pos ", h.global_position, " vel ", h.velocity, " wall ", h.is_on_wall(), " n=", h.get_slide_collision_count())
-			game.hud.stick = Vector2.ZERO
-			await wait(0.2)
-	var ok: bool = await walk_to(Vector3(0, 26.3, 44.5))
-	ok = ok and await walk_to(Vector3(0, 27.4, 30.0), 12.0, [36.4])
-	await shot("r1_bridge")
-	ok = ok and await walk_to(Vector3(0, 28.6, 16.5), 12.0, [27.6])
-	check("the broken bridge can be jumped to the porch", ok and h.global_position.y > 27.8, "pos=%s" % [h.global_position])
-	ok = await walk_to(Vector3(2.0, 28.6, 17.8), 6.0)
-	ok = ok and await walk_to(Vector3(1.6, 28.6, 14.9), 6.0)
-	ok = ok and await climb(game.ladders[0])
-	check("ladder one climbs from the porch to the main deck", ok, "pos=%s state=%s" % [h.global_position, h.state])
-	await shot("r2_deck")
-	ok = await walk_to(Vector3(-6, 35.3, 11.3), 8.0)
-	ok = ok and await climb(game.ladders[1])
-	check("ladder two climbs to the upper ring", ok, "pos=%s" % [h.global_position])
-	ok = await walk_to(Vector3(-4, 41.5, 6.0), 8.0)
-	ok = ok and await walk_to(Vector3(0, 41.5, 4.4), 8.0)
-	ok = ok and await walk_to(Vector3(-0.6, 44.6, -9.8), 12.0)
-	await shot("r3_span")
-	check("the Hollow Span crosses the centre to the back ring", ok and absf(h.global_position.y - 44.35) < 0.8, "pos=%s" % [h.global_position])
-	ok = await walk_to(Vector3(1.2, 44.6, -10.2), 6.0)
-	ok = ok and await walk_to(Vector3(1.2, 44.6, -7.8), 6.0)
-	ok = ok and await climb(game.ladders[2])
+	var l0: int = route_index("ladder", 0)
+	var ok: bool = await run_route(0, l0)
+	await shot("r1_ring")
+	check("the bridge and the first ring of ledges can be run and jumped", ok, "pos=%s" % [h.global_position])
+	var l1: int = route_index("ladder", 1)
+	ok = ok and await run_route(l0, l1)
+	check("ladder one and the second ring", ok and h.global_position.y > 73.0, "pos=%s" % [h.global_position])
+	await shot("r2_ring")
+	var l2: int = route_index("ladder", 2)
+	ok = ok and await run_route(l1, l2)
+	check("ladder two and the third ring", ok and h.global_position.y > 91.0, "pos=%s" % [h.global_position])
+	var d0: int = route_index("drop", 0)
+	ok = ok and await run_route(l2, d0)
+	await shot("r3_crown")
+	check("ladder three and the sky stair reach the crown", ok and absf(h.global_position.y - game.ruin.crown_y) < 1.0, "pos=%s" % [h.global_position])
+	ok = ok and await run_route(d0, R.bot.size())
 	await wait(0.5)
-	check("ladder three climbs into the Core and wakes the Dark Knight", ok and game.ruin.in_core() and game.boss.active and game.boss_seen, "pos=%s" % [h.global_position])
+	check("dropping through the eye lands in the Core and wakes the Dark Knight", ok and game.ruin.in_core() and game.boss.active and game.boss_seen and game.checkpoint == game.ruin.last, "pos=%s cp=%d" % [h.global_position, game.checkpoint])
 	await shot("r4_core")
 	check("the whole climb is made without falling", h.hp >= hp0, "hp=%d" % h.hp)
-	# The Dark Knight fights inside the Core and stays on its floor.
 	h.hp = h.max_hp
 	await wait(5.0)
 	var bp: Vector3 = game.boss.global_position
-	check("the Dark Knight fights inside the Core", game.boss.alive() and bp.y > 51.5 and bp.y < 58.0 and absf(bp.x) < 10.0 and absf(bp.z + 1.0) < 6.0 and h.hp < h.max_hp, "boss=%s hero hp=%d" % [bp, h.hp])
-	game.boss.global_position = Vector3(30, 20, 0)
+	var cy: float = game.ruin.core_y
+	check("the Dark Knight fights inside the Core", game.boss.alive() and bp.y > cy - 1.0 and bp.y < cy + 6.0 and absf(bp.x) < 18.0 and absf(bp.z + 2.0) < 11.0 and h.hp < h.max_hp, "boss=%s hero hp=%d" % [bp, h.hp])
+	game.boss.global_position = Vector3(60, 40, 0)
 	await wait(0.4)
-	check("a Dark Knight who falls off the Core comes back", absf(game.boss.global_position.y - 52.7) < 1.5, "boss=%s" % [game.boss.global_position])
+	check("a Dark Knight who falls off the Core comes back", absf(game.boss.global_position.y - (cy + 0.2)) < 1.5, "boss=%s" % [game.boss.global_position])
 	game.boss.damage(9999, h.global_position, 0)
 	await wait(2.8)
 	check("defeating the Dark Knight in the Core clears the citadel", game.mode == "win", "mode=%s" % game.mode)
@@ -739,9 +799,8 @@ func ruin_tests() -> void:
 	await wait(0.4)
 	h = game.hero
 	hp0 = h.hp
-	# Falling off sends you back to the last checkpoint.
 	game.boss.active = false
-	h.global_position = Vector3(0, 30.0, 0.0)
+	h.global_position = game.ruin.dock + Vector3(30, 4, 0)
 	h.velocity = Vector3.ZERO
 	await wait(1.6)
 	var cp: Vector3 = game.sections[game.checkpoint].spawn

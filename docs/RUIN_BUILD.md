@@ -15,3 +15,10 @@ Source: owner's Tripo `cc_skyruin04.glb` (1.83M triangles, 4096 textures; kept b
 6. Route checks: floor heights, ladder shafts and walkway clearance were tested against the mesh, then the in-game route bot (AutoTest `ruin_tests`) walks dock → core.
 
 To swap in a new version of the ruin: repeat 1–5 with the same scale if its shape matches; if the shape changes, re-measure the floors and move the route pieces in `Ruin.gd`.
+
+
+## 2x scale and the outside route (Oct 2026)
+- The ruin is shown at 2x: `MODEL_SCALE 142.7533`, offset doubled (Ruin.gd).
+- Route design: `route.py` (in the work folder `art/skyruin`, needs trimesh with embree, scipy) samples the ruin's silhouette at 2x (`sil.npy`, radius per 3 degrees per metre of height), lays three rings of 11 m ledges 2.2 m outside it with 2.4 m jump gaps, puts a ladder column at each ring's end (pushed outward until the shaft and step-off are clear), a 13-ledge helix in front (centre (0, z 27), radius 10, 32 degree ledges, 13 degree gaps) to the crown at y 139, a seal on the crown's inner edge, and checks every walkway, pad and the eye shaft by ray casts. The last ledge of each ring and of the helix is flat so it meets the next piece without a lip (a character body can't step up a lip).
+- Collision: `col2.py` scales the carved 45k collision x2, keeps only triangles within 7 m of a route piece, a ladder or the Core, and removes the ones in the 0.8 m band under each walkway.
+- Phone model: `node lite.mjs skyruin.glb skyruin_lite.glb 0.4` (gltf-transform simplify with meshoptimizer, textures resized to 512).

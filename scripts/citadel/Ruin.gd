@@ -1,47 +1,59 @@
 extends RefCounted
-## The Sky Citadel, rebuilt inside the owner's floating sky ruin
-## (assets/ruin/skyruin.glb, from Tripo "cc_skyruin04"). The climb winds in and
-## out of the ruin's hollow centre: sky dock -> broken bridge -> porch -> ladder
-## -> main deck -> ladder -> upper ring -> the Hollow Span across the middle ->
-## back ring -> ladder -> the Core, where the Dark Knight waits.
+## The Sky Citadel: the owner's floating sky ruin (assets/ruin/skyruin.glb, from
+## Tripo "cc_skyruin04") at twice its first size, about 140 m tall. The climb
+## runs round the OUTSIDE of the ruin: sky dock -> broken bridge -> three rings
+## of floating ledges with jumps between them, each ring ending at a ladder up
+## to the next -> a sky stair spiralling up in front -> the crown on top ->
+## drop through the eye into the Core, where the Dark Knight waits.
 ##
-## The ruin mesh is solid (walls and its own floors are walkable for side
-## exploring), and the main route is laid with clean walkways, stairs, bridges
-## and ladders at the ruin's real floor heights so it never has holes.
-## Ruin space: metres, front of the ruin is +Z, the core floor is at y 52.5.
+## The route is designed offline against the ruin's shape (tools in
+## docs/RUIN_BUILD.md) and saved as assets/ruin/route.json: walkways, pads,
+## ladders, gates, checkpoints, knights and the test bot's moves. The ruin's
+## collision (skyruin_col.glb, already x2 and in metres) only keeps the walls
+## near the route and the Core, so the game has far less to check every frame.
 
 const MODEL: String = "res://assets/ruin/skyruin.glb"
+const MODEL_LITE: String = "res://assets/ruin/skyruin_lite.glb"
 const COLLIDER: String = "res://assets/ruin/skyruin_col.glb"
-const MODEL_SCALE: float = 71.3766
-const MODEL_OFFSET: Vector3 = Vector3(-0.0948, 34.9848, -0.1971)
-
-const SECTIONS: Array = [
-	{"goal": "Take out the dock guards", "spawn": Vector3(0, 26.3, 57.0)},
-	{"goal": "Cross the broken bridge", "spawn": Vector3(0, 26.3, 45.0)},
-	{"goal": "Climb to the main deck and clear it", "spawn": Vector3(0, 35.4, 10.2)},
-	{"goal": "Cross the Hollow Span to the back ring", "spawn": Vector3(-6.0, 41.7, 5.6)},
-	{"goal": "Enter the Core. Defeat the Dark Knight", "spawn": Vector3(-0.6, 44.7, -10.4)},
-]
-## Floors of the route (y) — used for checkpoints, falls and the map.
-const DOCK_Y: float = 26.0
-const PORCH_Y: float = 28.4
-const DECK_Y: float = 35.05
-const RING_Y: float = 41.3
-const BACK_Y: float = 44.35
-const CORE_Y: float = 52.5
+const ROUTE: String = "res://assets/ruin/route.json"
+const MODEL_SCALE: float = 142.7533
+const MODEL_OFFSET: Vector3 = Vector3(-0.1895, 69.9695, -0.3943)
 
 var game: Node
 var root: Node3D
-## Volumes covered by route walkways ({xf, half}). The ruin's own collision is
-## removed inside them so its lumpy floor never trips you on a clean walkway.
+var route: Dictionary = {}
+var sections: Array = []
+var core_y: float = 105.0
+var crown_y: float = 139.0
+var eye: Rect2 = Rect2()
+var dock: Vector3 = Vector3.ZERO
+## The last section: the Core and the boss.
+var last: int = 6
 var clear_vols: Array = []
 
 func _init(g: Node) -> void:
 	game = g
+	load_route()
+
+static func v3(a: Array) -> Vector3:
+	return Vector3(a[0], a[1], a[2])
+
+func load_route() -> void:
+	var f: FileAccess = FileAccess.open(ROUTE, FileAccess.READ)
+	route = JSON.parse_string(f.get_as_text())
+	core_y = route.core_y
+	crown_y = route.crown_y
+	dock = v3(route.dock)
+	var e: Array = route.eye
+	eye = Rect2(e[0], e[2], e[1] - e[0], e[3] - e[2])
+	sections.clear()
+	for i in route.spawns.size():
+		sections.append({"goal": route.goals[i], "spawn": v3(route.spawns[i])})
+	last = sections.size() - 1
 
 func configure() -> void:
-	game.sections = SECTIONS
-	game.map_zones = [Rect2(-12, 44, 24, 16), Rect2(-2.5, 20, 5, 24), Rect2(-24, -16, 48, 36)]
+	game.sections = sections
+	game.map_zones = [Rect2(dock.x - 13, dock.z - 9, 26, 18), Rect2(-50, -50, 100, 100)]
 	game.boss_name = "DARK KNIGHT"
 	game.win_text = "CITADEL CLEARED"
 
@@ -53,7 +65,6 @@ func build() -> void:
 	root.name = "SkyRuin"
 	game.world.add_child(root)
 	game.ladders.clear()
-	clear_vols.clear()
 	look()
 	add_route()
 	add_ruin()
@@ -61,14 +72,16 @@ func build() -> void:
 
 func look() -> void:
 	game.citadel_look()
-	game.env_res.fog_density = 0.0016
+	game.env_res.fog_density = 0.0009
 	game.env_res.tonemap_exposure = 0.7
 	game.env_res.ambient_light_energy = 0.45
 	game.sun.light_energy = 1.25
 	game.sun.rotation_degrees = Vector3(-40, 38, 0)
+	if game.sun.shadow_enabled:
+		game.sun.directional_shadow_max_distance = 60.0
 
 func add_ruin() -> void:
-	var ruin: Node3D = (load(MODEL) as PackedScene).instantiate()
+	var ruin: Node3D = (load(MODEL_LITE if game.phone else MODEL) as PackedScene).instantiate()
 	ruin.scale = Vector3.ONE * MODEL_SCALE
 	ruin.position = MODEL_OFFSET
 	root.add_child(ruin)
@@ -81,33 +94,12 @@ func add_ruin() -> void:
 			m.roughness = 0.92
 			mi.material_override = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if game.phone else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# Solid ruin: a lighter copy of the same shape, already in metres.
 	var col_scene: Node3D = (load(COLLIDER) as PackedScene).instantiate()
 	var body: StaticBody3D = StaticBody3D.new()
 	body.name = "RuinCollision"
 	for mi: MeshInstance3D in col_scene.find_children("*", "MeshInstance3D", true, false):
-		var faces: PackedVector3Array = mi.mesh.get_faces()
-		var keep: PackedVector3Array = PackedVector3Array()
-		var inv: Array = []
-		for v: Dictionary in clear_vols:
-			inv.append([(v.xf as Transform3D).affine_inverse(), v.half])
-		var i: int = 0
-		while i < faces.size():
-			var c: Vector3 = (faces[i] + faces[i + 1] + faces[i + 2]) / 3.0
-			var drop: bool = false
-			for e: Array in inv:
-				var l: Vector3 = (e[0] as Transform3D) * c
-				var hf: Vector3 = e[1]
-				if absf(l.x) < hf.x and absf(l.y) < hf.y and absf(l.z) < hf.z:
-					drop = true
-					break
-			if not drop:
-				keep.append(faces[i])
-				keep.append(faces[i + 1])
-				keep.append(faces[i + 2])
-			i += 3
 		var cps: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
-		cps.set_faces(keep)
+		cps.set_faces(mi.mesh.get_faces())
 		var shape: CollisionShape3D = CollisionShape3D.new()
 		shape.shape = cps
 		body.add_child(shape)
@@ -116,10 +108,8 @@ func add_ruin() -> void:
 
 ## Route pieces ----------------------------------------------------------
 
-## Register the space just above and below a walkway surface (local frame xf,
-## surface at local y 0) as "ours": the ruin's collision is cleared there.
-func clear_over(xf: Transform3D, half_xz: Vector2) -> void:
-	clear_vols.append({"xf": xf * Transform3D(Basis.IDENTITY, Vector3(0, -0.2, 0)), "half": Vector3(half_xz.x + 0.1, 0.8, half_xz.y + 0.1)})
+func clear_over(_xf: Transform3D, _half_xz: Vector2) -> void:
+	pass   # the ruin floor under walkways is removed offline (col2.py)
 
 func slab(center: Vector3, size: Vector3, trim: bool = true) -> void:
 	## A walkway floor whose top surface is at center.y.
@@ -216,8 +206,9 @@ func ladder(bottom: Vector3, top: Vector3, face: Vector3) -> void:
 		game.box(base + side * s2 + Vector3(0, h + 0.04, 0), Vector3(0.16, 0.08, 0.16), "gold", false, root)
 	game.ladders.append({"bottom": bottom, "top": top, "face": face})
 
-func barrier(pos: Vector3, size: Vector3) -> void:
+func barrier(pos: Vector3, size: Vector3, face: Vector3 = Vector3(0, 0, -1)) -> void:
 	var b: MeshInstance3D = game.box(pos, size, "barrier", true, root)
+	b.rotation.y = atan2(face.x, face.z)
 	game.barriers.append(b)
 
 func planter(p: Vector3) -> void:
@@ -228,98 +219,142 @@ func planter(p: Vector3) -> void:
 	game.walls.append(r)
 	game.wall_heights[r] = 1.2
 
+func pillar(base: Vector3, top: float, size: float) -> void:
+	## Stone column standing in the sky, carrying a ladder up to the next ring.
+	var h: float = top - 0.3 - base.y
+	var r: float = size * 0.5
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	var cm: CylinderMesh = CylinderMesh.new()
+	cm.top_radius = r
+	cm.bottom_radius = r * 1.08
+	cm.height = h
+	cm.radial_segments = 16
+	mi.mesh = cm
+	mi.material_override = game.mat("stone")
+	mi.position = Vector3(base.x, base.y + h * 0.5, base.z)
+	root.add_child(mi)
+	var body: StaticBody3D = StaticBody3D.new()
+	var cs: CollisionShape3D = CollisionShape3D.new()
+	var sh: CylinderShape3D = CylinderShape3D.new()
+	sh.radius = r
+	sh.height = h
+	cs.shape = sh
+	body.add_child(cs)
+	mi.add_child(body)
+	# Broken rock root under it and gold bands up the shaft.
+	var root_rock: MeshInstance3D = MeshInstance3D.new()
+	var rc: CylinderMesh = CylinderMesh.new()
+	rc.top_radius = r * 1.5
+	rc.bottom_radius = 0.0
+	rc.height = 5.0
+	rc.radial_segments = 7
+	root_rock.mesh = rc
+	root_rock.material_override = game.mat("rock")
+	root_rock.position = Vector3(base.x, base.y - 2.5, base.z)
+	root.add_child(root_rock)
+	var y: float = 3.0
+	while y < h - 1.0:
+		var band: MeshInstance3D = MeshInstance3D.new()
+		var bc: CylinderMesh = CylinderMesh.new()
+		bc.top_radius = r * 1.1
+		bc.bottom_radius = r * 1.1
+		bc.height = 0.22
+		bc.radial_segments = 16
+		band.mesh = bc
+		band.material_override = game.mat("gold")
+		band.position = Vector3(base.x, base.y + y, base.z)
+		root.add_child(band)
+		y += 4.0
+
 func add_route() -> void:
-	# Section 0 — the sky dock in front of the ruin (stealth: guards patrol).
-	slab(Vector3(0, DOCK_Y, 52), Vector3(24, 1.2, 16))
-	game.box(Vector3(0, DOCK_Y - 3.0, 52), Vector3(18, 4, 12), "stone", false, root)
-	for p: Vector3 in [Vector3(-6, DOCK_Y, 49), Vector3(6, DOCK_Y, 53), Vector3(-5, DOCK_Y, 56.5)]:
-		planter(p)
+	for p: Dictionary in route.pieces:
+		match p.type:
+			"slab":
+				slab(v3(p.pos), v3(p.size), p.trim)
+			"pad":
+				if p.has("a"):
+					walk(v3(p.a), v3(p.b), 5.0)
+				else:
+					slab(v3(p.pos), v3(p.size), false)
+				# A floating rock under each wider pad.
+				var c: Vector3 = v3(p.pos)
+				game.box(c - Vector3(0, 1.4, 0), Vector3(3.6, 2.2, 3.6), "rock", false, root)
+			"walk":
+				walk(v3(p.a), v3(p.b), p.width)
+			"pillar":
+				pillar(v3(p.pos), p.top, p.size)
+			"bridge":
+				bridge(p.z0, p.z1, p.y0, p.y1, p.gaps)
+			"dock_dressing":
+				dock_dressing(v3(p.pos))
+	for l: Dictionary in route.ladders:
+		ladder(v3(l.bottom), v3(l.top), v3(l.face))
+	for b: Dictionary in route.barriers:
+		barrier(v3(b.pos), v3(b.size), v3(b.face))
+	game.crystal(Vector3(-4.5, crown_y, 11.0), 1.0, true)
+	game.crystal(Vector3(4.5, crown_y, 11.0), 1.0, true)
+	game.crystal(Vector3(-12, core_y, -2), 1.3, true)
+	game.crystal(Vector3(12, core_y, -2), 1.3, true)
+
+func dock_dressing(c: Vector3) -> void:
+	game.box(c - Vector3(0, 3.0, 0), Vector3(18, 4, 12), "stone", false, root)
+	for p: Vector3 in [Vector3(-6, 0, -3), Vector3(6, 0, 1), Vector3(-5, 0, 4.5)]:
+		planter(c + p)
 	for x: float in [-11.0, 11.0]:
-		for z: float in [46.0, 52.0, 58.0]:
-			game.column(Vector3(x, DOCK_Y, z), 5.0, 0.45, true)
-	game.crystal(Vector3(-9, DOCK_Y, 45.5), 0.9)
-	game.crystal(Vector3(9, DOCK_Y, 45.5), 0.9)
-	# Section 1 — the broken bridge up to the ruin's porch (two gaps to jump).
-	bridge(44.0, 20.0, DOCK_Y, PORCH_Y, [[36.0, 33.4], [27.2, 24.6]])
-	slab(Vector3(0, PORCH_Y, 17), Vector3(8, 0.6, 6.4))
-	# Ladder 1: porch -> main deck (the front face of the deck block).
-	ladder(Vector3(1.6, PORCH_Y, 14.1), Vector3(1.6, DECK_Y, 11.5), Vector3(0, 0, -1))
-	# Section 2 — the main deck, a crescent across the front.
-	slab(Vector3(0, DECK_Y, 9.0), Vector3(26, 0.5, 4.6))
-	slab(Vector3(0, DECK_Y, 9.6), Vector3(7, 0.5, 5.6), false)
-	slab(Vector3(-15, DECK_Y - 0.2, 2.5), Vector3(8.5, 0.5, 10), false)
-	slab(Vector3(15, DECK_Y - 0.2, 2.5), Vector3(8.5, 0.5, 10), false)
-	walk(Vector3(-11, DECK_Y, 8.0), Vector3(-13, DECK_Y - 0.2, 5.5), 3.0)
-	walk(Vector3(11, DECK_Y, 8.0), Vector3(13, DECK_Y - 0.2, 5.5), 3.0)
-	# Ladder 2: deck -> upper ring (the ring's front edge above the deck).
-	ladder(Vector3(-6, DECK_Y, 10.6), Vector3(-6, RING_Y, 9.2), Vector3(0, 0, -1))
-	# Section 3 — upper ring, then the Hollow Span through the middle to the back ring.
-	slab(Vector3(-6, RING_Y, 8.0), Vector3(5, 0.5, 3.6))
-	slab(Vector3(-3, RING_Y, 5.4), Vector3(10, 0.5, 2.8))
-	walk(Vector3(0, RING_Y, 4.4), Vector3(-0.6, BACK_Y, -6.6), 3.0)
-	walk(Vector3(-0.6, BACK_Y, -6.6), Vector3(-0.6, BACK_Y, -10.0), 2.6)
-	slab(Vector3(-0.4, BACK_Y, -10.5), Vector3(6.4, 0.5, 2.4))
-	# Section 4 — a short landing and Ladder 3 up into the Core.
-	walk(Vector3(1.2, BACK_Y, -9.8), Vector3(1.2, BACK_Y, -7.4), 2.2)
-	ladder(Vector3(1.2, BACK_Y, -7.0), Vector3(1.2, CORE_Y, -5.4), Vector3(0, 0, 1))
-	slab(Vector3(0, CORE_Y, -1.0), Vector3(18, 0.5, 9.6))
-	game.crystal(Vector3(-7.5, CORE_Y, 2.4), 1.3, true)
-	game.crystal(Vector3(7.5, CORE_Y, 2.4), 1.3, true)
-	# Barriers open as sections are cleared.
-	barrier(Vector3(0, DOCK_Y + 2.0, 43.6), Vector3(5.2, 4.0, 0.4))
-	barrier(Vector3(1.6, PORCH_Y + 2.0, 15.0), Vector3(2.2, 4.0, 0.4))
-	barrier(Vector3(-6, DECK_Y + 2.0, 11.6), Vector3(2.2, 4.0, 0.4))
-	barrier(Vector3(1.2, BACK_Y + 2.0, -8.1), Vector3(2.4, 4.0, 0.4))
+		for z: float in [-6.0, 0.0, 6.0]:
+			game.column(c + Vector3(x, 0, z), 5.0, 0.45, true)
+	game.crystal(c + Vector3(-9, 0, -6.5), 0.9)
+	game.crystal(c + Vector3(9, 0, -6.5), 0.9)
 
 func add_sky() -> void:
 	for i in 14:
 		var c: MeshInstance3D = MeshInstance3D.new()
 		var q: QuadMesh = QuadMesh.new()
-		q.size = Vector2(70, 70)
+		q.size = Vector2(110, 110)
 		c.mesh = q
 		c.material_override = game.mat("cloud")
 		c.rotation.x = -PI / 2.0
-		c.position = Vector3(randf_range(-110, 110), -4.0 - i * 0.6, randf_range(-110, 110))
+		c.position = Vector3(randf_range(-170, 170), 20.0 - i * 0.6, randf_range(-170, 170))
 		root.add_child(c)
-	var spots: Array = [Vector3(-70, 30, -40), Vector3(80, 38, -60), Vector3(-95, 52, 40), Vector3(100, 22, 50), Vector3(-50, 64, -110), Vector3(55, 46, -120), Vector3(-120, 28, -10), Vector3(125, 58, 0), Vector3(0, 80, -160), Vector3(-80, 12, 90), Vector3(85, 8, 110)]
+	var spots: Array = [Vector3(-110, 50, -60), Vector3(120, 66, -80), Vector3(-140, 90, 50), Vector3(150, 40, 70), Vector3(-80, 110, -160), Vector3(85, 80, -170), Vector3(-170, 46, -10), Vector3(175, 100, 0), Vector3(0, 130, -220), Vector3(-120, 20, 140), Vector3(130, 14, 160)]
 	for i in spots.size():
-		game.island(spots[i], 8.0 + float(i % 4) * 4.0)
+		game.island(spots[i], 10.0 + float(i % 4) * 5.0)
 
 # ---------------------------------------------------------------- cast
 
 func spawn_cast() -> void:
 	var h: Dictionary = game.HEROES[game.hero_key]
-	game.hero = game.make_fighter("hero", h.model, 1.8, h.blade, 1.25, SECTIONS[0].spawn)
+	var s0: Vector3 = sections[0].spawn
+	game.hero = game.make_fighter("hero", h.model, 1.8, h.blade, 1.25, s0)
 	game.hero.max_hp = 100
 	game.hero.hp = 100
 	game.hero.yaw = 0.0
 	game.cam_yaw = 0.0
-	game.ally = game.make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, SECTIONS[0].spawn + Vector3(1.6, 0, 1.4))
+	game.ally = game.make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, s0 + Vector3(1.6, 0, 1.4))
 	game.ally.rig.sword.visible = false
-	var knights: Array = [
-		[0, Vector3(-7, DOCK_Y + 0.2, 50)], [0, Vector3(7, DOCK_Y + 0.2, 47)], [0, Vector3(0, DOCK_Y + 0.2, 45.5)],
-		[1, Vector3(0, 27.2, 30.5)], [1, Vector3(1.2, PORCH_Y + 0.2, 17.5)],
-		[2, Vector3(-9, DECK_Y + 0.2, 9.0)], [2, Vector3(9, DECK_Y + 0.2, 9.0)], [2, Vector3(-15, DECK_Y, 2.5)], [2, Vector3(15, DECK_Y, 2.5)],
-		[3, Vector3(-0.8, 42.8, -2.4)], [3, Vector3(1.6, BACK_Y + 0.2, -10.4)],
-	]
-	for k: Array in knights:
-		var e: CharacterBody3D = game.make_fighter("knight", "res://assets/characters/knight_lite.glb", 1.82, Color("c8d0dc"), 0.95, k[1])
-		e.section = k[0]
+	var guards: Array = []
+	for k: Dictionary in route.knights:
+		var p: Vector3 = v3(k.pos)
+		var e: CharacterBody3D = game.make_fighter("knight", "res://assets/characters/knight_lite.glb", 1.82, Color("c8d0dc"), 0.95, p)
+		e.section = int(k.sec)
 		e.max_hp = 70
 		e.hp = 70
 		e.yaw = 0.0
-		e.home = k[1]
+		e.home = p
 		game.enemies.append(e)
+		if k.get("patrol", false):
+			guards.append(e)
 	# Dock guards patrol with vision cones (stealth, from the MG guards).
+	var d: Vector2 = Vector2(dock.x, dock.z)
 	var routes: Array = [
-		[Vector2(-7, 50), Vector2(3, 50)],
-		[Vector2(7, 47), Vector2(7, 57), Vector2(1, 57), Vector2(1, 47)],
-		[Vector2(0, 45.5), Vector2(-7, 46.5), Vector2(-2, 54)],
+		[d + Vector2(-7, -2), d + Vector2(3, -2)],
+		[d + Vector2(7, -5), d + Vector2(7, 5), d + Vector2(1, 5), d + Vector2(1, -5)],
+		[d + Vector2(0, -6.5), d + Vector2(-7, -5.5), d + Vector2(-2, 2)],
 	]
-	for i in routes.size():
-		game.patrol.setup(game.enemies[i], routes[i])
-	var boss: CharacterBody3D = game.make_fighter("boss", "res://assets/characters/knight.glb", 2.55, Color("ff3346"), 1.6, Vector3(0, CORE_Y + 0.2, 1.6))
-	boss.section = 4
+	for i in mini(routes.size(), guards.size()):
+		game.patrol.setup(guards[i], routes[i])
+	var boss: CharacterBody3D = game.make_fighter("boss", "res://assets/characters/knight.glb", 2.55, Color("ff3346"), 1.6, Vector3(0, core_y + 0.2, -4.0))
+	boss.section = last
 	boss.max_hp = 650
 	boss.hp = 650
 	boss.dmg = 18
@@ -337,44 +372,57 @@ func spawn_cast() -> void:
 		aura.position = Vector3(0, 2.0, 0)
 		boss.add_child(aura)
 
-func start() -> void:
-	game.say_once("ruin_start", "ally", "The citadel is a ruin now... the Dark Knight waits at its core.")
-	game.say_once("ruin_tip", "tip", "Stay low behind the planters. Walk into a ladder and push forward to climb.")
-
 # ---------------------------------------------------------------- progress
 
+func start() -> void:
+	game.say_once("ruin_start", "ally", "The citadel is a ruin now... the Dark Knight waits at its core, right at the top.")
+	game.say_once("ruin_tip", "tip", "Stay low behind the planters. Jump the gaps, climb the ladders, run all the way round.")
+
 func progress() -> void:
-	if game.section < 4 and game.section_clear(game.section):
+	if game.section < last and game.section_clear(game.section):
 		game.open_barrier(game.section)
 		game.section += 1
 		match game.section:
 			1:
-				game.say("ally", "The bridge is broken. Jump the gaps, and don't look down!")
+				game.say("ally", "The bridge is broken. Jump the gaps, then follow the ledges round!")
 			2:
-				game.say("ally", "Up the ladder. The main deck is crawling with guards.")
+				game.say("ally", "Up the ladder! The next ring goes round the far side.")
 			3:
-				game.say("ally", "Another ladder. We go across the hollow from up there.")
+				game.say("ally", "Higher! Don't look down.")
 			4:
-				game.say("ally", "The Core is right above us. Ready?")
+				game.say("ally", "A sky stair. Keep jumping, all the way to the crown!")
+			5:
+				game.say("ally", "The eye is open. Jump down. He's in the Core!")
 	var p: Vector3 = game.hero.global_position
 	var reached: int = game.checkpoint
-	for i in range(SECTIONS.size() - 1, 0, -1):
-		var s: Vector3 = SECTIONS[i].spawn
-		if p.y > s.y - 1.2 and Vector2(p.x - s.x, p.z - s.z).length() < 5.0:
+	for i in range(sections.size() - 1, 0, -1):
+		var s: Vector3 = sections[i].spawn
+		if p.y > s.y - 1.2 and p.y < s.y + 3.0 and Vector2(p.x - s.x, p.z - s.z).length() < 5.0:
 			reached = maxi(reached, i)
 			break
+	if in_core():
+		reached = last
 	if reached > game.checkpoint and reached <= game.section:
 		game.checkpoint = reached
-	if not game.boss_seen and p.y > CORE_Y - 1.0:
+	if not game.boss_seen and in_core() and game.hero.is_on_floor():
 		game.boss_seen = true
 		game.boss.active = true
 		game.sound("alarm", -8)
-		game.say("boss", "You climbed all this way to die in my core?")
+		game.say("boss", "You fell all this way to die in my core?")
 		game.say("ally", "We can break through! Keep pressing!")
+
+func in_eye(p: Vector3) -> bool:
+	return eye.grow(1.0).has_point(Vector2(p.x, p.z)) and p.y > core_y - 1.0
 
 func fall_line() -> float:
 	## Fell off the route: below the current checkpoint's floor by a good margin.
-	return (SECTIONS[game.checkpoint].spawn as Vector3).y - 9.0
+	## Dropping through the eye into the Core is the way in, not a fall.
+	if game.section >= last - 1 and game.hero != null and in_eye(game.hero.global_position):
+		return core_y - 9.0
+	return (sections[game.checkpoint].spawn as Vector3).y - 9.0
 
 func in_core() -> bool:
-	return game.hero != null and game.hero.global_position.y > CORE_Y - 1.0
+	if game.hero == null:
+		return false
+	var p: Vector3 = game.hero.global_position
+	return p.y > core_y - 1.0 and p.y < core_y + 8.0 and absf(p.x) < 19.0 and absf(p.z + 2.0) < 12.0

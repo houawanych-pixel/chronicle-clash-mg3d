@@ -3,19 +3,21 @@
 The project now opens on the Sky Citadel. The old MG labs are still in the build: **MG LABS (OLD)** on the title and pause screens loads `scenes/main.tscn`.
 
 ## Stage: the Sky Citadel (sky ruin)
-The citadel is now the owner's floating sky ruin (Tripo `cc_skyruin04`, 70 m tall, reduced to 100k triangles: `assets/ruin/skyruin.glb`, with a lighter solid copy `skyruin_col.glb`). The climb winds in and out of the ruin's hollow centre:
+The citadel is the owner's floating sky ruin (Tripo `cc_skyruin04`) at twice its first size: about 140 m tall. The climb runs round the **outside** of the ruin, level by level:
 
-1. **Sky dock** (y 26): three guards on patrol with vision cones; low planters are cover.
-2. **Broken bridge** up to the ruin's porch: two gaps to jump.
-3. **Ladder 1** up the front of the main deck. Knights on the **main deck** (y 35).
-4. **Ladder 2** to the **upper ring** (y 41), then the **Hollow Span**, a stair-bridge straight across the hollow middle to the **back ring** (y 44).
-5. **Ladder 3** into the **Core** (y 52.5), the roofed chamber at the top, where the Dark Knight waits.
+1. **Sky dock** (y 52): three guards on patrol with vision cones; low planters are cover.
+2. **Broken bridge** to the ruin: two gaps to jump.
+3. **First ring** (y 56 to 62): floating ledges round the east side with a jump between each. Knights wait on the wider pads. A stone column at the end carries **ladder 1**.
+4. **Second ring** (y 74 to 80) round the back, then **ladder 2**.
+5. **Third ring** (y 92 to 104) round the west side, then **ladder 3** (the long one) to y 119.
+6. **Sky stair**: 13 ledges spiralling up in front of the ruin, a jump between each, to the **crown** on top (y 139). Two knights guard it; beating them opens the glowing seal.
+7. **The eye**: jump off the crown's inner edge and drop 34 m through the open eye into the **Core** (y 105), where the Dark Knight waits.
 
-Glowing barriers in front of each ladder open when that section is cleared. Falling off costs 15 health and returns you to the last checkpoint. Elyza follows and magic-steps to you when a climb leaves her behind.
+Glowing gates in front of each ladder (and the seal on the crown) open when that part is cleared. Falling off costs 15 health and returns you to the last checkpoint (dock, bridge, each ladder top, the crown, the Core). Elyza follows and magic-steps to you when a climb leaves her behind.
 
 **Ladders**: walk into one and push forward to grab it; stick up/down to climb, JUMP to let go; you step off at the top automatically. Any stage can add ladders (`game.ladders`).
 
-**How the route is built** (`scripts/citadel/Ruin.gd`): the ruin's floors are uneven Tripo surfaces with holes, so the route is laid with clean walkways, stairs (visible steps over a hidden ramp), the bridge and ladders at the ruin's real floor heights, and the ruin's collision is removed under those walkways so its bumps never trip you. A few small passages were carved out of the model along the route (ladder shafts, the Hollow Span, a clean core floor); the carve boxes are listed in the build notes. The ruin's walls and its other floors stay solid, so you can wander off the route.
+**How the route is built**: the route is designed offline against the ruin's real shape (`route.py`, see `docs/RUIN_BUILD.md`) so every ledge, jump, ladder shaft and the eye are checked clear of the ruin, and saved as `assets/ruin/route.json`. `scripts/citadel/Ruin.gd` builds it (walkways with visible steps over a hidden ramp, pads, columns, ladders, gates) and the test bot runs the same file's moves. The ruin's collision (`skyruin_col.glb`) keeps only the walls near the route and the Core (about 5k triangles instead of 45k) and has its floor removed under the walkways, so nothing trips you and the game has far less to check. Phones load a lighter ruin model (`skyruin_lite.glb`, 40k triangles, 512 textures).
 
 The original boxed layout (courtyard, bridge, plaza, throne hall) is kept as stage `classic` for the combat and stealth regression tests.
 

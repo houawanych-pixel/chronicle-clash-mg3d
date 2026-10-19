@@ -14,12 +14,13 @@ func _init() -> void:
 		await process_frame
 	var cam: Camera3D = scene.camera
 	var views: Array = [
-		["s0_approach", Vector3(-38, 40, 95), Vector3(0, 36, 0)],
-		["s1_dock", Vector3(9, 30, 64), Vector3(0, 26, 40)],
-		["s2_deck", Vector3(14, 39.5, 19), Vector3(-4, 36.5, 7)],
-		["s3_span", Vector3(5, 45, 7), Vector3(-1, 43, -8)],
-		["s4_core", Vector3(7.5, 55.5, 3.5), Vector3(-1, 52.8, -2)],
-		["s5_side", Vector3(70, 30, -20), Vector3(0, 32, 0)],
+		["s0_approach", Vector3(-80, 95, 190), Vector3(0, 80, 0)],
+		["s1_dock", Vector3(16, 60, 112), Vector3(0, 54, 70)],
+		["s2_ring", Vector3(85, 75, 40), Vector3(30, 62, 10)],
+		["s3_back", Vector3(-30, 110, -120), Vector3(0, 85, 0)],
+		["s4_stair", Vector3(30, 140, 70), Vector3(0, 128, 22)],
+		["s5_core", Vector3(10, 111, 8), Vector3(-1, 105.5, -3)],
+		["s6_side", Vector3(150, 80, -40), Vector3(0, 75, 0)],
 	]
 	scene.set_process(false)
 	scene.set_physics_process(false)

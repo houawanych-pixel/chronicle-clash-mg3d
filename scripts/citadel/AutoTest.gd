@@ -629,6 +629,9 @@ func walk_to(p: Vector3, timeout: float = 12.0, jumps: Array = []) -> bool:
 	while Time.get_ticks_msec() - t0 < int(timeout * 1000):
 		var to: Vector3 = p - h.global_position
 		var flat: Vector2 = Vector2(to.x, to.z)
+		if h.state == "climb" and game.ruin.route.get("version", 1) == 2:
+			game.hud.stick = Vector2.ZERO
+			return true
 		if flat.length() < 0.7 and absf(to.y) < 1.4:
 			game.hud.stick = Vector2.ZERO
 			return true
@@ -726,6 +729,8 @@ func run_route(i0: int, i1: int) -> bool:
 				while not (h.is_on_floor() and h.global_position.y < game.ruin.core_y + 2.0) and Time.get_ticks_msec() - t0 < 10000:
 					await wait(0.05)
 				ok = game.ruin.in_core()
+		if "--route-trace" in OS.get_cmdline_user_args():
+			print("STEP ", i, " ", st.act, " -> ", game.hero.global_position, " ok=", ok)
 		if not ok:
 			print("ROUTE STEP FAILED ", i, " ", st, " at ", game.hero.global_position)
 			return false
@@ -743,6 +748,9 @@ func route_index(act: String, n: int) -> int:
 	return R.bot.size()
 
 func ruin_tests() -> void:
+	if game.ruin.route.get("version", 1) == 2:
+		await ruin2_tests()
+		return
 	game.restart_with("blonde_lance", "citadel")
 	await wait(0.6)
 	game.start_game()
@@ -805,3 +813,47 @@ func ruin_tests() -> void:
 	await wait(1.6)
 	var cp: Vector3 = game.sections[game.checkpoint].spawn
 	check("falling off the ruin returns you to the checkpoint", h.global_position.distance_to(cp) < 3.0 and h.hp < hp0, "pos=%s cp=%s hp=%d" % [h.global_position, cp, h.hp])
+
+## Sky Citadel v2 (the rebuilt castle): the bot runs the castle's own route.
+func ruin2_tests() -> void:
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.6)
+	game.start_game()
+	await wait(1.2)
+	var h: CharacterBody3D = game.hero
+	var R: Dictionary = game.ruin.route
+	check("the rebuilt castle loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == R.ladders.size() and game.enemies.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	check("the hero stands on the dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.8, "pos=%s" % [h.global_position])
+	await shot("v0_dock")
+	for e: CharacterBody3D in game.enemies:
+		if e != game.boss:
+			e.hp = 0
+			e.set_state("dead")
+			e.visible = false
+			e.global_position.y -= 200.0
+	for i in 8:
+		await wait(0.1)
+	check("clearing each section opens its gate", game.section == game.ruin.last and game.barriers.all(func(b): return not is_instance_valid(b) or b.is_queued_for_deletion()), "section=%d" % game.section)
+	var hp0: float = h.hp
+	var marks: Array = [["ladder", 0, "ring one: stair, gallery, balcony, ladder", 73.0], ["ladder", 1, "ring two: terrace, stair, gallery, ladder", 91.0], ["drop", 0, "ring three, summit stair and crown stair", 130.0]]
+	var i0: int = 0
+	var ok: bool = true
+	for m: Array in marks:
+		var i1: int = route_index(m[0], m[1])
+		var upto: int = i1 + 1 if m[0] == "ladder" else i1
+		ok = ok and await run_route(i0, upto)
+		check(m[2], ok and h.global_position.y > m[3], "pos=%s" % [h.global_position])
+		await shot("v_%s_%d" % [m[0], m[1]])
+		i0 = upto
+	ok = ok and await run_route(i0, R.bot.size())
+	await wait(0.5)
+	check("dropping through the eye lands in the Core and wakes the Dark Knight", ok and game.ruin.in_core() and game.boss.active and game.boss_seen and game.checkpoint == game.ruin.last, "pos=%s cp=%d" % [h.global_position, game.checkpoint])
+	await shot("v4_core")
+	check("the whole climb is made without falling", h.hp >= hp0, "hp=%d" % h.hp)
+	h.hp = h.max_hp
+	await wait(5.0)
+	var bp: Vector3 = game.boss.global_position
+	check("the Dark Knight fights inside the Core", game.boss.alive() and absf(bp.y - game.ruin.core_y) < 4.0 and h.hp < h.max_hp, "boss=%s hero hp=%d" % [bp, h.hp])
+	game.boss.damage(9999, h.global_position, 0)
+	await wait(2.8)
+	check("defeating the Dark Knight in the Core clears the citadel", game.mode == "win", "mode=%s" % game.mode)

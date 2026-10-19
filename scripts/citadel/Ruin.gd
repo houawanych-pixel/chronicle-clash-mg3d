@@ -345,15 +345,10 @@ func spawn_cast() -> void:
 		if k.get("patrol", false):
 			guards.append(e)
 	# Dock guards patrol with vision cones (stealth, from the MG guards).
-	var d: Vector2 = Vector2(dock.x, dock.z)
-	var routes: Array = [
-		[d + Vector2(-7, -2), d + Vector2(3, -2)],
-		[d + Vector2(7, -5), d + Vector2(7, 5), d + Vector2(1, 5), d + Vector2(1, -5)],
-		[d + Vector2(0, -6.5), d + Vector2(-7, -5.5), d + Vector2(-2, 2)],
-	]
+	var routes: Array = guard_routes(guards)
 	for i in mini(routes.size(), guards.size()):
 		game.patrol.setup(guards[i], routes[i])
-	var boss: CharacterBody3D = game.make_fighter("boss", "res://assets/characters/knight.glb", 2.55, Color("ff3346"), 1.6, Vector3(0, core_y + 0.2, -4.0))
+	var boss: CharacterBody3D = game.make_fighter("boss", "res://assets/characters/knight.glb", 2.55, Color("ff3346"), 1.6, boss_pos())
 	boss.section = last
 	boss.max_hp = 650
 	boss.hp = 650
@@ -371,6 +366,17 @@ func spawn_cast() -> void:
 		aura.omni_range = 5.0
 		aura.position = Vector3(0, 2.0, 0)
 		boss.add_child(aura)
+
+func guard_routes(_guards: Array) -> Array:
+	var d: Vector2 = Vector2(dock.x, dock.z)
+	return [
+		[d + Vector2(-7, -2), d + Vector2(3, -2)],
+		[d + Vector2(7, -5), d + Vector2(7, 5), d + Vector2(1, 5), d + Vector2(1, -5)],
+		[d + Vector2(0, -6.5), d + Vector2(-7, -5.5), d + Vector2(-2, 2)],
+	]
+
+func boss_pos() -> Vector3:
+	return Vector3(0, core_y + 0.2, -4.0)
 
 # ---------------------------------------------------------------- progress
 

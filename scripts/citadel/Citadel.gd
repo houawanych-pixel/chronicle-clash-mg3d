@@ -975,7 +975,7 @@ func update_camera(dt: float) -> void:
 	eye = camera_clip(eye, dt)
 	if cam_squeeze > 0.0:
 		# pressed to a wall: look down over the hero toward where he's facing
-		look = look.lerp(hero.global_position + Vector3.UP * 0.6 + cam_forward() * 3.5, cam_squeeze)
+		look = look.lerp(hero.global_position + Vector3.UP * 0.4 + cam_forward() * 1.8, cam_squeeze)
 	camera.look_at_from_position(eye + jitter, look + jitter)
 
 ## Keep the camera on the hero's side of walls: sweep a ball from the hero's
@@ -1012,7 +1012,7 @@ func camera_clip(eye: Vector3, dt: float) -> Vector3:
 	var squeeze: float = clampf((0.7 - cam_clip) / 0.5, 0.0, 1.0)
 	cam_squeeze = 0.0
 	if squeeze > 0.0:
-		var up: Vector3 = out + Vector3.UP * squeeze * 1.6
+		var up: Vector3 = out + Vector3.UP * squeeze * 2.2
 		var hit: Dictionary = ray(out, up + Vector3.UP * 0.35)
 		if hit.is_empty():
 			out = up

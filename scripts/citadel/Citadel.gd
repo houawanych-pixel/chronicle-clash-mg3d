@@ -8,7 +8,7 @@ const AutoTestScript = preload("res://scripts/citadel/AutoTest.gd")
 const PatrolScript = preload("res://scripts/citadel/Patrol.gd")
 const ForestScript = preload("res://scripts/citadel/Forest.gd")
 const RuinScript = preload("res://scripts/citadel/Ruin.gd")
-const Ruin2Script = preload("res://scripts/citadel/Ruin2.gd")
+const Ruin3Script = preload("res://scripts/citadel/Ruin3.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
@@ -160,7 +160,7 @@ func _ready() -> void:
 	print("CITADEL performance mode: ", "PHONE" if phone else "FULL")
 	patrol = PatrolScript.new(self)
 	forest = ForestScript.new(self)
-	ruin = Ruin2Script.new(self) if FileAccess.file_exists("res://assets/ruin2/route2.json") else RuinScript.new(self)
+	ruin = Ruin3Script.new(self) if FileAccess.file_exists("res://assets/ruin3/route3.json") else RuinScript.new(self)
 	fx = FxScript.new(self)
 	village = VillageScript.new(self)
 	setup_input()
@@ -971,10 +971,12 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		mv = Vector2.ZERO
 	if f.state != "block":
 		stamina = minf(100.0, stamina + dt * 28.0)
-	if f.global_position.y < fall_line() and f.alive() and f.state != "climb":
+	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch":
 		fell()
 		return
 	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
+	if launch_tick(f, dt):
+		return
 	if climb_tick(f, dt, mv, dir, jump):
 		return
 	var dodge: bool = hud.take("dodge") or Input.is_action_just_pressed("cc_dodge")
@@ -1443,6 +1445,44 @@ func climb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: 
 			return true
 	return false
 
+## Crystal launch pads: the hero flies on an arc to the pad's target (collisions off, like the ladders).
+var launch: Dictionary = {}
+
+func start_launch(f: CharacterBody3D, to: Vector3) -> void:
+	var from: Vector3 = f.global_position
+	var dist: float = from.distance_to(to)
+	launch = {"from": from, "to": to, "t": 0.0, "dur": clampf(dist / 15.0, 1.0, 3.2), "h": maxf(3.5, minf(14.0, dist * 0.18 + maxf(0.0, to.y - from.y) * 0.3))}
+	climb_mask = f.collision_mask
+	f.collision_mask = 0
+	f.state = "launch"
+	f.state_t = 0.0
+	if crouched:
+		set_crouch(false)
+	burst(from + Vector3(0, 0.6, 0), Color("6fe0ff"), 36, 7.0)
+	sound("pulse", -6)
+
+func launch_tick(f: CharacterBody3D, dt: float) -> bool:
+	if f.state != "launch":
+		return false
+	launch.t += dt
+	var u: float = clampf(launch.t / launch.dur, 0.0, 1.0)
+	var from: Vector3 = launch.from
+	var to: Vector3 = launch.to
+	var arc: float = launch.h * 4.0 * u * (1.0 - u)
+	f.global_position = from.lerp(to, u) + Vector3.UP * arc
+	f.velocity = Vector3(0, launch.h * 4.0 * (1.0 - 2.0 * u) / launch.dur, 0)
+	var flat: Vector3 = Vector3(to.x - from.x, 0, to.z - from.z)
+	if flat.length() > 0.1:
+		f.yaw = atan2(-flat.x, -flat.z)
+	if u >= 1.0:
+		f.global_position = to + Vector3.UP * 0.25
+		f.collision_mask = climb_mask
+		f.velocity = Vector3.ZERO
+		f.state = "idle"
+		f.state_t = 0.0
+		burst(to + Vector3(0, 0.4, 0), Color("6fe0ff"), 24, 5.0)
+	return true
+
 func end_climb(f: CharacterBody3D, at: Vector3) -> void:
 	f.global_position = at
 	f.collision_mask = climb_mask
@@ -1450,6 +1490,8 @@ func end_climb(f: CharacterBody3D, at: Vector3) -> void:
 	f.state_t = 0.0
 
 func section_clear(s: int) -> bool:
+	if stage == "citadel" and ruin.has_pending(s):
+		return false
 	for e: CharacterBody3D in enemies:
 		if e.section == s and e.alive():
 			return false

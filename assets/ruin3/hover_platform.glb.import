@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://day5dr37bpysw"
-path="res://.godot/imported/skycitadel_col.glb-56c196a7842cd2e5291db4e9b198fecd.scn"
+uid="uid://dietjpo3mdvpe"
+path="res://.godot/imported/hover_platform.glb-80535e51c4a5dc965171ecbf46d1cc25.scn"
 
 [deps]
 
-source_file="res://assets/ruin2/skycitadel_col.glb"
-dest_files=["res://.godot/imported/skycitadel_col.glb-56c196a7842cd2e5291db4e9b198fecd.scn"]
+source_file="res://assets/ruin3/hover_platform.glb"
+dest_files=["res://.godot/imported/hover_platform.glb-80535e51c4a5dc965171ecbf46d1cc25.scn"]
 
 [params]
 

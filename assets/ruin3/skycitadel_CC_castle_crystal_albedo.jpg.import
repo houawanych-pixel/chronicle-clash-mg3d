@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cclttu5xabvhi"
-path="res://.godot/imported/skycitadel_CC_castle_rock_albedo.jpg-aa1d00ff0990fca84d5f4779f6df5aaa.ctex"
+uid="uid://dpct6l048f5qa"
+path="res://.godot/imported/skycitadel_CC_castle_crystal_albedo.jpg-3cb6a7933d5d6bff2f922eebadec98c4.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "13d6f94563f8ed10fe502ee166bc78a9"
+"md5": "472498d7d937b12b30f747ebda8797cf"
 }
 
 [deps]
 
-source_file="res://assets/ruin2/skycitadel_CC_castle_rock_albedo.jpg"
-dest_files=["res://.godot/imported/skycitadel_CC_castle_rock_albedo.jpg-aa1d00ff0990fca84d5f4779f6df5aaa.ctex"]
+source_file="res://assets/ruin3/skycitadel_CC_castle_crystal_albedo.jpg"
+dest_files=["res://.godot/imported/skycitadel_CC_castle_crystal_albedo.jpg-3cb6a7933d5d6bff2f922eebadec98c4.ctex"]
 
 [params]
 

@@ -289,7 +289,10 @@ func add_route() -> void:
 				dock_dressing(v3(p.pos))
 	for l: Dictionary in route.ladders:
 		ladder(v3(l.bottom), v3(l.top), v3(l.face))
-	for b: Dictionary in route.barriers:
+	for b: Variant in route.barriers:
+		if b == null:
+			game.barriers.append(null)   # a section with no gate
+			continue
 		barrier(v3(b.pos), v3(b.size), v3(b.face))
 	game.crystal(Vector3(-4.5, crown_y, 11.0), 1.0, true)
 	game.crystal(Vector3(4.5, crown_y, 11.0), 1.0, true)
@@ -333,15 +336,13 @@ func spawn_cast() -> void:
 	game.ally = game.make_fighter("ally", "res://assets/characters/eliza.glb", 1.7, Color("bfe9ff"), 0.5, s0 + Vector3(1.6, 0, 1.4))
 	game.ally.rig.sword.visible = false
 	var guards: Array = []
+	pending.clear()
 	for k: Dictionary in route.knights:
-		var p: Vector3 = v3(k.pos)
-		var e: CharacterBody3D = game.make_fighter("knight", "res://assets/characters/knight_lite.glb", 1.82, Color("c8d0dc"), 0.95, p)
-		e.section = int(k.sec)
-		e.max_hp = 70
-		e.hp = 70
-		e.yaw = 0.0
-		e.home = p
-		game.enemies.append(e)
+		# Only the first area's guards are made now; the rest appear when you get there.
+		if int(k.sec) > 0:
+			pending.append(k)
+			continue
+		var e: CharacterBody3D = make_knight(k)
 		if k.get("patrol", false):
 			guards.append(e)
 	# Dock guards patrol with vision cones (stealth, from the MG guards).
@@ -367,6 +368,73 @@ func spawn_cast() -> void:
 		aura.position = Vector3(0, 2.0, 0)
 		boss.add_child(aura)
 
+func make_knight(k: Dictionary) -> CharacterBody3D:
+	var p: Vector3 = v3(k.pos)
+	var e: CharacterBody3D = game.make_fighter("knight", "res://assets/characters/knight_lite.glb", 1.82, Color("c8d0dc"), 0.95, p)
+	e.section = int(k.sec)
+	e.max_hp = 70
+	e.hp = 70
+	e.yaw = 0.0
+	e.home = p
+	game.enemies.append(e)
+	return e
+
+## Knights waiting to appear: made when the hero reaches their area (saves work on phones).
+var pending: Array = []
+const SPAWN_RANGE: float = 30.0
+
+func has_pending(sec: int) -> bool:
+	for k: Dictionary in pending:
+		if int(k.sec) == sec:
+			return true
+	return false
+
+func clear_pending() -> void:
+	pending.clear()
+
+func spawn_nearby() -> void:
+	if pending.is_empty() or game.hero == null:
+		return
+	var h: Vector3 = game.hero.global_position
+	for k: Dictionary in pending.duplicate():
+		var p: Vector3 = v3(k.pos)
+		if (int(k.sec) <= game.section or k.get("free", false)) and absf(p.y - h.y) < 14.0 and Vector2(p.x - h.x, p.z - h.z).length() < SPAWN_RANGE:
+			pending.erase(k)
+			summon(k)
+
+func summon(k: Dictionary) -> void:
+	## A knight steps out of a flash of dark magic: violet burst, a ring on the floor, a short light pillar.
+	var p: Vector3 = v3(k.pos)
+	var e: CharacterBody3D = make_knight(k)
+	e.visible = false
+	e.attack_cd = 1.4
+	game.burst(p + Vector3(0, 1.0, 0), Color("b06cff"), 30, 5.0)
+	game.ring(p + Vector3(0, 0.05, 0), 2.2, Color("b06cff"), 0.6)
+	var col: MeshInstance3D = MeshInstance3D.new()
+	var cm: CylinderMesh = CylinderMesh.new()
+	cm.top_radius = 0.7
+	cm.bottom_radius = 0.9
+	cm.height = 4.0
+	cm.radial_segments = 10
+	col.mesh = cm
+	var m: StandardMaterial3D = StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.albedo_color = Color(0.7, 0.4, 1.0, 0.8)
+	col.material_override = m
+	root.add_child(col)
+	col.global_position = p + Vector3(0, 2.0, 0)
+	var tw: Tween = col.create_tween()
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.7)
+	tw.parallel().tween_property(col, "scale", Vector3(0.2, 1.3, 0.2), 0.7)
+	tw.tween_callback(col.queue_free)
+	game.sound("pulse", -10)
+	game.get_tree().create_timer(0.25).timeout.connect(func() -> void:
+		if is_instance_valid(e):
+			e.visible = true)
+
 func guard_routes(_guards: Array) -> Array:
 	var d: Vector2 = Vector2(dock.x, dock.z)
 	return [
@@ -385,6 +453,7 @@ func start() -> void:
 	game.say_once("ruin_tip", "tip", "Stay low behind the planters. Jump the gaps, climb the ladders, run all the way round.")
 
 func progress() -> void:
+	spawn_nearby()
 	if game.section < last and game.section_clear(game.section):
 		game.open_barrier(game.section)
 		game.section += 1

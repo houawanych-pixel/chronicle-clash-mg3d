@@ -7,7 +7,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TEX = os.path.join(HERE, 'tex')
 OUT = os.path.join(HERE, 'out')
 os.makedirs(OUT, exist_ok=True)
-data = pickle.load(open(os.path.join(HERE, 'castle.pkl'), 'rb'))
+PKL = os.environ.get('PKL', 'castle.pkl')
+NAME = os.environ.get('NAME', '')
+data = pickle.load(open(os.path.join(HERE, PKL), 'rb'))
 
 # reset scene without read_homefile
 for ob in list(bpy.data.objects):
@@ -42,7 +44,7 @@ def make_mat(key):
     t = TEXNAME[key]
     a = nt.nodes.new('ShaderNodeTexImage'); a.image = img(f'CC_castle_{t}_albedo.png')
     n = nt.nodes.new('ShaderNodeTexImage'); n.image = img(f'CC_castle_{t}_normal.png'); n.image.colorspace_settings.name = 'Non-Color'
-    nm = nt.nodes.new('ShaderNodeNormalMap'); nm.inputs['Strength'].default_value = 0.8
+    nm = nt.nodes.new('ShaderNodeNormalMap'); nm.inputs['Strength'].default_value = 1.0
     tint = {'stone': (0.70, 0.66, 0.58), 'floor': (0.78, 0.68, 0.52), 'panel': (0.40, 0.42, 0.50)}.get(key)
     if tint:
         mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'
@@ -134,7 +136,18 @@ def build_object(name, buckets):
     return ob
 
 
-vis = build_object('CC_castle_skycitadel', data['P'])
+vis = build_object(NAME or 'CC_castle_skycitadel', data['P'])
+if NAME:
+    for p in vis.data.polygons:
+        p.use_smooth = False
+    bpy.ops.object.select_all(action='DESELECT'); vis.select_set(True)
+    for im in bpy.data.images:
+        if im.size[0] > 1024:
+            im.scale(1024, 1024)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NAME + '.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_yup=True, export_image_format='JPEG', export_jpeg_quality=80)
+    print('prop exported', NAME)
+    sys.exit(0)
 # smooth by angle (keeps hard edges on architecture)
 bpy.context.view_layer.objects.active = vis
 vis.select_set(True)

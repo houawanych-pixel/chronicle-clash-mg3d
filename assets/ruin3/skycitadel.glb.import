@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cqrh6eo4otlgf"
-path="res://.godot/imported/skycitadel.glb-10ad0b83fc62cf0f6cb1e4b2c51f04b1.scn"
+uid="uid://xk33vatf4hqa"
+path="res://.godot/imported/skycitadel.glb-6931ded68b72a866b9c6c882dcee7194.scn"
 
 [deps]
 
-source_file="res://assets/ruin2/skycitadel.glb"
-dest_files=["res://.godot/imported/skycitadel.glb-10ad0b83fc62cf0f6cb1e4b2c51f04b1.scn"]
+source_file="res://assets/ruin3/skycitadel.glb"
+dest_files=["res://.godot/imported/skycitadel.glb-6931ded68b72a866b9c6c882dcee7194.scn"]
 
 [params]
 

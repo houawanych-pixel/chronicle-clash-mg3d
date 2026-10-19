@@ -698,6 +698,8 @@ func jump_to(take: Vector3, land: Vector3, from: Variant = null, timeout: float 
 			return absf(p.y - land.y) < 1.0
 		if p.y < land.y - 6.0:
 			break
+		if "--jump-trace" in OS.get_cmdline_user_args():
+			print("JT ", p, " floor=", h.is_on_floor(), " jumped=", jumped, " state=", h.state, " vel=", h.velocity)
 		await wait(0.03)
 	game.hud.stick = Vector2.ZERO
 	print("JUMP FAILED at ", h.global_position, " take ", take, " land ", land)
@@ -706,8 +708,11 @@ func jump_to(take: Vector3, land: Vector3, from: Variant = null, timeout: float 
 ## Follow the route's own moves (route.json "bot") from step i0 to i1.
 func run_route(i0: int, i1: int) -> bool:
 	var R: Dictionary = game.ruin.route
-	for i in range(i0, i1):
-		var st: Dictionary = R.bot[i]
+	return await run_steps(R.bot.slice(i0, i1))
+
+func run_steps(steps: Array) -> bool:
+	for i in steps.size():
+		var st: Dictionary = steps[i]
 		var ok: bool = true
 		match st.act:
 			"walk":
@@ -716,6 +721,20 @@ func run_route(i0: int, i1: int) -> bool:
 				ok = await jump_to(game.ruin.v3(st.p), game.ruin.v3(st.to), game.ruin.v3(st["from"]) if st.has("from") else null)
 			"ladder":
 				ok = await climb(game.ladders[int(st.i)], 14.0)
+			"pad":
+				# step onto the glowing pad and ride the launch
+				var hh: CharacterBody3D = game.hero
+				var pp: Vector3 = game.ruin.v3(st.p)
+				var t0: int = Time.get_ticks_msec()
+				while hh.state != "launch" and Time.get_ticks_msec() - t0 < 6000:
+					var to: Vector3 = pp - hh.global_position
+					game.cam_yaw = atan2(-to.x, -to.z)
+					game.hud.stick = Vector2(0, -1) if Vector2(to.x, to.z).length() > 0.5 else Vector2.ZERO
+					await wait(0.03)
+				game.hud.stick = Vector2.ZERO
+				while (hh.state == "launch" or not hh.is_on_floor()) and Time.get_ticks_msec() - t0 < 12000:
+					await wait(0.05)
+				ok = hh.state != "launch" and hh.is_on_floor()
 			"drop":
 				# Run off the crown's inner edge into the eye, then fall to the Core.
 				var h: CharacterBody3D = game.hero
@@ -748,8 +767,8 @@ func route_index(act: String, n: int) -> int:
 	return R.bot.size()
 
 func ruin_tests() -> void:
-	if game.ruin.route.get("version", 1) == 2:
-		await ruin2_tests()
+	if game.ruin.route.get("version", 1) == 3:
+		await ruin3_tests()
 		return
 	game.restart_with("blonde_lance", "citadel")
 	await wait(0.6)
@@ -757,9 +776,10 @@ func ruin_tests() -> void:
 	await wait(1.2)
 	var h: CharacterBody3D = game.hero
 	var R: Dictionary = game.ruin.route
-	check("the sky ruin loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.enemies.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	check("the sky ruin loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.enemies.size() + game.ruin.pending.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
 	check("the hero stands on the sky dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.6, "y=%.2f" % h.global_position.y)
 	await shot("r0_dock")
+	game.ruin.clear_pending()
 	for e: CharacterBody3D in game.enemies:
 		if e != game.boss:
 			e.hp = 0
@@ -822,9 +842,29 @@ func ruin2_tests() -> void:
 	await wait(1.2)
 	var h: CharacterBody3D = game.hero
 	var R: Dictionary = game.ruin.route
-	check("the rebuilt castle loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == R.ladders.size() and game.enemies.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	check("the rebuilt castle loads as the citadel", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == R.ladders.size() and game.enemies.size() + game.ruin.pending.size() == R.knights.size() + 1, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
 	check("the hero stands on the dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.8, "pos=%s" % [h.global_position])
 	await shot("v0_dock")
+	var n0: int = game.enemies.size()
+	check("only the first area's guards are made at the start", game.ruin.pending.size() > 0 and n0 < R.knights.size() + 1, "made=%d waiting=%d" % [n0, game.ruin.pending.size()])
+	for e: CharacterBody3D in game.enemies:
+		if e != game.boss and e.section == 0:
+			e.hp = 0
+			e.set_state("dead")
+			e.visible = false
+			e.global_position.y -= 200.0
+	await wait(0.3)
+	var spot: Vector3 = game.sections[1].spawn
+	for k: Dictionary in R.knights:
+		if int(k.sec) == 1:
+			spot = game.ruin.v3(k.pos) + Vector3(0, 0.3, 0)
+			break
+	h.global_position = spot
+	h.velocity = Vector3.ZERO
+	await wait(0.6)
+	check("knights appear (with a flash) when you reach their area", game.section >= 1 and game.enemies.size() > n0 and not game.ruin.has_pending(1), "enemies=%d section=%d" % [game.enemies.size(), game.section])
+	await shot("v0_summon")
+	game.ruin.clear_pending()
 	for e: CharacterBody3D in game.enemies:
 		if e != game.boss:
 			e.hp = 0
@@ -833,6 +873,9 @@ func ruin2_tests() -> void:
 			e.global_position.y -= 200.0
 	for i in 8:
 		await wait(0.1)
+	h.global_position = game.sections[0].spawn
+	h.velocity = Vector3.ZERO
+	await wait(0.5)
 	check("clearing each section opens its gate", game.section == game.ruin.last and game.barriers.all(func(b): return not is_instance_valid(b) or b.is_queued_for_deletion()), "section=%d" % game.section)
 	var hp0: float = h.hp
 	var marks: Array = [["ladder", 0, "ring one: stair, gallery, balcony, ladder", 73.0], ["ladder", 1, "ring two: terrace, stair, gallery, ladder", 91.0], ["drop", 0, "ring three, summit stair and crown stair", 130.0]]
@@ -857,3 +900,106 @@ func ruin2_tests() -> void:
 	game.boss.damage(9999, h.global_position, 0)
 	await wait(2.8)
 	check("defeating the Dark Knight in the Core clears the citadel", game.mode == "win", "mode=%s" % game.mode)
+
+
+## Sky Citadel v3: three ways up (outer ledges, inner tower, sky platforms), all driven by route3.json.
+func ruin3_start() -> void:
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.6)
+	game.start_game()
+	await wait(1.0)
+	game.ruin.clear_pending()
+	for e: CharacterBody3D in game.enemies:
+		if e != game.boss:
+			e.hp = 0
+			e.set_state("dead")
+			e.visible = false
+			e.global_position.y -= 200.0
+	for i in 8:
+		await wait(0.1)
+
+func near(p: Array, d: float = 3.5) -> bool:
+	return game.hero.global_position.distance_to(Vector3(p[0], p[1], p[2])) < d
+
+func ruin3_tests() -> void:
+	game.restart_with("blonde_lance", "citadel")
+	await wait(0.6)
+	game.start_game()
+	await wait(1.2)
+	var h: CharacterBody3D = game.hero
+	var R: Dictionary = game.ruin.route
+	var P: Dictionary = R.paths
+	var H: Dictionary = R.hubs
+	check("the rebuilt citadel loads with its hover platforms and crystal pads", game.stage == "citadel" and game.world.get_node_or_null("SkyRuin") != null and game.ladders.size() == 3 and game.ruin.plats.size() == R.platforms.size() and game.ruin.pads.size() == 4, "ladders=%d plats=%d pads=%d" % [game.ladders.size(), game.ruin.plats.size(), game.ruin.pads.size()])
+	check("the hero stands on the dock", h.is_on_floor() and absf(h.global_position.y - game.ruin.dock.y) < 0.6, "pos=%s" % [h.global_position])
+	var n0: int = game.enemies.size()
+	check("only the dock guards are made at the start; the rest appear when you get there", game.ruin.pending.size() > 0 and n0 < R.knights.size() + 1, "made=%d waiting=%d" % [n0, game.ruin.pending.size()])
+	var y0: float = game.ruin.plats[0].body.global_position.y
+	await wait(0.7)
+	check("the platforms hover (bob up and down)", absf(game.ruin.plats[0].body.global_position.y - y0) > 0.02, "dy=%.3f" % (game.ruin.plats[0].body.global_position.y - y0))
+	await shot("w0_dock")
+	# knights appear with a flash when you reach them
+	for e: CharacterBody3D in game.enemies:
+		if e != game.boss and e.section == 0:
+			e.hp = 0
+			e.set_state("dead")
+			e.global_position.y -= 200.0
+	await wait(0.3)
+	h.global_position = Vector3(H.H2[0], H.H2[1] + 0.4, H.H2[2])
+	h.velocity = Vector3.ZERO
+	await wait(0.8)
+	check("knights appear (with a flash) when you reach their area", game.enemies.size() > n0 and not game.ruin.has_pending(1), "enemies=%d" % game.enemies.size())
+	await shot("w0_summon")
+	# --- A: the outer ledges, all the way to the boss
+	await ruin3_start()
+	h = game.hero
+	var hp0: float = h.hp
+	var ok: bool = await run_steps(P.A1)
+	check("A1 outer ledges: dock -> broken bridge -> ring ledges -> ladder -> Ring 2 hub", ok and near(H.H2), "pos=%s" % [h.global_position])
+	ok = ok and await run_steps(P.A2)
+	check("A2 outer ledges: Ring 2 -> ladder -> Ring 3 -> Core Floor hub", ok and near(H.H3, 4.0), "pos=%s" % [h.global_position])
+	ok = ok and await run_steps(P.A3)
+	check("A3 summit ladder", ok and h.global_position.y > 118.5, "pos=%s" % [h.global_position])
+	await shot("w1_summit")
+	ok = ok and await run_steps(P.S4)
+	await wait(0.5)
+	check("sky stair -> crown -> drop through the eye into the Core", ok and game.ruin.in_core() and game.boss.active, "pos=%s" % [h.global_position])
+	check("path A is climbed without falling", h.hp >= hp0, "hp=%d" % h.hp)
+	await shot("w2_core")
+	h.hp = h.max_hp
+	await wait(6.0)
+	check("the Dark Knight fights in the Core", game.boss.alive() and absf(game.boss.global_position.y - game.ruin.core_y) < 4.0 and (h.hp < h.max_hp or game.boss.global_position.distance_to(h.global_position) < 6.0), "boss=%s hp=%d" % [game.boss.global_position, h.hp])
+	game.boss.damage(9999, h.global_position, 0)
+	await wait(2.8)
+	check("defeating the Dark Knight clears the citadel", game.mode == "win", "mode=%s" % game.mode)
+	# --- B: the inner tower
+	await ruin3_start()
+	h = game.hero
+	hp0 = h.hp
+	ok = await run_steps(P.B1)
+	check("B1 inner tower: front door -> spiral stair -> broken-arch bridge -> Ring 2 hub", ok and near(H.H2), "pos=%s" % [h.global_position])
+	await shot("w3_tower")
+	ok = ok and await run_steps(P.B2)
+	check("B2 inner tower: back over the gap -> spiral stair to 104 -> bridge -> Core Floor hub", ok and near(H.H3, 4.0) and h.hp >= hp0, "pos=%s hp=%d" % [h.global_position, h.hp])
+	# --- C: the sky path
+	await ruin3_start()
+	h = game.hero
+	hp0 = h.hp
+	if "--plat-debug" in OS.get_cmdline_user_args():
+		var b0: Node3D = game.ruin.plats[0].body
+		var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(b0.global_position + Vector3(0, 3, 0), b0.global_position + Vector3(0, -3, 0))
+		var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
+		print("PLATDBG body ", b0.global_position, " hit ", hit.get("collider"), " at ", hit.get("position"))
+		h.global_position = b0.global_position + Vector3(0, 2.0, 0)
+		h.velocity = Vector3.ZERO
+		for i in 15:
+			await wait(0.1)
+			print("PLATDBG drop ", h.global_position, " floor=", h.is_on_floor())
+	ok = await run_steps(P.C1)
+	check("C1 sky path: tier A platforms -> crystal pad -> Ring 2 hub", ok and near(H.H2, 4.0), "pos=%s" % [h.global_position])
+	await shot("w4_skyA")
+	ok = ok and await run_steps(P.C2)
+	check("C2 sky path: tier B wing platforms and two launch pads -> Core Floor hub", ok and near(H.H3, 4.0), "pos=%s" % [h.global_position])
+	ok = ok and await run_steps(P.C3)
+	check("C3 sky path: tier C spire-top platforms -> pad -> summit", ok and h.global_position.y > 118.5 and h.hp >= hp0, "pos=%s hp=%d" % [h.global_position, h.hp])
+	await shot("w5_skyC")

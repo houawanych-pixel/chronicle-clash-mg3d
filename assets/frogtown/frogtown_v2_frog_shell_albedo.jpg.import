@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://bl8f4ymu8pna1"
+path="res://.godot/imported/frogtown_v2_frog_shell_albedo.jpg-49e3e73df72edf284654a8007faa7e36.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "eb15bb65e2a12c13e5285ff21c7beddf"
+}
+
+[deps]
+
+source_file="res://assets/frogtown/frogtown_v2_frog_shell_albedo.jpg"
+dest_files=["res://.godot/imported/frogtown_v2_frog_shell_albedo.jpg-49e3e73df72edf284654a8007faa7e36.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

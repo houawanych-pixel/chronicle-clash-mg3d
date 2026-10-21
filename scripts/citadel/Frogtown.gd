@@ -17,11 +17,13 @@ extends "res://scripts/citadel/Village.gd"
 ##  - A road leaves the tile at the south gate: the hook for the next tile.
 const ResidentScript = preload("res://scripts/citadel/Resident.gd")
 const DATA_PATH: String = "res://assets/frogtown/frogtown.json"
-const MODEL: String = "res://assets/frogtown/frogtown.glb"
-const MODEL_LITE: String = "res://assets/frogtown/frogtown_lite.glb"
-const COLLIDER: String = "res://assets/frogtown/frogtown_col.glb"
-const WALK: String = "res://assets/frogtown/frogtown_walk.glb"     # crack-free floor (tools/frogtown/walk.py)
-const WALLS: String = "res://assets/frogtown/frogtown_walls.glb"   # huts, trees, rails: the collision minus its floors
+## v2: the village rebuilt as clean game geometry on the Tripo layout
+## (tools/frogtown/rebuild): plank boardwalks, stilt huts, lodges, marsh trees.
+const MODEL: String = "res://assets/frogtown/frogtown_v2.glb"
+const MODEL_LITE: String = "res://assets/frogtown/frogtown_v2_lite.glb"
+const COLLIDER: String = "res://assets/frogtown/frogtown_v2_col.glb"   # 'walk' floors + 'walls'
+const WALK: String = COLLIDER
+const WALLS: String = COLLIDER
 const PROPS: String = "res://assets/frogtown/frog_props.glb"
 const NAV_RES: String = "res://assets/frogtown/frogtown_nav.res"
 const INTERIORS: Dictionary = {
@@ -237,25 +239,13 @@ func build_tile() -> void:
 	tile_root.add_child(model)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if game.phone else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# collision: land (walkways, huts, trees) and the low marsh floor
+	# collision: 'walk' (decks, boardwalks, island tops) and 'walls' (huts, rails, trunks)
 	var col: Node3D = (load(COLLIDER) as PackedScene).instantiate()
-	col.position.y = lift
 	tile_root.add_child(col)
 	for mi: MeshInstance3D in col.find_children("*", "MeshInstance3D", true, false):
-		if str(mi.name).begins_with("water"):
-			trimesh_body(mi.mesh, MARSH_LAYER, mi.global_transform, tile_root)
+		trimesh_body(mi.mesh, WALL_LAYER if str(mi.name).begins_with("walls") else 1, mi.global_transform, tile_root)
 	tile_root.remove_child(col)
 	col.free()
-	# walls go on their own layer: they stop the hero but stay out of the nav
-	# bake (the walk surface already ends where the huts and rails begin)
-	for path: String in [WALK, WALLS]:
-		var part: Node3D = (load(path) as PackedScene).instantiate()
-		part.position.y = lift
-		tile_root.add_child(part)
-		for mi: MeshInstance3D in part.find_children("*", "MeshInstance3D", true, false):
-			trimesh_body(mi.mesh, 1 if path == WALK else WALL_LAYER, mi.global_transform, tile_root)
-		tile_root.remove_child(part)
-		part.free()
 	# marsh water under the boardwalks: a flat surface, wading floor below it
 	var water: MeshInstance3D = MeshInstance3D.new()
 	var pm: PlaneMesh = PlaneMesh.new()
@@ -434,21 +424,67 @@ func bake_tile_nav(force: bool = false) -> void:
 		var t0: int = Time.get_ticks_msec()
 		nm = NavigationMesh.new()
 		nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-		nm.geometry_collision_mask = 1 | 8
+		nm.geometry_collision_mask = 1 | 8 | WALL_LAYER
 		nm.cell_size = 0.25
 		nm.cell_height = 0.25
-		nm.agent_radius = 0.12
+		nm.agent_radius = 0.3
 		nm.agent_height = 1.5
-		nm.agent_max_climb = 0.7
-		nm.agent_max_slope = 50.0
+		nm.agent_max_climb = 0.3
+		nm.agent_max_slope = 40.0
 		nm.filter_baking_aabb = AABB(Vector3(-HALF_TILE, water_y + 0.5, -HALF_TILE), Vector3(HALF_TILE * 2, 14.0, HALF_TILE * 2))
 		var src: NavigationMeshSourceGeometryData3D = NavigationMeshSourceGeometryData3D.new()
 		NavigationServer3D.parse_source_geometry_data(nm, src, game.world)
 		NavigationServer3D.bake_from_source_geometry_data(nm, src)
+		keep_main_island(nm)
 		nav_baked_ms = Time.get_ticks_msec() - t0
 	region.navigation_mesh = nm
 	NavigationServer3D.region_set_navigation_mesh(region.get_rid(), nm)
 	NavigationServer3D.map_force_update(game.get_world_3d().navigation_map)
+
+# Drop nav patches nobody can walk to (hut floors behind their walls, the dais
+# top, stall roofs): only the largest connected piece of the village stays, so
+# villagers never snap or wander onto an island they can't leave.
+func keep_main_island(nm: NavigationMesh) -> void:
+	var vs: PackedVector3Array = nm.get_vertices()
+	var n: int = nm.get_polygon_count()
+	var parent: PackedInt32Array = PackedInt32Array()
+	parent.resize(n)
+	for i in n:
+		parent[i] = i
+	var owner: Dictionary = {}
+	for i in n:
+		var poly: PackedInt32Array = nm.get_polygon(i)
+		for k in poly.size():
+			var a: Vector3 = vs[poly[k]].snapped(Vector3.ONE * 0.01)
+			var b: Vector3 = vs[poly[(k + 1) % poly.size()]].snapped(Vector3.ONE * 0.01)
+			var key: String = str(a) + str(b) if str(a) < str(b) else str(b) + str(a)
+			if owner.has(key):
+				var ra: int = root_of(parent, i)
+				var rb: int = root_of(parent, int(owner[key]))
+				parent[ra] = rb
+			else:
+				owner[key] = i
+	var size: Dictionary = {}
+	for i in n:
+		var r: int = root_of(parent, i)
+		size[r] = int(size.get(r, 0)) + 1
+	var best: int = -1
+	for r: int in size:
+		if best < 0 or size[r] > size[best]:
+			best = r
+	var polys: Array = []
+	for i in n:
+		if root_of(parent, i) == best:
+			polys.append(nm.get_polygon(i))
+	nm.clear_polygons()
+	for poly: PackedInt32Array in polys:
+		nm.add_polygon(poly)
+
+func root_of(parent: PackedInt32Array, x: int) -> int:
+	var r: int = x
+	while parent[r] != r:
+		r = parent[r]
+	return r
 
 func save_nav() -> int:
 	return ResourceSaver.save(region.navigation_mesh, NAV_RES)

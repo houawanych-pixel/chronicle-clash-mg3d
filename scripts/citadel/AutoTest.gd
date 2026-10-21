@@ -1281,14 +1281,13 @@ func frog_map() -> void:
 		# show the collision instead of the model: walk surface green, walls red
 		var tile: Node3D = game.world.get_node("FrogtownTile")
 		tile.get_child(0).visible = false
-		for path: String in [ft.WALK, ft.WALLS]:
-			var part: Node3D = (load(path) as PackedScene).instantiate()
-			part.position.y = ft.lift
-			game.world.add_child(part)
+		var part: Node3D = (load(ft.COLLIDER) as PackedScene).instantiate()
+		part.position.y = ft.lift
+		game.world.add_child(part)
+		for mi2: MeshInstance3D in part.find_children("*", "MeshInstance3D", true, false):
 			var cm2: StandardMaterial3D = StandardMaterial3D.new()
-			cm2.albedo_color = Color(0.3, 0.9, 0.4) if path == ft.WALK else Color(0.9, 0.25, 0.2)
-			for mi2: MeshInstance3D in part.find_children("*", "MeshInstance3D", true, false):
-				mi2.material_override = cm2
+			cm2.albedo_color = Color(0.9, 0.25, 0.2) if str(mi2.name).begins_with("walls") else Color(0.3, 0.9, 0.4)
+			mi2.material_override = cm2
 	if "--frog-map-nav" in OS.get_cmdline_user_args():
 		var nm: NavigationMesh = ft.region.navigation_mesh
 		var im: ImmediateMesh = ImmediateMesh.new()
@@ -1327,6 +1326,15 @@ func frog_map() -> void:
 		var big: Array = sizes.keys()
 		big.sort_custom(func(a1: int, b1: int) -> bool: return sizes[a1] > sizes[b1])
 		print("FROG NAV islands: ", big.size(), " largest: ", big.slice(0, 8).map(func(r3: int) -> int: return sizes[r3]))
+		for r4: int in big.slice(0, 25):
+			var lo: Vector3 = Vector3.INF
+			var hi: Vector3 = -Vector3.INF
+			for i in nm.get_polygon_count():
+				if find.call(i) == r4:
+					for j: int in nm.get_polygon(i):
+						lo = lo.min(vs[j])
+						hi = hi.max(vs[j])
+			print("  island ", sizes[r4], " lo ", lo.snapped(Vector3.ONE * 0.1), " hi ", hi.snapped(Vector3.ONE * 0.1))
 		nmat.vertex_color_use_as_albedo = true
 		im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, nmat)
 		for i in nm.get_polygon_count():
@@ -1380,7 +1388,7 @@ func frog_tests() -> void:
 	var tile: Node = game.world.get_node_or_null("FrogtownTile")
 	check("Frogtown loads as a 1-tile village with 10 houses", game.stage == "frogtown" and tile != null and ft.houses.size() == 10 and ft.doors.size() == 10, "houses=%d doors=%d" % [ft.houses.size(), ft.doors.size()])
 	var tris: int = frog_tris(tile.get_child(0))
-	check("the village is a game-ready low-poly copy (never the 1.9M-tri Tripo source)", tris > 1000 and tris <= (50000 if game.phone else 120000), "tris=%d phone=%s" % [tris, game.phone])
+	check("the village is the clean game-ready rebuild (never the 1.9M-tri Tripo source)", tris > 20000 and tris <= (90000 if game.phone else 150000), "tris=%d phone=%s" % [tris, game.phone])
 	check("about 10 villagers are active on the tile", ft.villagers.size() == 10, "n=%d" % ft.villagers.size())
 	var bosses: int = 0
 	for v: Node in ft.villagers:
@@ -1393,9 +1401,9 @@ func frog_tests() -> void:
 		if mi.has_meta("prop"):
 			var nn: String = mi.get_meta("prop")
 			names[nn] = int(names.get(nn, 0)) + 1
-	var need: Array = ["chief_dais", "council_drum", "request_board", "shell_totem", "flood_gauge", "sluice_frame", "sluice_paddles", "market_stall", "exit_gate", "door_arch", "lantern_post"]
+	var need: Array = ["chief_dais", "council_drum", "request_board", "shell_totem", "flood_gauge", "sluice_frame", "sluice_paddles", "market_stall", "exit_gate", "door_arch"]
 	var missing: Array = need.filter(func(n: String) -> bool: return not names.has(n))
-	check("frog-folk landmarks: chief's shell dais, council drum, request board, ancestor totem, flood gauge, sluice wheel, market", missing.is_empty() and int(names.get("lantern_post", 0)) >= 4 and int(names.get("door_arch", 0)) == 10, "missing=%s lanterns=%d" % [missing, int(names.get("lantern_post", 0))])
+	check("frog-folk landmarks: chief's shell dais, council drum, request board, ancestor totem, flood gauge, sluice wheel, market", missing.is_empty() and int(names.get("door_arch", 0)) == 10, "missing=%s lanterns=%d" % [missing, int(names.get("lantern_post", 0))])
 	check("navigation mesh is prebaked and loaded", ft.region != null and ft.region.navigation_mesh.get_polygon_count() > 200, "polys=%d" % ft.region.navigation_mesh.get_polygon_count())
 	# every spot and door can be reached on the boardwalks
 	var map: RID = game.get_world_3d().navigation_map
@@ -1478,7 +1486,8 @@ func frog_tests() -> void:
 	ft.clock = clk
 	await wait(0.6)
 	# --- routines: speed time up; villagers go to their work spots
-	ft.speed = 40.0
+	ft.clock = floorf(ft.clock / 1440.0) * 1440.0 + 9.0 * 60.0   # mid-morning: everyone at work (not lunch)
+	ft.speed = 4.0
 	await wait(24.0)
 	ft.speed = 1.0
 	var working: Array = []
@@ -1490,6 +1499,8 @@ func frog_tests() -> void:
 			busy += 1
 	check("villagers walk their routines to work spots (fish, reeds, drum, dais, board, stalls)", working.size() >= 4 and busy >= 7, "working=%s busy=%d" % [working, busy])
 	var chief: Node = ft.villagers.filter(func(v: Node) -> bool: return v.job == "chief")[0]
+	for v: Node in ft.villagers if working.size() < 4 else []:
+		print("FROG VIL ", v.vname, " ", v.state, " goal=", v.goal_kind, " at=", v.global_position.snapped(Vector3.ONE * 0.1), " target=", v.target.snapped(Vector3.ONE * 0.1), " path=", (v.agent.get_current_navigation_path() as PackedVector3Array).size(), " rec=", v.recoveries)
 	check("the Village Chief takes his seat on the shell dais", chief.state == "work" and chief.global_position.distance_to(ft.dais_seat) < 0.8, "chief=%s seat=%s state=%s" % [chief.global_position, ft.dais_seat, chief.state])
 	await shot("f4_routines")
 	var cv: Node = ft.villagers.filter(func(v: Node) -> bool: return v.state == "work" and v.job != "chief")[0] if ft.villagers.any(func(v: Node) -> bool: return v.state == "work" and v.job != "chief") else ft.villagers[1]

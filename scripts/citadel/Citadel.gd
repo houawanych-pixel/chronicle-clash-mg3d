@@ -11,6 +11,7 @@ const RuinScript = preload("res://scripts/citadel/Ruin.gd")
 const Ruin3Script = preload("res://scripts/citadel/Ruin3.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
 const GrappleScript = preload("res://scripts/citadel/Grapple.gd")
+const FrogtownScript = preload("res://scripts/citadel/Frogtown.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
@@ -40,7 +41,9 @@ var climb_phase: float = 0.0
 var climb_mask: int = 1
 var fx: RefCounted
 var grapple: RefCounted
-var village: RefCounted
+var village: RefCounted          # the active village tile (square or Frogtown)
+var village_square: RefCounted
+var frogtown: RefCounted
 var env_res: Environment
 var sun: DirectionalLight3D
 var grass: Array = []
@@ -167,7 +170,9 @@ func _ready() -> void:
 	ruin = Ruin3Script.new(self) if FileAccess.file_exists("res://assets/ruin3/route3.json") else RuinScript.new(self)
 	fx = FxScript.new(self)
 	grapple = GrappleScript.new(self)
-	village = VillageScript.new(self)
+	village_square = VillageScript.new(self)
+	frogtown = FrogtownScript.new(self)
+	village = village_square
 	setup_input()
 	for cue: String in ["hit", "hurt", "knock", "alarm", "win", "fail", "hook", "guard_down", "explosion", "pulse", "chip", "cover", "step", "bleep"]:
 		audio_bank[cue] = load("res://audio/%s.wav" % cue)
@@ -175,7 +180,11 @@ func _ready() -> void:
 	world = Node3D.new()
 	add_child(world)
 	# Direct links: ?village or ?forest opens the title with that stage picked.
-	if url_has("village"):
+	if url_has("frogtown"):
+		stage = "frogtown"
+		village = frogtown
+		village.enter()
+	elif url_has("village"):
 		stage = "village"
 		village.enter()
 	elif url_has("forest"):
@@ -213,7 +222,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -237,6 +246,10 @@ func sound(cue: String, db: float = -8.0) -> void:
 	add_child(n)
 	n.finished.connect(n.queue_free)
 	n.play()
+
+## The village stages: Village Square/Mill Lane and Frogtown share the village systems.
+func in_village() -> bool:
+	return stage == "village" or stage == "frogtown"
 
 func paused() -> bool:
 	return mode != "play" and mode != "dead"
@@ -318,7 +331,7 @@ func build_stage() -> void:
 		map_zones = ForestScript.MAP_ZONES
 		win_text = "ESCAPED THE FOREST"
 		forest.build()
-	elif stage == "village":
+	elif in_village():
 		village.configure_stage()
 		village.build()
 	else:
@@ -754,13 +767,13 @@ func add_blob(f: Node3D, h: float) -> void:
 	f.add_child(mi)
 
 func spawn_cast() -> void:
-	sword_out = stage != "village"
+	sword_out = not in_village()
 	draw_t = 0.0
 	draw_swapped = true
 	if stage == "forest":
 		forest.spawn_cast()
 		return
-	if stage == "village":
+	if in_village():
 		village.spawn_cast()
 		return
 	if stage == "citadel":
@@ -819,7 +832,8 @@ func restart_with(key: String, new_stage: String = "") -> void:
 		village.leave()
 	if new_stage != "":
 		stage = new_stage
-	if stage == "village":
+	village = frogtown if stage == "frogtown" else village_square
+	if in_village():
 		village.enter()
 	for e: Node in enemies:
 		e.queue_free()
@@ -868,7 +882,7 @@ func start_game() -> void:
 	if stage == "forest":
 		forest.start()
 		return
-	if stage == "village":
+	if in_village():
 		village.start()
 		return
 	if stage == "citadel":
@@ -934,6 +948,8 @@ func update_camera(dt: float) -> void:
 		dist = 4.4
 	elif stage == "citadel" and ruin.in_core():
 		dist = 5.2
+	elif stage == "frogtown" and village.inside != "":
+		dist = 2.3   # small rooms
 	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * side
 	cam_pos = cam_pos.lerp(hero.global_position, 1.0 - exp(-7.0 * dt))
 	var jitter: Vector3 = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.25
@@ -996,7 +1012,7 @@ func camera_clip(eye: Vector3, dt: float) -> Vector3:
 	q.shape = sh
 	q.transform = Transform3D(Basis.IDENTITY, head)
 	q.motion = to
-	q.collision_mask = 1
+	q.collision_mask = 1 | 64   # 64: camera-only blockers (house ceilings)
 	var r: PackedFloat32Array = get_world_3d().direct_space_state.cast_motion(q)
 	var safe: float = r[0] if r.size() > 0 else 1.0
 	if safe <= 0.0:
@@ -1088,8 +1104,11 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		potion = false
 		skill_held = false
 		skill_up = false
+	var door: bool = hud.take("door") or Input.is_action_just_pressed("cc_door")
+	if door and mode == "play" and stage == "frogtown" and village.active:
+		village.use_door()
 	var talk: bool = hud.take("talk") or Input.is_action_just_pressed("cc_talk")
-	if talk and mode == "play" and stage == "village" and village.active:
+	if talk and mode == "play" and in_village() and village.active:
 		if village.chat.is_open():
 			village.chat.stop()
 		else:
@@ -1701,7 +1720,7 @@ func section_clear(s: int) -> bool:
 	return true
 
 func progress_check() -> void:
-	if stage == "village":
+	if in_village():
 		village.progress(get_process_delta_time())
 		return
 	if stage == "forest":
@@ -1879,12 +1898,14 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 
 ## TALK shows only in the village, next to a villager (or while chatting).
 func button_visible(id: String) -> bool:
+	if id == "door":
+		return stage == "frogtown" and village.active and village.near_door() != ""
 	if id == "hook":
 		return stage == "citadel"
 	if grapple.aiming and id in ["attack", "dodge", "block", "skill", "magic", "potion", "sheathe"]:
 		return false
 	if id == "talk":
-		return stage == "village" and village.active and (village.chat.is_open() or village.chat.nearest() != null)
+		return in_village() and village.active and (village.chat.is_open() or village.chat.nearest() != null)
 	return true
 
 func button_ready(id: String) -> bool:

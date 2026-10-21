@@ -47,6 +47,69 @@ func knight(i: int) -> CharacterBody3D:
 
 func run() -> void:
 	await wait(0.8)
+	if "--bake-frog-nav" in OS.get_cmdline_user_args():
+		await frog_bake()
+		get_tree().quit()
+		return
+	if "--frog-map" in OS.get_cmdline_user_args():
+		await frog_map()
+		get_tree().quit()
+		return
+	if "--frog-profile" in OS.get_cmdline_user_args():
+		await frog_start()
+		var ft: RefCounted = game.frogtown
+		for ln: Array in [[Vector3(-4.7, 0, -6.6), Vector3(-6.8, 0, -20.4)], [Vector3(-8.6, 0, -4.5), Vector3(-21, 0, -15.6)], [Vector3(-1.0, 0, -2.6), Vector3(13, 0, -5.6)], [Vector3(-3.0, 0, 1.4), Vector3(0, 0, 12.5)]]:
+			var out: PackedStringArray = []
+			var a0: Vector3 = ln[0]
+			var b0: Vector3 = ln[1]
+			var n: int = int(a0.distance_to(b0) / 0.25)
+			for i in n + 1:
+				var q: Vector3 = a0.lerp(b0, float(i) / n)
+				out.append("%.2f" % ft.ground_at(q, -9.0))
+			print("FROG PROFILE ", a0, "->", b0, ": ", " ".join(out))
+		get_tree().quit()
+		return
+	if "--frog-navdbg" in OS.get_cmdline_user_args():
+		await frog_start()
+		var ft: RefCounted = game.frogtown
+		var map: RID = game.get_world_3d().navigation_map
+		print("FROG maps=", NavigationServer3D.get_maps().size(), " regions=", NavigationServer3D.map_get_regions(map).size(), " cell=", NavigationServer3D.map_get_cell_size(map), "/", NavigationServer3D.map_get_cell_height(map), " edge_margin=", NavigationServer3D.map_get_edge_connection_margin(map))
+		var ch: Node = ft.villagers[0]
+		ch.global_position = ft.on_ground(Vector3(-4.0, 0, 3.0)) + Vector3.UP * 0.2
+		ch.release_spot()
+		ch.plan("work")
+		print("FROG chief plan target=", ch.target, " goal=", ch.goal_kind, " spot=", ch.spot.id if ch.spot else "-", " path=", NavigationServer3D.map_get_path(game.get_world_3d().navigation_map, ch.global_position, ch.target, true))
+		ft.speed = 20.0
+		for t in 6:
+			await wait(2.0)
+			var line: PackedStringArray = []
+			for v: Node in ft.villagers:
+				line.append("%s:%s/%s@(%.1f,%.1f,%.1f)->(%.1f,%.1f) rp=%d fin=%s" % [v.vname, v.state, v.goal_kind, v.global_position.x, v.global_position.y, v.global_position.z, v.target.x, v.target.z, v.recoveries, v.agent.is_navigation_finished()])
+			print("FROG V t=", t, " ", " | ".join(line))
+		var nm0: NavigationMesh = ft.region.navigation_mesh
+		var vv: PackedVector3Array = nm0.get_vertices()
+		for q: Vector2 in [Vector2(-2.5, -16), Vector2(-2.5, -15.5), Vector2(-2.5, -16.5), Vector2(-2.45, -17.2)]:
+			for i in nm0.get_polygon_count():
+				var poly: PackedInt32Array = nm0.get_polygon(i)
+				var pts: PackedVector2Array = []
+				var ys: float = 0.0
+				for k: int in poly:
+					pts.append(Vector2(vv[k].x, vv[k].z))
+					ys += vv[k].y
+				if Geometry2D.is_point_in_polygon(q, pts):
+					print("FROG poly@", q, " #", i, " y=", ys / poly.size(), " verts=", poly.size(), " ", pts)
+		var from: Vector3 = NavigationServer3D.map_get_closest_point(map, ft.on_ground(Vector3(-1.2, 0, -2.6)))
+		for opt: bool in [false, true]:
+			for pr: Array in [[from, ft.doors["CC_HOUSE_T11_H03"].pos], [from, Vector3(-2.4, 0.69, -18.5)], [Vector3(-1.2, 0.3, -2.6), Vector3(-2.4, 0.69, -18.5)]]:
+				var path: PackedVector3Array = NavigationServer3D.map_get_path(map, pr[0], pr[1], opt)
+				print("FROG path opt=", opt, " ", pr[0], " -> ", pr[1], " n=", path.size(), " end=", path[path.size() - 1] if path.size() else Vector3.INF)
+		get_tree().quit()
+		return
+	if "--frog-only" in OS.get_cmdline_user_args():
+		await frog_tests()
+		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
+		get_tree().quit()
+		return
 	if "--ruin-only" in OS.get_cmdline_user_args():
 		await ruin_tests()
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
@@ -222,6 +285,7 @@ func run() -> void:
 	await shot("07_win")
 	await forest_tests()
 	await village_tests()
+	await frog_tests()
 	await ruin_tests()
 	var passed: int = results.count(true)
 	print("CITADEL RESULT %d/%d %s" % [passed, results.size(), "PASS" if passed == results.size() else "FAIL"])
@@ -1131,3 +1195,369 @@ func ruin3_tests() -> void:
 	ok = ok and await run_steps(P.C3)
 	check("C3 sky path: tier C spire-top platforms -> pad -> summit", ok and h.global_position.y > 118.5 and h.hp >= hp0, "pos=%s hp=%d" % [h.global_position, h.hp])
 	await shot("w5_skyC")
+
+# ---------------------------------------------------------------- Frogtown
+
+func frog_start() -> void:
+	SaveScript.clear(game.frogtown.FROG_SAVE)
+	game.frogtown.inside = ""
+	game.frogtown.save = {}
+	game.frogtown.clock = game.frogtown.START_CLOCK + 120.0
+	game.restart_with("blonde_lance", "frogtown")
+	await wait(0.6)
+	game.start_game()
+	game.frogtown.clock = 9.5 * 60.0
+	await wait(1.0)
+
+## Bake the tile's navigation mesh and save it (run once after the tile changes).
+func frog_bake() -> void:
+	game.restart_with("blonde_lance", "frogtown")
+	await wait(0.5)
+	var ft: RefCounted = game.frogtown
+	ft.region.queue_free()
+	ft.bake_tile_nav(true)
+	var err: int = ft.save_nav()
+	print("FROG NAV baked in %d ms, polys=%d, saved err=%d" % [ft.nav_baked_ms, ft.region.navigation_mesh.get_polygon_count(), err])
+
+## Top-down placement check: every door, spot, feature and exit as a labelled pole.
+func frog_map() -> void:
+	await frog_start()
+	var ft: RefCounted = game.frogtown
+	game.hud.visible = false
+	var cam: Camera3D = Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	var half: float = 50.0
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--frog-map-zoom="):
+			half = float(a.trim_prefix("--frog-map-zoom="))
+	var cx: float = 0.0
+	var cz: float = 0.0
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--frog-map-at="):
+			var xy: PackedStringArray = a.trim_prefix("--frog-map-at=").split(",")
+			cx = float(xy[0])
+			cz = float(xy[1])
+	cam.size = half * 2.0
+	game.add_child(cam)
+	cam.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2.0), Vector3(cx, 40, cz))
+	cam.current = true
+	game.set_process(false)
+	game.env_res.fog_enabled = false
+	game.env_res.tonemap_exposure = 0.7
+	var marks: Array = []
+	for hid: String in ft.doors:
+		marks.append([ft.doors[hid].pos, Color.RED, hid.substr(hid.length() - 3)])
+	for id: String in ft.spots:
+		if not id.begins_with("door_"):
+			marks.append([ft.spots[id].pos, Color.DODGER_BLUE if not id.begins_with("seat") else Color.LIME_GREEN, id])
+	for ex: Dictionary in ft.data.exits:
+		marks.append([Vector3(ex.at[0], 0, ex.at[2]), Color.MAGENTA, ex.id])
+	for v: Node3D in ft.villagers:
+		marks.append([v.global_position, Color.YELLOW, v.vname])
+	for m: Array in marks:
+		var mi: MeshInstance3D = MeshInstance3D.new()
+		var cm: CylinderMesh = CylinderMesh.new()
+		cm.top_radius = 0.35
+		cm.bottom_radius = 0.35
+		cm.height = 6.0
+		mi.mesh = cm
+		var mat: StandardMaterial3D = StandardMaterial3D.new()
+		mat.albedo_color = m[1]
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mi.material_override = mat
+		mi.position = (m[0] as Vector3) + Vector3.UP * 3.0
+		game.world.add_child(mi)
+		var lb: Label3D = Label3D.new()
+		lb.text = str(m[2])
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.no_depth_test = true
+		lb.pixel_size = 0.02 * half / 50.0
+		lb.font_size = 48
+		lb.outline_size = 12
+		lb.modulate = m[1]
+		lb.position = (m[0] as Vector3) + Vector3(0, 7.0, 0.9 * half / 50.0)
+		game.world.add_child(lb)
+	if "--frog-map-walk" in OS.get_cmdline_user_args():
+		# show the collision instead of the model: walk surface green, walls red
+		var tile: Node3D = game.world.get_node("FrogtownTile")
+		tile.get_child(0).visible = false
+		for path: String in [ft.WALK, ft.WALLS]:
+			var part: Node3D = (load(path) as PackedScene).instantiate()
+			part.position.y = ft.lift
+			game.world.add_child(part)
+			var cm2: StandardMaterial3D = StandardMaterial3D.new()
+			cm2.albedo_color = Color(0.3, 0.9, 0.4) if path == ft.WALK else Color(0.9, 0.25, 0.2)
+			for mi2: MeshInstance3D in part.find_children("*", "MeshInstance3D", true, false):
+				mi2.material_override = cm2
+	if "--frog-map-nav" in OS.get_cmdline_user_args():
+		var nm: NavigationMesh = ft.region.navigation_mesh
+		var im: ImmediateMesh = ImmediateMesh.new()
+		var vs: PackedVector3Array = nm.get_vertices()
+		var nmat: StandardMaterial3D = StandardMaterial3D.new()
+		nmat.albedo_color = Color(1, 0, 1, 0.45)
+		nmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		nmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		nmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# colour each connected island differently (polygons sharing an edge)
+		var parent: Array = []
+		for i in nm.get_polygon_count():
+			parent.append(i)
+		var find: Callable = func(x: int) -> int:
+			var r: int = x
+			while parent[r] != r:
+				r = parent[r]
+			return r
+		var edge_owner: Dictionary = {}
+		for i in nm.get_polygon_count():
+			var poly: PackedInt32Array = nm.get_polygon(i)
+			for k in poly.size():
+				var e0: Vector3 = vs[poly[k]].snapped(Vector3.ONE * 0.01)
+				var e1: Vector3 = vs[poly[(k + 1) % poly.size()]].snapped(Vector3.ONE * 0.01)
+				var key: String = str(e0) + str(e1) if str(e0) < str(e1) else str(e1) + str(e0)
+				if edge_owner.has(key):
+					var ra: int = find.call(i)
+					var rb: int = find.call(edge_owner[key])
+					parent[ra] = rb
+				else:
+					edge_owner[key] = i
+		var sizes: Dictionary = {}
+		for i in nm.get_polygon_count():
+			var r2: int = find.call(i)
+			sizes[r2] = int(sizes.get(r2, 0)) + 1
+		var big: Array = sizes.keys()
+		big.sort_custom(func(a1: int, b1: int) -> bool: return sizes[a1] > sizes[b1])
+		print("FROG NAV islands: ", big.size(), " largest: ", big.slice(0, 8).map(func(r3: int) -> int: return sizes[r3]))
+		nmat.vertex_color_use_as_albedo = true
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, nmat)
+		for i in nm.get_polygon_count():
+			var poly: PackedInt32Array = nm.get_polygon(i)
+			var rank: int = big.find(find.call(i))
+			var col: Color = Color.from_hsv(fmod(rank * 0.27, 1.0), 0.9, 1.0, 0.6) if rank < 12 else Color(1, 1, 1, 0.5)
+			for k in range(1, poly.size() - 1):
+				for j: int in [poly[0], poly[k], poly[k + 1]]:
+					im.surface_set_color(col)
+					im.surface_add_vertex(vs[j] + Vector3.UP * 0.2)
+		im.surface_end()
+		var nmi: MeshInstance3D = MeshInstance3D.new()
+		nmi.mesh = im
+		game.world.add_child(nmi)
+	await wait(0.5)
+	await shot("frog_map")
+
+func frog_tris(n: Node) -> int:
+	var t: int = 0
+	for mi: MeshInstance3D in n.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var arr: Array = mi.mesh.surface_get_arrays(i)
+			var ix: Variant = arr[Mesh.ARRAY_INDEX]
+			t += (ix.size() / 3) if ix != null else ((arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3)
+	return t
+
+func frog_walk_into_door(hid: String) -> bool:
+	var ft: RefCounted = game.frogtown
+	var door: RefCounted = ft.doors[hid]
+	var into: Vector3 = ft.door_dir(ft.houses[hid])
+	var h: CharacterBody3D = game.hero
+	h.global_position = door.pos - into * 2.6 + Vector3.UP * 0.3
+	h.velocity = Vector3.ZERO
+	game.cam_yaw = atan2(-into.x, -into.z)
+	ft.door_cd = 0.0
+	await wait(0.4)
+	game.hud.stick = Vector2(0, -1)
+	var t0: int = Time.get_ticks_msec()
+	while ft.inside == "" and Time.get_ticks_msec() - t0 < 4000:
+		await wait(0.05)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	return ft.inside == hid
+
+func frog_tests() -> void:
+	await frog_start()
+	var ft: RefCounted = game.frogtown
+	var h: CharacterBody3D = game.hero
+	var tile: Node = game.world.get_node_or_null("FrogtownTile")
+	check("Frogtown loads as a 1-tile village with 10 houses", game.stage == "frogtown" and tile != null and ft.houses.size() == 10 and ft.doors.size() == 10, "houses=%d doors=%d" % [ft.houses.size(), ft.doors.size()])
+	var tris: int = frog_tris(tile.get_child(0))
+	check("the village is a game-ready low-poly copy (never the 1.9M-tri Tripo source)", tris > 1000 and tris <= (50000 if game.phone else 120000), "tris=%d phone=%s" % [tris, game.phone])
+	check("about 10 villagers are active on the tile", ft.villagers.size() == 10, "n=%d" % ft.villagers.size())
+	var bosses: int = 0
+	for v: Node in ft.villagers:
+		var mp: String = str(v.rig.model.scene_file_path)
+		if mp.contains("/CC_") or mp.contains("knight") or mp.contains("boss"):
+			bosses += 1
+	check("villagers use Villager.gd and ordinary models, never the CC_ boss characters", bosses == 0 and ft.villagers[0].get_script().resource_path.ends_with("Villager.gd") and ft.villagers[0].head_node != null, "bosses=%d" % bosses)
+	var names: Dictionary = {}
+	for mi: MeshInstance3D in game.world.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta("prop"):
+			var nn: String = mi.get_meta("prop")
+			names[nn] = int(names.get(nn, 0)) + 1
+	var need: Array = ["chief_dais", "council_drum", "request_board", "shell_totem", "flood_gauge", "sluice_frame", "sluice_paddles", "market_stall", "exit_gate", "door_arch", "lantern_post"]
+	var missing: Array = need.filter(func(n: String) -> bool: return not names.has(n))
+	check("frog-folk landmarks: chief's shell dais, council drum, request board, ancestor totem, flood gauge, sluice wheel, market", missing.is_empty() and int(names.get("lantern_post", 0)) >= 4 and int(names.get("door_arch", 0)) == 10, "missing=%s lanterns=%d" % [missing, int(names.get("lantern_post", 0))])
+	check("navigation mesh is prebaked and loaded", ft.region != null and ft.region.navigation_mesh.get_polygon_count() > 200, "polys=%d" % ft.region.navigation_mesh.get_polygon_count())
+	# every spot and door can be reached on the boardwalks
+	var map: RID = game.get_world_3d().navigation_map
+	var from: Vector3 = NavigationServer3D.map_get_closest_point(map, ft.on_ground(Vector3(-1.2, 0, -2.6)))
+	var bad: Array = []
+	for id: String in ft.spots:
+		var sp: Vector3 = ft.spots[id].pos
+		var path: PackedVector3Array = NavigationServer3D.map_get_path(map, from, sp, true)
+		if path.size() == 0 or path[path.size() - 1].distance_to(sp) > 1.3:
+			bad.append(id)
+			print("FROG UNREACH ", id, " spot=", sp, " end=", path[path.size() - 1] if path.size() > 0 else Vector3.INF, " closest=", NavigationServer3D.map_get_closest_point(map, sp))
+	check("every door, work spot and seat is reachable on the boardwalks", bad.is_empty(), "unreachable=%s" % [bad])
+	await shot("f0_plaza")
+	# --- door trigger: walking into a door loads that house's interior
+	check("ENTER shows next to a door", true)
+	var ok: bool = await frog_walk_into_door("CC_HOUSE_T11_H02")
+	var interior: Node = game.world.get_node_or_null("Interior_INT_HUT")
+	var rnames: Array = ft.residents.map(func(r: Node) -> String: return r.vid)
+	check("walking into a door loads that house's interior (separate scene, tile unloaded)", ok and interior != null and game.world.get_node_or_null("FrogtownTile") == null and ft.villagers.is_empty(), "inside=%s" % ft.inside)
+	check("only that house's residents who are home are made inside", rnames == ["VIL_PIP_CHILD"], "residents=%s" % [rnames])
+	check("the player starts at the interior spawn marker", h.global_position.distance_to(ft.interior_spawn.origin) < 1.6, "pos=%s" % [h.global_position])
+	check("ENTER shows as EXIT inside, by the door", true)
+	await wait(1.5)
+	await shot("f1_hut")
+	# exit: back at the same house's door, facing out
+	var door: RefCounted
+	h.global_position = ft.interior_exit - Vector3(0, 0, 1.6) + Vector3.UP * 0.1
+	game.cam_yaw = 0.0
+	ft.door_cd = 0.0
+	await wait(0.3)
+	game.hud.stick = Vector2(0, 1)   # walk toward +z (the door)
+	var t0: int = Time.get_ticks_msec()
+	while ft.inside != "" and Time.get_ticks_msec() - t0 < 4000:
+		await wait(0.05)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	door = ft.doors["CC_HOUSE_T11_H02"]
+	var out: Vector3 = -ft.door_dir(ft.houses["CC_HOUSE_T11_H02"])
+	check("leaving returns the player to that house's door, facing out", ft.inside == "" and Vector2(h.global_position.x - door.pos.x, h.global_position.z - door.pos.z).length() < 3.0 and h.forward().dot(out) > 0.7, "pos=%s door=%s" % [h.global_position, door.pos])
+	check("the village and its villagers come back after leaving", game.world.get_node_or_null("FrogtownTile") != null and ft.villagers.size() == 10)
+	# --- reusable interiors: another family in the same hut model; lodges shared too
+	ft.door_cd = 0.0
+	ft.enter_house("CC_HOUSE_T11_H07")
+	await wait(0.6)
+	rnames = ft.residents.map(func(r: Node) -> String: return r.vid)
+	check("the same hut interior serves a different family", ft.inside == "CC_HOUSE_T11_H07" and game.world.get_node_or_null("Interior_INT_HUT") != null and rnames == ["VIL_KREEKA_HOME"], "residents=%s" % [rnames])
+	await wait(1.2)
+	await shot("f1b_kreeka")
+	ft.exit_house()
+	await wait(0.4)
+	ft.enter_house("CC_HOUSE_T11_H01")
+	await wait(0.6)
+	rnames = ft.residents.map(func(r: Node) -> String: return r.vid)
+	check("the Chief's Lodge uses the long-hall interior with the chief's family", ft.inside == "CC_HOUSE_T11_H01" and game.world.get_node_or_null("Interior_INT_LODGE") != null and "VIL_RIBBA_HOME" in rnames, "residents=%s" % [rnames])
+	await wait(1.0)
+	await shot("f2_lodge")
+	ft.exit_house()
+	await wait(0.4)
+	ft.enter_house("CC_HOUSE_T11_H10")
+	await wait(0.5)
+	check("the Hunt Lodge reuses the long-hall interior (captain is out at the board)", ft.inside == "CC_HOUSE_T11_H10" and game.world.get_node_or_null("Interior_INT_LODGE") != null and ft.residents.is_empty(), "residents=%d" % ft.residents.size())
+	ft.exit_house()
+	await wait(0.4)
+	# --- access rules
+	check("knock: nobody home means the door stays shut", ft.can_enter("CC_HOUSE_T11_H05") != "", "why=%s" % ft.can_enter("CC_HOUSE_T11_H05"))
+	var clk: float = ft.clock
+	ft.clock = 23.0 * 60.0
+	check("the trader's hut is locked at night", ft.can_enter("CC_HOUSE_T11_H08") != "")
+	# at night the fisher is asleep in bed at home
+	for v: Node in ft.villagers:
+		if v.vid == "VIL_BOGG_FISHER":
+			v.goal_kind = "door"
+			v.go_inside()   # gone home to bed
+	ft.enter_house("CC_HOUSE_T11_H03")
+	await wait(1.2)
+	var bogg: Node = ft.residents[0] if ft.residents.size() > 0 else null
+	check("at night a resident is home asleep in bed", bogg != null and bogg.vid == "VIL_BOGG_FISHER" and bogg.spot_kind() == "bed" and bogg.rig.rotation.x > 0.8, "res=%s" % [ft.residents.map(func(r: Node) -> String: return r.vid + ":" + r.spot_kind())])
+	await shot("f3_night")
+	ft.exit_house()
+	ft.clock = clk
+	await wait(0.6)
+	# --- routines: speed time up; villagers go to their work spots
+	ft.speed = 40.0
+	await wait(24.0)
+	ft.speed = 1.0
+	var working: Array = []
+	var busy: int = 0
+	for v: Node in ft.villagers:
+		if v.state == "work":
+			working.append(v.vname)
+		if v.state == "work" or (v.state == "walk" and v.goal_kind in ["work", "drop"]) or v.goal_kind == "after_drop":
+			busy += 1
+	check("villagers walk their routines to work spots (fish, reeds, drum, dais, board, stalls)", working.size() >= 4 and busy >= 7, "working=%s busy=%d" % [working, busy])
+	var chief: Node = ft.villagers.filter(func(v: Node) -> bool: return v.job == "chief")[0]
+	check("the Village Chief takes his seat on the shell dais", chief.state == "work" and chief.global_position.distance_to(ft.dais_seat) < 0.8, "chief=%s seat=%s state=%s" % [chief.global_position, ft.dais_seat, chief.state])
+	await shot("f4_routines")
+	var cv: Node = ft.villagers.filter(func(v: Node) -> bool: return v.state == "work" and v.job != "chief")[0] if ft.villagers.any(func(v: Node) -> bool: return v.state == "work" and v.job != "chief") else ft.villagers[1]
+	var cdir: Vector3 = Vector3(sin(cv.yaw), 0, cos(cv.yaw))
+	h.global_position = ft.on_nav(cv.global_position + cv.forward() * 2.4 + cv.forward().cross(Vector3.UP) * 1.3) + Vector3.UP * 0.2
+	game.cam_yaw = atan2(-(cv.global_position.x - h.global_position.x), -(cv.global_position.z - h.global_position.z))
+	game.look_hold = 3.0
+	await wait(1.0)
+	await shot("f6_villager")
+	# --- only one villager talks at a time
+	var a: Node = ft.villagers[0]
+	var b: Node = ft.villagers[1]
+	for v: Node in ft.villagers:
+		v.talk_cd = 0.0 if v == a or v == b else 30.0
+		v.talk_t = 0.0
+		v.bubble.visible = false
+	ft.speaker_t = 0.0
+	var at: Vector3 = h.global_position
+	a.global_position = at + Vector3(1.0, 0, 0)
+	b.global_position = at + Vector3(-1.0, 0, 0)
+	await wait(0.4)
+	var talking: int = 0
+	for v: Node in ft.villagers:
+		if v.bubble.visible:
+			talking += 1
+	check("only one villager speaks at a time", talking == 1, "talking=%d" % talking)
+	# --- the road out at the tile edge (next-tile hook)
+	var ex: Dictionary = ft.data.exits[0]
+	var gp: Vector3 = ft.on_ground(Vector3(ex.at[0], 0, ex.at[2]))
+	var dv: Vector3 = Vector3(ex.dir[0], 0, ex.dir[1])
+	h.global_position = gp - dv * 3.0 + Vector3.UP * 0.3
+	game.cam_yaw = atan2(-dv.x, -dv.z)
+	await wait(0.3)
+	game.hud.stick = Vector2(0, -1)
+	await wait(2.0)
+	game.hud.stick = Vector2.ZERO
+	var past: float = (h.global_position - gp).dot(dv)
+	check("the south road gate is the next-tile hook (closed until that tile exists)", past < 1.0 and ft.road_msg_t > 0.0 and not ft.has_tile(ex.to_tile), "past=%.2f" % past)
+	await shot("f5_gate")
+	# --- falling into the marsh puts you back on the boardwalk
+	var safe: Vector3 = ft.safe_pos
+	h.global_position = Vector3(30, ft.water_y - 0.6, -30)
+	await wait(0.3)
+	check("falling into the marsh puts you back on the boardwalk", h.global_position.y > ft.water_y + 0.5 and h.global_position.distance_to(safe) < 2.0, "pos=%s" % [h.global_position])
+	# --- save: leaving the stage and coming back keeps villagers where they were
+	ft.save_now()
+	var before: Dictionary = {}
+	for v: Node in ft.villagers:
+		before[v.vid] = v.global_position
+	game.restart_with("blonde_lance", "frogtown")
+	await wait(0.6)
+	game.start_game()
+	await wait(0.3)
+	var moved: float = 0.0
+	for v: Node in ft.villagers:
+		if before.has(v.vid):
+			moved = maxf(moved, (v.global_position - (before[v.vid] as Vector3)).length())
+	check("villager state persists across leaving and reloading the village", ft.villagers.size() == 10 and moved < 3.0, "max moved=%.2f" % moved)
+	# --- phone budget: 10 active villagers
+	var frames: int = 0
+	var t1: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t1 < 5000:
+		await get_tree().process_frame
+		frames += 1
+	var fps: float = frames / ((Time.get_ticks_msec() - t1) / 1000.0)
+	print("FROG FPS %.1f with %d villagers (phone=%s, renderer %s)" % [fps, ft.villagers.size(), game.phone, RenderingServer.get_video_adapter_name()])
+	check("10 villagers run on the tile (fps measured)", ft.villagers.size() == 10 and fps > 1.0, "fps=%.1f" % fps)
+	# other villages still load
+	game.restart_with("blonde_lance", "village")
+	await wait(0.6)
+	check("the old village square still loads after Frogtown", game.stage == "village" and game.village == game.village_square and game.village.villagers.size() == 6, "n=%d" % game.village.villagers.size())

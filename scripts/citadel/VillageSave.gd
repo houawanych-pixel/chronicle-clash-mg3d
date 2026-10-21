@@ -11,10 +11,10 @@ extends RefCounted
 const PATH: String = "user://village_save.json"
 const VERSION: int = 1
 
-static func load_data() -> Dictionary:
-	if not FileAccess.file_exists(PATH):
+static func load_data(path: String = PATH) -> Dictionary:
+	if not FileAccess.file_exists(path):
 		return {}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = parsed
@@ -23,15 +23,15 @@ static func load_data() -> Dictionary:
 		return {}
 	return d
 
-static func save_data(d: Dictionary) -> bool:
+static func save_data(d: Dictionary, path: String = PATH) -> bool:
 	d["version"] = VERSION
-	var f: FileAccess = FileAccess.open(PATH, FileAccess.WRITE)
+	var f: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(d))
 	f.close()
 	return true
 
-static func clear() -> void:
-	if FileAccess.file_exists(PATH):
-		DirAccess.remove_absolute(PATH)
+static func clear(path: String = PATH) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)

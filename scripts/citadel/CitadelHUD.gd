@@ -25,6 +25,7 @@ const BUTTONS: Array = [
 	{"id": "magic", "c": Vector2(1222, 292), "r": 44.0, "label": "MAGIC", "glyph": "magic", "color": Color("b48cff")},
 	{"id": "potion", "c": Vector2(1118, 300), "r": 42.0, "label": "POTION", "glyph": "potion", "color": Color("7dffcf")},
 	{"id": "hook", "c": Vector2(1108, 186), "r": 42.0, "label": "HOOK", "glyph": "hook", "color": Color("6fe0ff")},
+	{"id": "door", "c": Vector2(990, 186), "r": 42.0, "label": "ENTER", "glyph": "door", "color": Color("ffd27a")},
 	{"id": "talk", "c": Vector2(1108, 186), "r": 40.0, "label": "TALK", "glyph": "talk", "color": Color("7dffcf")},
 	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
 ]
@@ -269,6 +270,9 @@ func menu_action(a: String) -> void:
 		"stage_forest":
 			if game.stage != "forest":
 				game.restart_with("lance", "forest")
+		"stage_frogtown":
+			if game.stage != "frogtown":
+				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "frogtown")
 		"stage_village":
 			if game.stage != "village":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "village")
@@ -409,6 +413,12 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 			for k in 4:
 				var a3: float = k * PI / 2.0
 				draw_line(c + Vector2(cos(a3), sin(a3)) * r * 0.36, c + Vector2(cos(a3), sin(a3)) * r * 0.5, WHITE, 4)
+		"door":
+			# round hut door with a shell arch
+			draw_rect(Rect2(c + Vector2(-r * 0.22, -r * 0.18), Vector2(r * 0.44, r * 0.5)), Color("6b4a2a"))
+			draw_arc(c + Vector2(0, -r * 0.18), r * 0.22, PI, TAU, 16, Color("6b4a2a"), r * 0.1)
+			draw_arc(c + Vector2(0, -r * 0.1), r * 0.36, PI * 1.05, TAU * 0.975, 16, Color(WHITE, 0.9), 4)
+			draw_circle(c + Vector2(r * 0.12, r * 0.08), r * 0.04, GOLD)
 		"potion":
 			draw_circle(c + Vector2(0, r * 0.08), r * 0.26, Color("7dffcf"))
 			draw_rect(Rect2(c + Vector2(-r * 0.09, -r * 0.38), Vector2(r * 0.18, r * 0.22)), WHITE)
@@ -437,6 +447,8 @@ func round_btn(b: Dictionary) -> void:
 			draw_circle(c + aim_stick * AIM_R, 26, Color(0.37, 0.89, 1.0, 0.55))
 	elif b.id == "sheathe":
 		label = "SHEATHE" if game.sword_out else "DRAW"
+	elif b.id == "door":
+		label = "EXIT" if game.village.get("inside") != "" else "ENTER"
 	elif b.id == "talk":
 		label = "BYE" if game.village.chat.is_open() else "TALK"
 	text(c + Vector2(0, r * 0.84), label, 18 if r < 80 else 24, WHITE if ready else Color(WHITE, 0.55))
@@ -540,10 +552,10 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight, save Elyza", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out. Blonde Lance hunts you", "ally"], ["village", "VILLAGE", "Watch the villagers live their day", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"]]
 	for i in stages.size():
 		var st: Array = stages[i]
-		var sr: Rect2 = Rect2(175 + i * 315, 392, 300, 82)
+		var sr: Rect2 = Rect2(640.0 - stages.size() * 132.5 + 5.0 + i * 265, 392, 255, 82)
 		var son: bool = game.stage == st[0]
 		frame(sr, Color(0.06, 0.22, 0.32, 0.95) if son else INK, CYAN if son else Color(0.6, 0.7, 0.85, 0.5))
 		if portraits.has(st[3]):
@@ -587,7 +599,7 @@ func draw_stats() -> void:
 	text(gr.get_center() + Vector2(0, 7), goal.to_upper(), 16, CYAN)
 	if game.mode == "play":
 		draw_pause()
-	if game.stage == "village":
+	if game.in_village():
 		var cr: Rect2 = Rect2(530, 142, 220, 32)
 		frame(cr, Color(0.03, 0.1, 0.18, 0.78), Color("ffd27a"))
 		var hr: float = game.village.hour()
@@ -768,7 +780,7 @@ func draw_map(r: Rect2) -> void:
 					pts.append(p + Vector2(cos(a), sin(a)) * reach)
 				draw_colored_polygon(pts, Color(1, 0.2, 0.3, 0.3) if e.seeing else Color(1, 0.7, 0.2, 0.22))
 			draw_circle(p, 5 if e.kind == "boss" else 3.5, CYAN if e in game.marks else Color("ff3346"))
-	if game.stage == "village":
+	if game.in_village():
 		for v: Node3D in game.village.villagers:
 			if not v.visible:
 				continue

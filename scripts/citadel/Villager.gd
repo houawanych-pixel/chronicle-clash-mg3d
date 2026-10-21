@@ -52,6 +52,9 @@ var voice_rate: float = 1.0
 var talk_cd: float = 0.0
 var resume_state: String = ""
 var desired_vel: Vector3 = Vector3.ZERO
+var head_node: MeshInstance3D
+var head_bone: int = -1
+var head_scale: float = 1.0
 
 const LINES: Dictionary = {
 	"woodcutter": ["Good timber in these woods.", "Mind the axe, traveller.", "One more log and I'll rest."],
@@ -93,7 +96,21 @@ func setup(g: Node, v: RefCounted, def: Dictionary) -> void:
 	rig.setup(def.model, height, Color("c8b48a"), 0.9, 0.0)
 	rig.set_tool("none")
 	if def.has("tint"):
-		rig.set_flash(0.14, def.tint)
+		rig.set_flash(def.get("tint_amount", 0.14), def.tint)
+	# Frog-folk look (Frogtown): a head mesh worn over the shared rig's head.
+	if def.has("head_mesh"):
+		head_node = MeshInstance3D.new()
+		head_node.mesh = def.head_mesh
+		head_node.top_level = true
+		head_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(head_node)
+		head_bone = rig.idx.get("Head", -1)
+		if def.has("hat_mesh"):
+			var hat: MeshInstance3D = MeshInstance3D.new()
+			hat.mesh = def.hat_mesh
+			hat.position = Vector3(0, 0.27, 0)
+			head_node.add_child(hat)
+		head_scale = def.get("head_scale", 1.0)
 	agent = NavigationAgent3D.new()
 	agent.path_desired_distance = 0.6
 	agent.target_desired_distance = 0.5
@@ -210,12 +227,15 @@ func plan(act: String) -> void:
 			plan_point(true)
 
 func plan_work() -> void:
+	if village.stays_home(self):
+		go_to(home_door.pos, "door")
+		return
 	if carrying:
 		var drop: RefCounted = village.drop_for(job)
 		if drop:
 			go_to(drop.pos, "drop")
 			return
-	var kinds: Array = village.JOB_SPOTS.get(job, [])
+	var kinds: Array = village.job_spots(job)
 	if job == "elder":
 		if not claim_and_go(["seat"], "seat"):
 			plan_point(false)
@@ -247,6 +267,8 @@ func arrive() -> void:
 		"work":
 			state = "work"
 			work_min = 0.0 if work_min <= 0.0 else work_min
+			if spot and spot.kind == "dais" and village.get("dais_seat") != null and village.dais_seat != Vector3.ZERO:
+				global_position = village.dais_seat   # the chief takes his seat on the dais
 		"seat":
 			state = "sit"
 			global_position = Vector3(spot.pos.x, global_position.y, spot.pos.z)
@@ -299,13 +321,18 @@ func _physics_process(dt: float) -> void:
 		velocity.y = 0.0
 	# The hero walking up starts a short chat; the routine resumes after.
 	if state != "inside" and state != "talk" and talk_cd <= 0.0 and game.hero and game.hero.alive():
-		if game.hero.global_position.distance_to(global_position) < 2.1:
+		if game.hero.global_position.distance_to(global_position) < 2.1 and village.request_bark(self, 3.0):
 			resume_state = state
 			state = "talk"
 			talk_cd = 14.0
-			var lines: Array = LINES.get(job, LINES.wanderer)
+			var lines: Array = village.lines_for(job)
+			if lines.is_empty():
+				lines = LINES.get(job, LINES.wanderer)
 			say(lines[randi() % lines.size()])
 	think_min -= gdt
+	if state != "inside" and global_position.y < village.fall_y():
+		recoveries += 1
+		snap_to_nav()
 	var want: String = village.activity_for(self)
 	match state:
 		"talk":
@@ -365,10 +392,11 @@ func _physics_process(dt: float) -> void:
 	animate(dt)
 
 func walk(dt: float) -> void:
-	if global_position.y < -0.5:
+	if global_position.y < village.fall_y():
 		recoveries += 1
 		snap_to_nav()
-	if agent.is_navigation_finished() or global_position.distance_to(target) < 0.55:
+	var flat: float = Vector2(global_position.x - target.x, global_position.z - target.z).length()
+	if agent.is_navigation_finished() or (flat < 0.55 and absf(global_position.y - target.y) < 1.2):
 		arrive()
 		return
 	var next: Vector3 = agent.get_next_path_position()
@@ -404,10 +432,10 @@ func snap_to_nav() -> void:
 	# Route from home to here: the path ends at the nearest reachable point.
 	# (Godot 4.3's map_get_closest_point can land inside large obstacles.)
 	var map: RID = get_world_3d().navigation_map
-	var probe: Vector3 = Vector3(global_position.x, 0.0, global_position.z)
+	var probe: Vector3 = Vector3(global_position.x, maxf(global_position.y, village.fall_y() + 1.0), global_position.z)
 	var path: PackedVector3Array = NavigationServer3D.map_get_path(map, home_door.pos, probe, true)
 	var p: Vector3 = path[path.size() - 1] if path.size() > 0 else home_door.pos
-	global_position = Vector3(p.x, 0.05, p.z)
+	global_position = Vector3(p.x, p.y + 0.05, p.z)
 	velocity = Vector3.ZERO
 	agent.target_position = target
 
@@ -427,8 +455,15 @@ func animate(dt: float) -> void:
 			var k: String = spot.kind if spot else ""
 			tool = spot.tool if spot else "none"
 			match k:
-				"tree":
+				"tree", "drum":
 					pose = P.chop(cycle)
+				"reeds":
+					pose = P.hoe(fmod(anim_t, 1.8) / 1.8)
+				"dais":
+					pose = P.sit(anim_t)
+					drop = -0.42
+				"totem":
+					pose = P.cast(anim_t)
 				"rock":
 					pose = P.mine(cycle)
 				"field":
@@ -456,9 +491,18 @@ func animate(dt: float) -> void:
 	rig.rotation.y = yaw
 	rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-10.0 * dt))
 	if game.camera and game.camera.global_position.distance_to(global_position) > 38.0:
+		place_head()
 		return
 	rig.apply(pose, dt, 12.0)
 	rig.update_line()
+	place_head()
+
+## Keep the frog head on the head bone, upright and facing where the villager faces.
+func place_head() -> void:
+	if head_node == null or head_bone < 0:
+		return
+	var hp: Vector3 = rig.sk.global_transform * rig.sk.get_bone_global_pose(head_bone).origin
+	head_node.global_transform = Transform3D(Basis(Vector3.UP, yaw + PI).scaled(Vector3.ONE * head_scale), hp + Vector3.UP * 0.02)
 
 # ---------------------------------------------------------------- save / restore
 

@@ -123,7 +123,7 @@ func handle(e: Variant) -> void:
 
 ## Who this villager is and what is going on around them, for the brain.
 func context(v: Node) -> Dictionary:
-	var block: Dictionary = village.BLOCKS[village.block]
+	var block: Dictionary = village.block_def()
 	var others: Array = []
 	for o: Node in village.villagers:
 		if o != v:

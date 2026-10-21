@@ -101,6 +101,30 @@ func _init(g: Node) -> void:
 	game = g
 	chat = ChatScript.new(g, self)
 
+## Hooks a village tile can override (Frogtown.gd does).
+func block_def() -> Dictionary:
+	return BLOCKS[block]
+
+func save_path() -> String:
+	return SaveScript.PATH
+
+func job_spots(job: String) -> Array:
+	return JOB_SPOTS.get(job, [])
+
+## Jobs that keep a villager at home (they only show up inside the house).
+func stays_home(_v: Node) -> bool:
+	return false
+
+## Only one villager speaks at a time; true if this one may talk now.
+func request_bark(_v: Node, _seconds: float) -> bool:
+	return true
+
+func fall_y() -> float:
+	return -0.5
+
+func lines_for(_job: String) -> Array:
+	return []
+
 func minutes_per_second() -> float:
 	## One real hour is one village day (1440 game minutes / 3600 s).
 	return 0.4 * speed
@@ -134,8 +158,8 @@ func activity_for(v: Node) -> String:
 
 func configure_stage() -> void:
 	var sec: Dictionary = SECTION_TEMPLATE.duplicate()
-	sec.goal = "%s  ·  explore" % BLOCKS[block].title
-	sec.spawn = BLOCKS[block].spawn
+	sec.goal = "%s  ·  explore" % block_def().title
+	sec.spawn = block_def().spawn
 	game.sections = [sec]
 	game.map_zones = [Rect2(-HALF, -HALF, HALF * 2, HALF * 2)]
 	game.win_text = "VILLAGE"
@@ -227,7 +251,7 @@ func build() -> void:
 	look()
 	spots.clear()
 	doors.clear()
-	var def: Dictionary = BLOCKS[block]
+	var def: Dictionary = block_def()
 	var w: Node3D = game.world
 	# Ground.
 	var ground: MeshInstance3D = game.box(Vector3(0, -0.5, 0), Vector3(HALF * 2 + 30, 1, HALF * 2 + 30), "marble", true)
@@ -456,7 +480,7 @@ func random_point(center: Vector3, radius: float) -> Vector3:
 	var map: RID = game.get_world_3d().navigation_map
 	var c: Vector3 = center
 	if center == Vector3.ZERO:
-		var pl: Array = BLOCKS[block].plaza
+		var pl: Array = block_def().plaza
 		c = Vector3(pl[0], 0, pl[1])
 	# A random reachable point: walk a path from the centre toward a random
 	# spot and stop where the path ends (never inside a building or pond).
@@ -475,7 +499,7 @@ func random_point(center: Vector3, radius: float) -> Vector3:
 func spawn_cast() -> void:
 	active = true
 	var hero_def: Dictionary = game.HEROES[game.hero_key]
-	var at: Vector3 = BLOCKS[block].spawn
+	var at: Vector3 = block_def().spawn
 	game.hero = game.make_fighter("hero", hero_def.model, 1.8, hero_def.blade, 1.25, at)
 	game.hero.max_hp = 100
 	game.hero.hp = 100
@@ -485,7 +509,7 @@ func spawn_cast() -> void:
 
 func spawn_villagers() -> void:
 	clear_villagers()
-	var def: Dictionary = BLOCKS[block]
+	var def: Dictionary = block_def()
 	var saved: Dictionary = save.get("blocks", {}).get(block, {})
 	var saved_v: Dictionary = saved.get("villagers", {})
 	var same_time: bool = saved.has("saved_clock") and absf(float(saved.saved_clock) - clock) < 5.0
@@ -533,10 +557,10 @@ func save_now() -> void:
 	save.blocks[block] = block_state()
 	save["clock"] = snappedf(clock, 0.1)
 	save["block"] = block
-	SaveScript.save_data(save)
+	SaveScript.save_data(save, save_path())
 
 func load_save() -> void:
-	save = SaveScript.load_data()
+	save = SaveScript.load_data(save_path())
 	clock = float(save.get("clock", START_CLOCK))
 	var b: String = str(save.get("block", "square"))
 	block = b if BLOCKS.has(b) else "square"
@@ -547,7 +571,7 @@ func enter() -> void:
 	configure_stage()
 
 func start() -> void:
-	game.say("ally", "%s. It's quiet here... people just living their lives." % BLOCKS[block].title)
+	game.say("ally", "%s. It's quiet here... people just living their lives." % block_def().title)
 	game.say_once("village_tip", "tip", "Walk up to villagers to talk. Leave by the road to reach the next part of the village.")
 
 func leave() -> void:
@@ -569,7 +593,7 @@ func progress(dt: float) -> void:
 		switching -= dt
 		return
 	var p: Vector3 = game.hero.global_position
-	var exits: Dictionary = BLOCKS[block].exits
+	var exits: Dictionary = block_def().exits
 	if p.x > HALF - 0.6 and exits.has("east"):
 		switch_block(exits.east, Vector3(-HALF + 2.5, 0.2, clampf(p.z, -2.0, 2.0)))
 	elif p.x < -HALF + 0.6 and exits.has("west"):
@@ -592,4 +616,4 @@ func switch_block(to: String, hero_at: Vector3) -> void:
 	save_now()
 	switching = 0.6
 	game.hud.fade = 1.0
-	game.hud.popup(BLOCKS[block].title.to_upper(), Color("ffe08a"))
+	game.hud.popup(block_def().title.to_upper(), Color("ffe08a"))

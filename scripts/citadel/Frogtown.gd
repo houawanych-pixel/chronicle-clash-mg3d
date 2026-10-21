@@ -797,7 +797,11 @@ func exit_house() -> void:
 	game.build_stage()
 	var door: RefCounted = doors.get(hid)
 	var out: Vector3 = -door_dir(houses[hid])
-	var at: Vector3 = on_ground(door.pos + out * 1.8) + Vector3.UP * 0.15
+	# step out onto the walkable area (a door near the rim must not drop you in the marsh)
+	var at: Vector3 = on_nav(door.pos + out * 1.4)
+	if Vector2(at.x - door.pos.x, at.z - door.pos.z).length() > 2.5 or at.y < water_y + 0.5:
+		at = door.pos
+	at = on_ground(at) + Vector3.UP * 0.15
 	game.hero.global_position = at
 	game.hero.velocity = Vector3.ZERO
 	game.hero.yaw = atan2(-out.x, -out.z)

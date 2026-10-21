@@ -1502,6 +1502,13 @@ func frog_tests() -> void:
 	for v: Node in ft.villagers if working.size() < 4 else []:
 		print("FROG VIL ", v.vname, " ", v.state, " goal=", v.goal_kind, " at=", v.global_position.snapped(Vector3.ONE * 0.1), " target=", v.target.snapped(Vector3.ONE * 0.1), " path=", (v.agent.get_current_navigation_path() as PackedVector3Array).size(), " rec=", v.recoveries)
 	check("the Village Chief takes his seat on the shell dais", chief.state == "work" and chief.global_position.distance_to(ft.dais_seat) < 0.8, "chief=%s seat=%s state=%s" % [chief.global_position, ft.dais_seat, chief.state])
+	var wet: Array = []
+	for hid2: String in ft.houses:
+		var dp: Vector3 = ft.doors[hid2].pos
+		var q2: Vector3 = ft.on_nav(dp - ft.door_dir(ft.houses[hid2]) * 1.4)
+		if q2.y < ft.water_y + 0.5 or Vector2(q2.x - dp.x, q2.z - dp.z).length() > 2.5:
+			wet.append(hid2)
+	check("stepping out of every house lands on the boardwalk, not in the marsh", wet.is_empty() and h.global_position.y > ft.water_y + 0.5, "wet=%s hero=%s" % [wet, h.global_position])
 	await shot("f4_routines")
 	var cv: Node = ft.villagers.filter(func(v: Node) -> bool: return v.state == "work" and v.job != "chief")[0] if ft.villagers.any(func(v: Node) -> bool: return v.state == "work" and v.job != "chief") else ft.villagers[1]
 	var cdir: Vector3 = Vector3(sin(cv.yaw), 0, cos(cv.yaw))

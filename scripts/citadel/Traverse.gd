@@ -3,11 +3,6 @@ extends RefCounted
 ## acceleration, ledge catching / shimmy / pull-up, a glider, slope sliding and
 ## the shared stamina rules (regen delay, exhaustion, low-stamina warning).
 ##
-## The ledge probe (wall ray, then a downward ray onto the top, then head-room
-## checks) follows the approach of Project White Deer (MIT, (c) 2024 @koboldskeep)
-## and the glide/stamina drain idea follows Climb 'n' Glide (MIT, (c) 2022 Ashton
-## McAllan). No code was copied; see licenses/THIRD_PARTY_MOVEMENT.md.
-##
 ## Hero states added here (Fighter.state): "glide", "ledge", "pullup", "slide".
 ## Sprint is a flag, not a state, so every combat check that looks for "idle"
 ## (dodge, attack, block, charge) still works while sprinting.

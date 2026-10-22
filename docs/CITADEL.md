@@ -28,6 +28,10 @@ The original boxed layout (courtyard, bridge, plaza, throne hall) is kept as sta
 | Look | Drag an empty part of the right side | — |
 | Attack (3-hit combo; in the air = plunge) | ATTACK | J |
 | Jump | JUMP | Space |
+| Sprint (uses stamina) | tap SPRINT (stays on while you keep moving) | hold Ctrl · pad L3 |
+| Glide (in the air, 2.2 m+ up) / close | JUMP (reads GLIDE / CLOSE) | Space |
+| Climb a wall (sky stages) | JUMP at it (reads CLIMB), stick to climb | Space |
+| Ledge: climb up / shimmy / drop | push up or JUMP (CLIMB UP) · stick left/right · DODGE (DROP) | W or Space · A/D · L |
 | Dodge (stick direction, one air dash) | DODGE | L |
 | Guard / parry (block just before the hit) | hold GUARD | K / Shift |
 | Mark an enemy (up to 3) | Tap the enemy | — |
@@ -42,6 +46,11 @@ The original boxed layout (courtyard, bridge, plaza, throne hall) is kept as sta
 | Talk to a villager (village) | TALK / BYE | T |
 | Draw / put away sword (back carry; ATTACK, GUARD or CHARGE also draw it) | DRAW / SHEATHE | X |
 | Pause | II (beside the stats) | Esc / P |
+
+## Traversal (sprint, ledges, glider, slopes)
+Breath of the Wild-inspired movement, written for this project (`scripts/citadel/Traverse.gd`); details and tuning in `docs/MOVEMENT.md`. Sprint and smooth acceleration work in every stage; ledges and the glider are on in the Sky Citadel and TRAINING; slope sliding is TRAINING-only for now. Sprint, climbing, ledge hangs and the glider share one stamina bar: it refills after a short rest on the ground, flashes red when low, and at zero you are TIRED (no sprint, glide or grabbing, slower) until it is back to 30%. Tuning lives in `data/movement.tres` (edit in the inspector).
+
+**TRAINING** (fifth title card, or `?trials` / `-- --trials`) is the movement test course: sprint lane with crates, smooth ledges (2.6 m vault, 3.3 m hang and shimmy — they can't be climbed, only caught), a 9 m climbing wall, a 14 m tower, stepping platforms, an 18° ramp, a 42° slide slope, a 22 m glide tower with a ladder, and three training knights.
 
 ## Stealth (ported from the MG build)
 The three courtyard guards patrol with vision cones (shown on the floor and the map). Numbers match the old `Guard.gd`: 40° half-cone, suspicion rises 1.15/s in view and falls 0.3/s out of view, crouching cuts their range to 80% and crawling to 50%. Low planters hide you only when crouched. Walking upright makes footstep noise; crouching and crawling are silent. Knocks and pebbles send guards to INVESTIGATE, then SEARCH, then back to PATROL. Full suspicion raises the alarm and wakes guards within 14 m into sword combat. Attacking an unaware guard is a silent takedown. The top shows STEALTH: HIDDEN / SUSPICIOUS / ALERT.
@@ -87,6 +96,9 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 - `scripts/citadel/Fighter.gd` — shared body for hero, knights, boss, ally (AI state machines)
 - `scripts/citadel/CitadelHUD.gd` — touch HUD (edge-anchored for wide phones)
 - `scripts/citadel/AutoTest.gd` — scripted run
+- `scripts/citadel/Traverse.gd` — sprint/acceleration, ledge catch, shimmy, pull-up, glider, slope slide, shared stamina rules
+- `scripts/citadel/MoveSettings.gd` + `data/movement.tres` — movement tuning values
+- `scripts/citadel/Trials.gd` — the TRAINING movement test course
 - `scripts/citadel/Patrol.gd` — guard patrol, vision cone, suspicion and noise (ported from `scripts/Guard.gd`)
 - `tools/` — `render_portraits.gd`, `pose_test.gd`, `stance_test.gd`, `inspect_models.gd` (not exported)
 
@@ -94,4 +106,4 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 89/89 PASS` (citadel, stealth, forest and village). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 201/201 PASS` (citadel, stealth, forest, village, frogtown, sky ruin, and the TRAINING traversal checks run with both real hero models). `--trials-only` runs just the traversal checks (66). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.

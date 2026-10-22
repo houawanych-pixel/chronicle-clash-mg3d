@@ -364,3 +364,109 @@ static func climb(phase: float) -> Dictionary:
 	p["blade"] = d(0, -1, 0)
 	p["Spine01"] = lean(0.12)
 	return p
+
+# ---- traversal poses (procedural placeholders until real clips exist)
+
+static func sprint(phase: float) -> Dictionary:
+	## A longer, lower stride than the run, chest forward, sword arm tucked.
+	var p: Dictionary = run(phase, 1.25)
+	p["Spine01"] = lean(0.32)
+	p["R_Upperarm"] = d(-0.2 + 0.25 * sin(phase), -1, 0.4)
+	p["R_Forearm"] = d(1, -0.2, 0.3)
+	p["blade"] = d(-0.8, 0.2, 0.3)
+	return p
+
+static func glide(t: float) -> Dictionary:
+	## Both hands up on the glider bar, legs hanging and swaying a little.
+	var sway: float = sin(t * 2.4) * 0.08
+	var p: Dictionary = {}
+	p["L_Upperarm"] = d(0.15, 1.0, -0.38)
+	p["L_Forearm"] = d(0.1, 1.0, 0.1)
+	p["R_Upperarm"] = d(0.15, 1.0, 0.38)
+	p["R_Forearm"] = d(0.1, 1.0, -0.1)
+	p["L_Thigh"] = leg(0.18 + sway, -0.1)
+	p["L_Calf"] = leg(-0.15, -0.04)
+	p["R_Thigh"] = leg(0.05 - sway, 0.1)
+	p["R_Calf"] = leg(-0.3, 0.04)
+	p["blade"] = d(0, -1, 0)
+	p["Spine01"] = lean(-0.06)
+	return p
+
+static func ledge_hang(phase: float) -> Dictionary:
+	## Hanging from a ledge by both hands, feet against the wall; phase shuffles the hands.
+	var s: float = sin(phase) * 0.12
+	var p: Dictionary = {}
+	p["L_Upperarm"] = d(0.3, 1.0, -0.3 - s)
+	p["L_Forearm"] = d(0.45, 1.0, -0.05)
+	p["R_Upperarm"] = d(0.3, 1.0, 0.3 - s)
+	p["R_Forearm"] = d(0.45, 1.0, 0.05)
+	p["L_Thigh"] = leg(0.35, -0.12)
+	p["L_Calf"] = leg(-0.2, -0.05)
+	p["R_Thigh"] = leg(0.2, 0.12)
+	p["R_Calf"] = leg(-0.35, 0.05)
+	p["blade"] = d(0, -1, 0)
+	p["Spine01"] = lean(0.1)
+	return p
+
+static func pullup(t: float) -> Dictionary:
+	## Ledge hang -> elbows over the lip -> knee up -> standing.
+	var hang: Dictionary = ledge_hang(0.0)
+	var mid: Dictionary = {}
+	mid["L_Upperarm"] = d(0.6, -0.3, -0.5)
+	mid["L_Forearm"] = d(0.2, 1.0, -0.2)
+	mid["R_Upperarm"] = d(0.6, -0.3, 0.5)
+	mid["R_Forearm"] = d(0.2, 1.0, 0.2)
+	mid["L_Thigh"] = leg(1.3, -0.12)
+	mid["L_Calf"] = leg(-0.4, -0.05)
+	mid["R_Thigh"] = leg(0.2, 0.12)
+	mid["R_Calf"] = leg(-0.5, 0.05)
+	mid["blade"] = d(0, -1, 0)
+	mid["Spine01"] = lean(0.55)
+	var stand: Dictionary = idle(0.0, false)
+	var a: Dictionary = hang if t < 0.5 else mid
+	var b: Dictionary = mid if t < 0.5 else stand
+	var u: float = t * 2.0 if t < 0.5 else (t - 0.5) * 2.0
+	return blend(a, b, u)
+
+static func slide(t: float) -> Dictionary:
+	## Surfing down a slope: side-on, knees bent, arms out for balance.
+	var w: float = sin(t * 3.0) * 0.06
+	var p: Dictionary = {}
+	p["L_Thigh"] = leg(0.55, -0.22)
+	p["L_Calf"] = leg(-0.4, -0.08)
+	p["R_Thigh"] = leg(-0.2, 0.22)
+	p["R_Calf"] = leg(-0.7, 0.08)
+	p["L_Upperarm"] = d(0.2, -0.1 + w, -1)
+	p["L_Forearm"] = d(0.3, 0.1, -1)
+	p["R_Upperarm"] = d(-0.1, -0.2 - w, 1)
+	p["R_Forearm"] = d(0.3, 0.0, 1)
+	p["blade"] = d(-0.5, 0.4, 0.5)
+	p["Waist"] = yaw(0.6)
+	p["Spine01"] = lean(0.2)
+	return p
+
+static func land(t: float) -> Dictionary:
+	## Knees give on a hard landing (t counts down).
+	var k: float = clampf(t / 0.3, 0.0, 1.0)
+	var p: Dictionary = crouch(0.0, 0.0)
+	var s: Dictionary = idle(0.0, false)
+	return blend(s, p, k)
+
+static func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
+	var out: Dictionary = {}
+	for key: String in a:
+		if not b.has(key):
+			out[key] = a[key]
+			continue
+		var va: Variant = a[key]
+		var vb: Variant = b[key]
+		if va is Vector3:
+			out[key] = (va as Vector3).slerp(vb as Vector3, u) if (va as Vector3).length() > 0.0 and (vb as Vector3).length() > 0.0 else vb
+		elif va is Quaternion:
+			out[key] = (va as Quaternion).slerp(vb as Quaternion, u)
+		else:
+			out[key] = vb if u > 0.5 else va
+	for key: String in b:
+		if not out.has(key):
+			out[key] = b[key]
+	return out

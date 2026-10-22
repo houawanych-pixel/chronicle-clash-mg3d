@@ -28,6 +28,8 @@ const BUTTONS: Array = [
 	{"id": "door", "c": Vector2(990, 186), "r": 42.0, "label": "ENTER", "glyph": "door", "color": Color("ffd27a")},
 	{"id": "talk", "c": Vector2(1108, 186), "r": 40.0, "label": "TALK", "glyph": "talk", "color": Color("7dffcf")},
 	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
+	# Shown only on the ground out of a fight; tap to sprint, it stays on while you keep moving.
+	{"id": "sprint", "c": Vector2(862, 640), "r": 42.0, "label": "SPRINT", "glyph": "sprint", "color": Color("ffe14a")},
 ]
 ## Stealth actions, top-left like the concept screens (ported MG actions).
 const STEALTH_BUTTONS: Array = [
@@ -273,6 +275,9 @@ func menu_action(a: String) -> void:
 		"stage_frogtown":
 			if game.stage != "frogtown":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "frogtown")
+		"stage_trials":
+			if game.stage != "trials":
+				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "trials")
 		"stage_village":
 			if game.stage != "village":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "village")
@@ -374,6 +379,22 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 		"jump":
 			draw_line(c + Vector2(0, r * 0.32), c + Vector2(0, -r * 0.3), WHITE, 6)
 			draw_polyline(PackedVector2Array([c + Vector2(-r * 0.24, -r * 0.08), c + Vector2(0, -r * 0.34), c + Vector2(r * 0.24, -r * 0.08)]), WHITE, 6)
+		"sprint":
+			for i in 2:
+				var o2: float = (i - 0.5) * r * 0.3
+				draw_polyline(PackedVector2Array([c + Vector2(o2 - r * 0.14, -r * 0.26), c + Vector2(o2 + r * 0.14, 0), c + Vector2(o2 - r * 0.14, r * 0.26)]), Color(ST, 0.7 + i * 0.3), 6)
+		"glide":
+			draw_arc(c + Vector2(0, r * 0.2), r * 0.42, PI * 1.15, PI * 1.85, 16, WHITE, 6)
+			draw_line(c + Vector2(-r * 0.3, -r * 0.08), c + Vector2(0, r * 0.3), Color(WHITE, 0.7), 3)
+			draw_line(c + Vector2(r * 0.3, -r * 0.08), c + Vector2(0, r * 0.3), Color(WHITE, 0.7), 3)
+		"climb":
+			for k4 in 3:
+				var y4: float = (k4 - 1) * r * 0.24
+				draw_line(c + Vector2(-r * 0.26, y4), c + Vector2(r * 0.26, y4), Color(WHITE, 0.6 + k4 * 0.2), 5)
+			draw_polyline(PackedVector2Array([c + Vector2(-r * 0.2, -r * 0.2), c + Vector2(0, -r * 0.4), c + Vector2(r * 0.2, -r * 0.2)]), WHITE, 5)
+		"drop":
+			draw_line(c + Vector2(0, -r * 0.32), c + Vector2(0, r * 0.3), WHITE, 6)
+			draw_polyline(PackedVector2Array([c + Vector2(-r * 0.24, r * 0.08), c + Vector2(0, r * 0.34), c + Vector2(r * 0.24, r * 0.08)]), WHITE, 6)
 		"dodge":
 			for i in 3:
 				var o: float = (i - 1) * r * 0.22
@@ -427,7 +448,7 @@ func round_btn(b: Dictionary) -> void:
 	var c: Vector2 = b.c
 	var r: float = b.r
 	var color: Color = b.color
-	var on: bool = held(b.id)
+	var on: bool = held(b.id) or (b.id == "sprint" and game.trav.sprinting)
 	var ready: bool = game.button_ready(b.id)
 	draw_circle(c, r, Color(0.05, 0.14, 0.24, 0.85 if on else 0.55))
 	draw_arc(c, r, 0, TAU, 64, color if ready else Color(0.5, 0.55, 0.6, 0.7), 4.0, true)
@@ -436,8 +457,12 @@ func round_btn(b: Dictionary) -> void:
 	if fill > 0.0:
 		draw_arc(c, r + 6, -PI / 2, -PI / 2 + TAU * fill, 64, color, 6.0, true)
 	var aiming: bool = game.grapple.aiming
-	glyph("fire" if aiming and b.id == "attack" else b.glyph, c, r)
+	var gl: String = game.button_glyph(b.id)
+	glyph("fire" if aiming and b.id == "attack" else (gl if gl != "" else b.glyph), c, r)
 	var label: String = b.label
+	var ctx: String = game.button_label(b.id)
+	if ctx != "":
+		label = ctx
 	if aiming and b.id == "attack":
 		label = "FIRE"
 	elif b.id == "hook":
@@ -552,18 +577,18 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"], ["trials", "TRAINING", "Sprint, climb, glide test course", "lance"]]
 	for i in stages.size():
 		var st: Array = stages[i]
-		var sr: Rect2 = Rect2(640.0 - stages.size() * 132.5 + 5.0 + i * 265, 392, 255, 82)
+		var sr: Rect2 = Rect2(640.0 - stages.size() * 122.0 + 4.0 + i * 244, 392, 236, 82)
 		var son: bool = game.stage == st[0]
 		frame(sr, Color(0.06, 0.22, 0.32, 0.95) if son else INK, CYAN if son else Color(0.6, 0.7, 0.85, 0.5))
 		if portraits.has(st[3]):
 			var tex: Texture2D = portraits[st[3]]
 			var tsz: Vector2 = tex.get_size()
 			draw_texture_rect_region(tex, Rect2(sr.position + Vector2(8, 8), Vector2(66, 66)), Rect2(Vector2((tsz.x - tsz.y) * 0.5, 0), Vector2(tsz.y, tsz.y)))
-		text(sr.position + Vector2(84, 36), st[1], 24, CYAN if son else WHITE, true, -1)
-		text(sr.position + Vector2(84, 62), st[2], 14, Color(WHITE, 0.8), false, -1)
+		text(sr.position + Vector2(80, 36), st[1], 21, CYAN if son else WHITE, true, -1)
+		text(sr.position + Vector2(80, 62), st[2], 13, Color(WHITE, 0.8), false, -1)
 		menu_buttons.append({"rect": Rect2(sr.position + Vector2(group_dx, 0), sr.size), "action": "stage_" + st[0]})
 	if game.stage == "forest":
 		text(Vector2(640, 525), "You play LANCE. Blonde Lance is the hunter.", 20, WHITE, false)
@@ -592,7 +617,10 @@ func draw_stats() -> void:
 	frame(r)
 	seg_bar(Vector2(464, 16), 352, game.hero.hp, game.hero.max_hp, HP, "HEALTH")
 	seg_bar(Vector2(464, 42), 352, game.mana, 100, MP, "MANA")
-	seg_bar(Vector2(464, 68), 352, game.stamina, 100, ST, "STAMINA")
+	var st_c: Color = ST
+	if game.trav.exhausted or game.trav.low():
+		st_c = ST.lerp(Color("ff3b2f"), 0.5 + 0.5 * sin(clock * (14.0 if game.trav.exhausted else 9.0)))
+	seg_bar(Vector2(464, 68), 352, game.stamina, game.trav.cfg.stamina_max, st_c, "TIRED" if game.trav.exhausted else "STAMINA")
 	var goal: String = game.sections[game.section].goal if game.section < game.sections.size() else ""
 	var gr: Rect2 = Rect2(480, 104, 320, 32)
 	frame(gr, Color(0.03, 0.1, 0.18, 0.75))

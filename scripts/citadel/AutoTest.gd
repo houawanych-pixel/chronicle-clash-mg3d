@@ -1881,6 +1881,84 @@ func trials_run(key: String) -> void:
 	game.hud.holds["block"] = 0
 	await wait(0.2)
 	check(tag + "dodge and block still work", dodged and blocked and game.stamina < 100.0, "dodge %s block %s state %s floor %s sword %s" % [dodged, blocked, h.state, h.is_on_floor(), game.sword_out])
+	# --- shield: carried on the arm, raised in front when guarding
+	place(Vector3(0, 0.2, -40), 0.0)
+	await wait(0.4)
+	var sh: Node3D = h.rig.shield
+	var carried: float = h.rig.shield_facing().dot(h.forward())
+	game.hud.holds["block"] = 1
+	await wait(0.4)
+	var raised: float = h.rig.shield_facing().dot(h.forward())
+	await shot("t7_shield_" + key)
+	var hp_s: float = h.hp
+	var k2: CharacterBody3D = game.enemies[0]
+	k2.global_position = h.global_position + h.forward() * 1.5
+	k2.yaw = h.yaw + PI
+	game.enemy_hits(k2, 12.0, 3.0, -1.0)
+	game.hud.holds["block"] = 0
+	k2.global_position = k2.home
+	await wait(0.2)
+	check(tag + "the hero carries a shield and raises it in front to block", sh != null and sh.visible and raised > 0.7 and raised > carried + 0.3 and h.hp == hp_s, "facing carried %.2f raised %.2f hp %d" % [carried, raised, h.hp])
+	# --- spin attack: keep ATTACK held, let go to spin; hits all round
+	for i in 3:
+		var e3: CharacterBody3D = game.enemies[i]
+		var a3: float = i * TAU / 3.0
+		e3.global_position = h.global_position + Vector3(sin(a3), 0, cos(a3)) * 2.4
+		e3.velocity = Vector3.ZERO
+		e3.attack_cd = 99.0
+		e3.hp = e3.max_hp
+	await wait(0.2)
+	game.hud.pressed["attack"] = true
+	game.hud.holds["attack"] = 1
+	await wait(1.4)
+	var charged: bool = game.spin_charge >= 1.0 and game.button_label("attack") == "SPIN!"
+	await shot("t8_spin_charge_" + key)
+	game.hud.holds["attack"] = 0
+	await wait(0.2)
+	var spun: bool = h.state == "spin"
+	await shot("t8_spin_" + key)
+	await wait(0.5)
+	var all_hit: bool = true
+	for i in 3:
+		var e4: CharacterBody3D = game.enemies[i]
+		if e4.hp >= e4.max_hp:
+			all_hit = false
+	check(tag + "hold ATTACK to charge, let go to spin: hits enemies all round", charged and spun and all_hit, "charged %s spun %s hp %s" % [charged, spun, [game.enemies[0].hp, game.enemies[1].hp, game.enemies[2].hp]])
+	for e5: CharacterBody3D in game.enemies:
+		e5.global_position = e5.home
+		e5.active = false
+	# a quick tap is still a normal swing (no spin)
+	game.hud.pressed["attack"] = true
+	game.hud.holds["attack"] = 1
+	await wait(0.1)
+	game.hud.holds["attack"] = 0
+	await wait(0.8)
+	check(tag + "a quick tap of ATTACK is still a normal swing", h.state != "spin" and game.spin_charge == 0.0)
+	# --- shield surfing down the slide slope
+	var st2: Vector3 = TR.SLIDE_TOP
+	place(Vector3(st2.x, TR.SLIDE_H + 0.3, st2.z - 1.5), 0.0)
+	await until(func() -> bool: return h.is_on_floor(), 2.0)
+	T.events.clear()
+	aim(Vector3(0, 0, 1))
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.3)
+	game.hud.holds["block"] = 1
+	await wait(0.15)
+	game.hud.pressed["jump"] = true
+	var surfing: bool = await until(func() -> bool: return h.state == "surf", 1.5)
+	var top_speed: float = 0.0
+	var t1: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t1 < 2500:
+		top_speed = maxf(top_speed, hspeed())
+		await wait(0.03)
+	await shot("t9_surf_" + key)
+	var still_surf: bool = h.state == "surf"
+	game.hud.stick = Vector2.ZERO
+	game.hud.holds["block"] = 0
+	await wait(0.2)
+	check(tag + "GUARD + JUMP rides the shield down a slope, fast", surfing and top_speed > 9.0 and still_surf and h.global_position.y < 1.0, "surf %s top speed %.1f pos %s events %s" % [surfing, top_speed, h.global_position, T.events])
+	check(tag + "letting go of GUARD steps off the shield", h.state == "idle" and "surf_end:off" in T.events)
+	await wait(0.4)
 	# sprint into an attack: the attack wins
 	place(k.global_position + Vector3(0, 0, 5.0), 0.0)
 	await wait(0.3)

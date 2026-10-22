@@ -221,6 +221,8 @@ func pre_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: bo
 			return pull_tick(f, dt)
 		"slide":
 			return slide_tick(f, dt, dir, jump, attack)
+		"surf":
+			return surf_tick(f, dt, dir, jump, attack)
 		"wallclimb":
 			if take_drop():
 				f.state = "idle"
@@ -440,6 +442,8 @@ func slide_tick(f: CharacterBody3D, dt: float, dir: Vector3, jump: bool, attack:
 		f.state = "idle"
 		note("slide_end:flat")
 		return false
+	if jump and f.is_on_floor() and (game.hud.held("block") or Input.is_action_pressed("cc_block")) and start_surf(f):
+		return true
 	if jump and f.is_on_floor():
 		var away: Vector3 = Vector3(n.x, 0, n.z).normalized()
 		f.velocity = away * 4.0 + Vector3.UP * cfg.jump_speed * 0.75
@@ -523,3 +527,80 @@ func update_glider(f: CharacterBody3D, dt: float) -> void:
 	glider.visible = glider_on > 0.01
 	glider.scale = Vector3.ONE * maxf(0.01, glider_on)
 	glider.rotation.y = f.yaw
+
+# ---------------------------------------------------------------- shield surfing
+
+const SURF_MAX: float = 16.0
+const SURF_FRICTION: float = 1.6     # m/s^2 on flat ground
+const SURF_TURN: float = 2.4         # rad/s steering
+var surf_slow: float = 0.0
+
+func surf_ok() -> bool:
+	return not game.in_village()
+
+## Guard + JUMP: hop onto the shield.
+func start_surf(f: CharacterBody3D) -> bool:
+	if not surf_ok() or not f.is_on_floor():
+		return false
+	f.state = "surf"
+	f.state_t = 0.0
+	f.velocity.y = cfg.jump_speed * 0.45
+	var cur: Vector3 = Vector3(f.velocity.x, 0, f.velocity.z)
+	if cur.length() < 2.0:
+		cur = f.forward() * 3.0
+	f.velocity.x = cur.x
+	f.velocity.z = cur.z
+	surf_slow = 0.0
+	sprinting = false
+	note("surf")
+	game.sound("hook", -10)
+	game.say_once("surf_tip", "tip", "Shield surfing! Keep holding GUARD. Steer with the stick, JUMP to hop, let go of GUARD to step off.")
+	return true
+
+func surf_tick(f: CharacterBody3D, dt: float, dir: Vector3, jump: bool, attack: bool) -> bool:
+	var guard: bool = game.hud.held("block") or Input.is_action_pressed("cc_block")
+	if not guard or attack or take_drop():
+		end_surf(f, "off")
+		return not attack   # an attack carries on into the normal attack code
+	var cur: Vector3 = Vector3(f.velocity.x, 0, f.velocity.z)
+	var speed: float = cur.length()
+	if f.is_on_floor():
+		var n: Vector3 = f.get_floor_normal()
+		var down: Vector3 = Vector3.DOWN - n * n.dot(Vector3.DOWN)
+		cur += Vector3(down.x, 0, down.z) * 26.0 * dt
+		cur = cur.move_toward(Vector3.ZERO, SURF_FRICTION * dt)
+		if jump:
+			f.velocity.y = cfg.jump_speed * 0.8
+			note("surf_hop")
+			game.sound("step", -10)
+		# on flat ground the stick paddles you along a little
+		if speed < 3.0 and dir.length() > 0.3:
+			cur += dir.normalized() * 3.0 * dt
+		if speed < 0.5 and rad_to_deg(n.angle_to(Vector3.UP)) < 6.0:
+			surf_slow += dt
+			if surf_slow > 0.5:
+				end_surf(f, "stopped")
+				return true
+		else:
+			surf_slow = 0.0
+	# steer by turning the travel direction toward the stick
+	if dir.length() > 0.3 and cur.length() > 0.5:
+		var want: float = atan2(dir.x, dir.z)
+		var now: float = atan2(cur.x, cur.z)
+		var turn: float = clampf(wrapf(want - now, -PI, PI), -SURF_TURN * dt, SURF_TURN * dt)
+		cur = cur.rotated(Vector3.UP, turn)
+	cur = cur.limit_length(SURF_MAX)
+	# a hard hit on a wall knocks you off
+	if f.is_on_wall() and speed > 6.0 and cur.length() < speed * 0.4:
+		end_surf(f, "wall")
+		return true
+	f.velocity.x = cur.x
+	f.velocity.z = cur.z
+	if cur.length() > 0.5:
+		f.face_toward(f.global_position + cur, dt, 10.0)
+	return true
+
+func end_surf(f: CharacterBody3D, why: String) -> void:
+	f.state = "idle"
+	f.state_t = 0.0
+	note("surf_end:" + why)

@@ -89,6 +89,11 @@ var key_attack_prev: bool = false
 ## Sword drawn (in hand) or put away on the back. The village starts with it
 ## put away; ATTACK, GUARD or CHARGE draw it automatically.
 var sword_out: bool = true
+## Spin attack: keep ATTACK held after a swing to charge, let go to spin.
+const SPIN_HOLD: float = 0.45     # hold this long before the charge starts
+const SPIN_CHARGE: float = 0.55   # then this long to fill
+var attack_hold: float = 0.0
+var spin_charge: float = 0.0
 var draw_t: float = 0.0
 var draw_target: bool = true
 var draw_swapped: bool = true
@@ -1140,6 +1145,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		blocking = false
 		skill_held = false
 		skill_up = false
+	spin_tick(f, dt, key_attack)
 	mana = minf(100.0, mana + dt * 4.0)
 	potion_cd -= dt
 	burst_window -= dt
@@ -1200,6 +1206,19 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		"dashchain":
 			chain_tick(f, dt)
 			return
+		"spin":
+			f.velocity.x = move_toward(f.velocity.x, 0, 20 * dt)
+			f.velocity.z = move_toward(f.velocity.z, 0, 20 * dt)
+			f.yaw += TAU * 1.15 * dt / f.state_len
+			f.rig.trail_on = true
+			if not f.hit_done and f.state_t >= f.state_len * 0.3:
+				f.hit_done = true
+				hero_strike(f, 40.0, 3.4, -1.01, 0.75)
+				ring(f.global_position + Vector3.UP * 0.9, 3.4, f.rig.blade_color, 0.3)
+			if f.state_t >= f.state_len:
+				f.rig.trail_on = false
+				f.state = "idle"
+			return
 		"hurt", "stagger":
 			f.velocity.x = move_toward(f.velocity.x, 0, 14 * dt)
 			f.velocity.z = move_toward(f.velocity.z, 0, 14 * dt)
@@ -1256,6 +1275,8 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 				f.face_toward(f.global_position + dir, dt, 6.0)
 			if not blocking:
 				f.state = "idle"
+			elif jump and trav.start_surf(f):
+				return
 			elif attack:
 				f.combo = 0
 				f.set_state("attack", 0.36)
@@ -1263,6 +1284,8 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 			return
 	# Free movement.
 	var speed: float = 6.6
+	if spin_charge > 0.0:
+		speed = 2.4
 	if prone:
 		speed = 1.4
 	elif crouched:
@@ -1299,6 +1322,35 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	elif blocking and f.is_on_floor():
 		f.set_state("block")
 		block_t = 0.0
+
+func spin_tick(f: CharacterBody3D, dt: float, key_attack: bool) -> void:
+	var down: bool = (hud.held("attack") or key_attack) and mode == "play" and sword_out and draw_t <= 0.0
+	if not f.alive() or f.state in ["dodge", "hurt", "stagger", "block", "plunge", "dashchain", "spin", "glide", "ledge", "wallclimb", "climb", "surf"]:
+		attack_hold = 0.0 if not down else attack_hold
+		spin_charge = 0.0
+		return
+	if down:
+		attack_hold += dt
+		if attack_hold > SPIN_HOLD and f.state == "idle" and f.is_on_floor():
+			if spin_charge <= 0.0:
+				sound("pulse", -16)
+			var was: float = spin_charge
+			spin_charge = minf(1.0, spin_charge + dt / SPIN_CHARGE)
+			if was < 1.0 and spin_charge >= 1.0:
+				sound("chip", -8)
+		return
+	if spin_charge >= 1.0 and f.state == "idle":
+		start_spin(f)
+	attack_hold = 0.0
+	spin_charge = 0.0
+
+func start_spin(f: CharacterBody3D) -> void:
+	f.combo = 2
+	f.set_state("spin", 0.42)
+	f.hit_done = false
+	trav.sprinting = false
+	sound("cover", -6)
+	burst(f.global_position + Vector3.UP, f.rig.blade_color, 20, 4.0)
 
 func aim_assist(f: CharacterBody3D, dt: float) -> void:
 	var best: CharacterBody3D = null
@@ -1969,6 +2021,14 @@ func button_label(id: String) -> String:
 		"sprint":
 			if trav.exhausted:
 				return "TIRED"
+		"attack":
+			if spin_charge >= 1.0:
+				return "SPIN!"
+			if spin_charge > 0.0:
+				return "CHARGING"
+		"block":
+			if s == "surf":
+				return "SURFING"
 	return ""
 
 func button_glyph(id: String) -> String:
@@ -2005,6 +2065,8 @@ func button_ready(id: String) -> bool:
 
 func button_fill(id: String) -> float:
 	match id:
+		"attack":
+			return spin_charge
 		"skill":
 			return charge
 		"magic":

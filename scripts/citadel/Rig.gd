@@ -160,6 +160,7 @@ func apply(pose: Dictionary, dt: float, rate: float = 14.0) -> void:
 		var pq: Quaternion = parent_q[i]
 		sk.set_bone_pose_rotation(i, (pq.inverse() * r * pq * (rest_q[i] as Quaternion)).normalized())
 	place_sword(pose.get("blade", d(1, 0.4, 0)))
+	place_shield(dt)
 
 ## When true the sword rides on the back (hilt over the right shoulder)
 ## instead of in the hand.
@@ -324,3 +325,133 @@ func update_line() -> void:
 	if line:
 		var tip: Vector3 = sword.global_transform * Vector3(0, 2.1, 0)
 		line.global_transform = Transform3D(Basis.IDENTITY, tip + Vector3.DOWN * 0.8)
+
+# ---------------------------------------------------------------- shield (hero)
+## A heater shield on the left forearm. shield_mode: "arm" (carried), "guard"
+## (raised in front while guarding), "back" (sword sheathed), "surf" (under the feet).
+var shield: Node3D
+var shield_mode: String = "arm"
+var shield_guard: float = 0.0
+
+func add_shield(emblem: Color) -> void:
+	shield = Node3D.new()
+	shield.name = "Shield"
+	add_child(shield)
+	var k: float = height / 1.8
+	var enamel: StandardMaterial3D = StandardMaterial3D.new()
+	enamel.albedo_color = Color("1d3f73")
+	enamel.metallic = 0.45
+	enamel.roughness = 0.35
+	var gold: StandardMaterial3D = StandardMaterial3D.new()
+	gold.albedo_color = Color("d8b45a")
+	gold.metallic = 0.85
+	gold.roughness = 0.3
+	var crest: StandardMaterial3D = StandardMaterial3D.new()
+	crest.albedo_color = emblem.lerp(Color.WHITE, 0.35)
+	crest.emission_enabled = true
+	crest.emission = emblem
+	crest.emission_energy_multiplier = 0.6
+	var outline: PackedVector2Array = heater_outline(0.29 * k, 0.38 * k)
+	shield.add_child(plate(outline, 0.045 * k, 0.05 * k, gold, 0.0))
+	shield.add_child(plate(scaled_outline(outline, 0.86), 0.05 * k, 0.045 * k, enamel, 0.012 * k))
+	# crest: a tall diamond with a cross bar
+	var dia: PackedVector2Array = PackedVector2Array([Vector2(0, 0.2 * k), Vector2(0.075 * k, 0.02 * k), Vector2(0, -0.2 * k), Vector2(-0.075 * k, 0.02 * k)])
+	shield.add_child(plate(dia, 0.01 * k, 0.04 * k, crest, 0.045 * k))
+	var bar: PackedVector2Array = PackedVector2Array([Vector2(-0.16 * k, 0.07 * k), Vector2(0.16 * k, 0.07 * k), Vector2(0.16 * k, 0.03 * k), Vector2(-0.16 * k, 0.03 * k)])
+	shield.add_child(plate(bar, 0.01 * k, 0.04 * k, gold, 0.044 * k))
+
+static func heater_outline(hw: float, hh: float) -> PackedVector2Array:
+	## Flat top with rounded shoulders, sides curving down to a point.
+	var pts: PackedVector2Array = []
+	var n: int = 10
+	for i in n + 1:
+		var u: float = float(i) / n
+		pts.append(Vector2(lerpf(-hw * 0.82, hw * 0.82, u), hh + sin(u * PI) * hh * 0.06))
+	for i in range(1, n + 1):
+		var u: float = float(i) / n
+		var y: float = lerpf(hh * 0.9, -hh, u)
+		var x: float = hw * cos(u * PI * 0.5) * (1.0 - 0.15 * u)
+		pts.append(Vector2(x, y))
+	for i in range(n - 1, 0, -1):
+		var u: float = float(i) / n
+		var y: float = lerpf(hh * 0.9, -hh, u)
+		var x: float = hw * cos(u * PI * 0.5) * (1.0 - 0.15 * u)
+		pts.append(Vector2(-x, y))
+	return pts
+
+static func scaled_outline(p: PackedVector2Array, s: float) -> PackedVector2Array:
+	var out: PackedVector2Array = []
+	for v: Vector2 in p:
+		out.append(v * s)
+	return out
+
+func plate(outline: PackedVector2Array, thick: float, bulge: float, m: Material, z0: float) -> MeshInstance3D:
+	## Extrude a 2D outline into a slightly domed plate (front faces +Z).
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var w: float = 0.001
+	for v: Vector2 in outline:
+		w = maxf(w, absf(v.x))
+	var tris: PackedInt32Array = Geometry2D.triangulate_polygon(outline)
+	var front: Array = []
+	var back: Array = []
+	for v: Vector2 in outline:
+		var dome: float = bulge * (1.0 - pow(v.x / (w * 1.05), 2.0))
+		front.append(Vector3(v.x, v.y, z0 + thick * 0.5 + dome))
+		back.append(Vector3(v.x, v.y, z0 - thick * 0.5 + dome))
+	for i in range(0, tris.size(), 3):
+		st.add_vertex(front[tris[i]])
+		st.add_vertex(front[tris[i + 2]])
+		st.add_vertex(front[tris[i + 1]])
+		st.add_vertex(back[tris[i]])
+		st.add_vertex(back[tris[i + 1]])
+		st.add_vertex(back[tris[i + 2]])
+	var n: int = outline.size()
+	for i in n:
+		var j: int = (i + 1) % n
+		st.add_vertex(front[i])
+		st.add_vertex(back[i])
+		st.add_vertex(front[j])
+		st.add_vertex(front[j])
+		st.add_vertex(back[i])
+		st.add_vertex(back[j])
+	st.generate_normals()
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = m
+	if m is StandardMaterial3D:
+		(m as StandardMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if phone_mode() else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return mi
+
+func place_shield(dt: float) -> void:
+	if shield == null or not ready_xform:
+		return
+	var k: float = height / 1.8
+	var fwd: Vector3 = Vector3(0, 0, -1)
+	var left: Vector3 = Vector3(-1, 0, 0)
+	shield_guard = move_toward(shield_guard, 1.0 if shield_mode == "guard" else 0.0, dt * 9.0)
+	match shield_mode:
+		"surf":
+			shield.transform = Transform3D(Basis(Vector3(1, 0, 0), fwd, Vector3.UP), Vector3(0, 0.05, 0))
+			return
+		"back":
+			var rs: Vector3 = to_rig * sk.get_bone_global_pose(idx["R_Upperarm"]).origin
+			var ls: Vector3 = to_rig * sk.get_bone_global_pose(idx["L_Upperarm"]).origin
+			var mid: Vector3 = (rs + ls) * 0.5 + Vector3(0, -0.28 * k, 0) - fwd * 0.2 * k
+			shield.transform = Transform3D(Basis(Vector3(-1, 0, 0), Vector3.UP, -fwd), mid)
+			return
+	var fore: Vector3 = to_rig * sk.get_bone_global_pose(idx["L_Forearm"]).origin
+	var hand: Vector3 = to_rig * sk.get_bone_global_pose(idx["L_Hand"]).origin
+	var a: Vector3 = (hand - fore).normalized()
+	var n0: Vector3 = left.lerp(fwd, shield_guard).normalized()
+	var n: Vector3 = n0 - a * a.dot(n0)
+	if n.length() < 0.1:
+		n = fwd
+	n = n.normalized()
+	var side: Vector3 = a.cross(n).normalized()
+	shield.transform = Transform3D(Basis(side, a, n), fore.lerp(hand, 0.55) + n * 0.07 * k)
+
+func shield_facing() -> Vector3:
+	## World direction the shield's face points.
+	return shield.global_transform.basis.z.normalized() if shield else Vector3.ZERO

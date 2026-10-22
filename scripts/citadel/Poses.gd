@@ -470,3 +470,66 @@ static func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
 		if not out.has(key):
 			out[key] = b[key]
 	return out
+
+# ---- shield and spin attack
+
+static func shield_block(t: float) -> Dictionary:
+	## Shield raised in front of the chest (left arm), sword held back and ready (right).
+	var p: Dictionary = {}
+	base_legs(p, 0.26)
+	p["L_Thigh"] = leg(0.3, -0.25)
+	p["R_Thigh"] = leg(-0.3, 0.25)
+	p["R_Calf"] = leg(-0.45, 0.1)
+	p["L_Upperarm"] = d(0.6, -0.5, -0.55)
+	p["L_Forearm"] = d(0.35, 1.0, 0.4)
+	p["R_Upperarm"] = d(-0.15, -1, 0.45)
+	p["R_Forearm"] = d(0.8, -0.25, 0.3)
+	p["blade"] = d(0.55, 0.75, 0.25)
+	p["Spine01"] = lean(0.14 + sin(t * 9.0) * 0.01)
+	p["Spine02"] = yaw(0.12)
+	return p
+
+static func spin_ready(t: float) -> Dictionary:
+	## Charging the spin: blade drawn back low across the body, shield up.
+	var b: float = sin(t * 18.0) * 0.03
+	var p: Dictionary = {}
+	p["R_Upperarm"] = d(-0.35, -0.6, 0.9)
+	p["R_Forearm"] = d(-0.9, -0.2, 0.5)
+	p["blade"] = d(-0.9, 0.15 + b, -0.35)
+	p["L_Upperarm"] = d(0.6, -0.5, -0.55)
+	p["L_Forearm"] = d(0.35, 1.0, 0.4)
+	p["Spine02"] = yaw(-0.45)
+	return p
+
+static func spin(t: float) -> Dictionary:
+	## Mid-spin: sword arm straight out to the side, blade level; the body itself turns.
+	var p: Dictionary = {}
+	base_legs(p, 0.3)
+	p["L_Thigh"] = leg(0.35, -0.28)
+	p["L_Calf"] = leg(-0.3, -0.1)
+	p["R_Thigh"] = leg(-0.2, 0.28)
+	p["R_Calf"] = leg(-0.45, 0.1)
+	p["R_Upperarm"] = d(0.25, 0.0, 1)
+	p["R_Forearm"] = d(0.35, 0.0, 1)
+	p["blade"] = d(0.45, 0.05, 1)
+	p["L_Upperarm"] = d(0.2, -0.5, -1)
+	p["L_Forearm"] = d(0.5, -0.2, -0.8)
+	p["Spine01"] = lean(0.22)
+	return p
+
+static func surf(t: float) -> Dictionary:
+	## Riding the shield: side-on crouch, arms out for balance, sword held back.
+	var w: float = sin(t * 3.4) * 0.07
+	var p: Dictionary = {}
+	p["L_Thigh"] = leg(0.75, -0.24)
+	p["L_Calf"] = leg(-0.6, -0.08)
+	p["R_Thigh"] = leg(0.2, 0.24)
+	p["R_Calf"] = leg(-0.85, 0.08)
+	p["L_Upperarm"] = d(0.35, -0.15 + w, -1)
+	p["L_Forearm"] = d(0.5, 0.1, -0.9)
+	p["R_Upperarm"] = d(-0.3, -0.35 - w, 1)
+	p["R_Forearm"] = d(-0.2, -0.1, 1)
+	p["blade"] = d(-0.8, 0.3, 0.4)
+	p["Waist"] = yaw(0.5)
+	p["Spine01"] = lean(0.3)
+	return p

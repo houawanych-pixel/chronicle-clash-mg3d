@@ -67,6 +67,8 @@ func setup(g: Node, k: String, model: String, h: float, blade: Color, blade_len:
 	rig.set_script(RigScript)
 	add_child(rig)
 	rig.setup(model, h, blade, blade_len, 0.8 if k in ["hero", "boss"] else 0.15)
+	if k == "hero":
+		rig.add_shield(blade)
 	home = global_position
 
 func forward() -> Vector3:
@@ -175,8 +177,14 @@ func animate(dt: float) -> void:
 			pose = P.slash(combo, clampf(0.25 + plunge_t / 0.24 * 0.75, 0, 1))
 			rate = 40.0
 		"block":
-			pose = P.block(anim_t)
+			pose = P.shield_block(anim_t) if kind == "hero" else P.block(anim_t)
 			rate = 24.0
+		"spin":
+			pose = P.spin(t)
+			rate = 30.0
+		"surf":
+			pose = P.surf(anim_t)
+			rate = 14.0
 		"windup", "leap":
 			pose = P.windup(t)
 			rate = 16.0
@@ -270,6 +278,8 @@ func animate(dt: float) -> void:
 				drop = -0.34
 		elif kind == "ally" and game.stage == "forest" and game.hero_low() and state == "idle":
 			drop = -0.3
+		if kind == "hero" and state == "surf":
+			drop = 0.12
 		rig.rotation.x = lerpf(rig.rotation.x, tilt, 1.0 - exp(-10.0 * dt))
 		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
 	# Anyone the close camera would clip through fades out of the way.
@@ -281,6 +291,19 @@ func animate(dt: float) -> void:
 			return
 	if kind == "hero":
 		rig.sheathed = not game.sword_out
+		if state == "surf":
+			rig.shield_mode = "surf"
+		elif not game.sword_out:
+			rig.shield_mode = "back"
+		elif state == "block" or game.spin_charge > 0.0:
+			rig.shield_mode = "guard"
+		else:
+			rig.shield_mode = "arm"
+		if game.spin_charge > 0.0 and state == "idle":
+			# hold the blade back, ready to spin
+			var wp: Dictionary = P.spin_ready(anim_t)
+			for key2: String in wp:
+				pose[key2] = wp[key2]
 	rig.apply(pose, dt, rate)
 	rig.update_trail()
 	var tint: float = flash
@@ -288,7 +311,12 @@ func animate(dt: float) -> void:
 	if state == "windup" or state == "leap":
 		tint = maxf(tint, 0.25 + 0.25 * sin(state_t * 30.0))
 		col = Color(1, 0.15, 0.1)
-	rig.glow = 1.0 if state in ["attack", "plunge", "strike", "slam", "dashchain"] else (0.6 if state in ["windup", "leap"] else 0.0)
+	rig.glow = 1.0 if state in ["attack", "plunge", "strike", "slam", "dashchain", "spin"] else (0.6 if state in ["windup", "leap"] else 0.0)
+	if kind == "hero" and game.spin_charge > 0.0:
+		rig.glow = maxf(rig.glow, game.spin_charge * 1.8)
+		if game.spin_charge >= 1.0:
+			tint = maxf(tint, 0.2 + 0.15 * sin(anim_t * 24.0))
+			col = rig.blade_color
 	if kind == "hero" and game.charge > 0.0:
 		rig.glow = maxf(rig.glow, game.charge * 1.6)
 		tint = maxf(tint, game.charge * 0.25 * (0.6 + 0.4 * sin(anim_t * 20.0)))

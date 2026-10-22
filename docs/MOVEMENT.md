@@ -31,6 +31,11 @@ Rules that keep states from clashing:
 
 The left stick and right-side camera drag are unchanged. Only one new button was added (SPRINT, shown only on the ground out of a fight); everything else is the existing JUMP and DODGE buttons changing their name and icon.
 
+## Shield, spin attack, shield surf
+- The hero carries a heater shield on the left forearm (on the back when the sword is sheathed). GUARD raises it in front; blocking and parrying work as before.
+- Spin attack: keep ATTACK held after a swing (0.45 s), the sword charges (0.55 s, the ATTACK button fills and reads SPIN!), let go to spin and hit everything within 3.4 m all round (40 damage, staggers). A quick tap is still a normal swing.
+- Shield surf: hold GUARD and tap JUMP (also from a slide) to hop on the shield. Slopes speed you up (up to 16 m/s), flat ground slows you, the stick steers, JUMP hops, letting go of GUARD or ATTACK steps off, a hard wall hit knocks you off. Not in the villages.
+
 ## Tuning (`data/movement.tres`)
 Open it in the Godot inspector. Defaults: stamina 100, refill 28/s after a 0.6 s rest, tired until 30%, warning under 25%. Run 6.6 m/s, sprint 9.6 (12 stamina/s), tired 4.6; ground accel 48 / decel 60, air steering 20. Climb 2.3 m/s (11/s moving, 3/s holding, leap 18). Ledge hang 2/s, shimmy 1.7 m/s, reach 2.25 m, pull-up 0.55 s. Glider 7.5 m/s, sinks 3 m/s, 7 stamina/s. Slide on floors steeper than 37°.
 

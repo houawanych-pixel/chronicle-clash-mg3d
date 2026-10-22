@@ -33,7 +33,9 @@ The original boxed layout (courtyard, bridge, plaza, throne hall) is kept as sta
 | Climb a wall (sky stages) | JUMP at it (reads CLIMB), stick to climb | Space |
 | Ledge: climb up / shimmy / drop | push up or JUMP (CLIMB UP) · stick left/right · DODGE (DROP) | W or Space · A/D · L |
 | Dodge (stick direction, one air dash) | DODGE | L |
-| Guard / parry (block just before the hit) | hold GUARD | K / Shift |
+| Guard / parry with the shield (block just before the hit) | hold GUARD | K / Shift |
+| Spin attack (hits all round) | keep ATTACK held after a swing until it reads SPIN!, let go | hold J |
+| Shield surf (ride downhill, steer with the stick, JUMP hops) | hold GUARD + JUMP; let go of GUARD to step off | K + Space |
 | Mark an enemy (up to 3) | Tap the enemy | — |
 | Charged dash through marks | Hold CHARGE, release | I |
 | Seeking magic (to marks; stronger right after a charged dash) | MAGIC | U |
@@ -106,4 +108,4 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 ```
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
-Expect `CITADEL RESULT 201/201 PASS` (citadel, stealth, forest, village, frogtown, sky ruin, and the TRAINING traversal checks run with both real hero models). `--trials-only` runs just the traversal checks (66). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.
+Expect `CITADEL RESULT 211/211 PASS` (citadel, stealth, forest, village, frogtown, sky ruin, and the TRAINING traversal checks run with both real hero models). `--trials-only` runs just the traversal checks (76). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.

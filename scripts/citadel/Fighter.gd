@@ -123,7 +123,7 @@ func _physics_process(dt: float) -> void:
 	state_t += dt
 	anim_t += dt
 	flash = maxf(0.0, flash - dt * 4.0)
-	if not is_on_floor() and state != "wallclimb" and state != "grapple":
+	if not is_on_floor() and state not in ["wallclimb", "grapple", "glide", "ledge", "pullup"]:
 		velocity.y -= GRAVITY * dt
 	match kind:
 		"hero":
@@ -199,6 +199,18 @@ func animate(dt: float) -> void:
 		"climb", "wallclimb":
 			pose = P.climb(game.climb_phase)
 			rate = 18.0
+		"glide":
+			pose = P.glide(anim_t)
+			rate = 12.0
+		"ledge":
+			pose = P.ledge_hang(game.climb_phase)
+			rate = 16.0
+		"pullup":
+			pose = P.pullup(clampf(state_t / maxf(game.trav.pull.get("dur", 0.5), 0.05), 0.0, 1.0))
+			rate = 22.0
+		"slide":
+			pose = P.slide(anim_t)
+			rate = 12.0
 		"grapple":
 			pose = P.airborne(4.0)
 			pose["R_Upperarm"] = P.d(1.0, 0.45, 0.2)
@@ -217,9 +229,16 @@ func animate(dt: float) -> void:
 				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
 			elif not is_on_floor() and kind == "hero":
 				pose = P.airborne(velocity.y)
+			elif kind == "hero" and game.trav.land_t > 0.0 and is_on_floor():
+				pose = P.land(game.trav.land_t)
+			elif kind == "hero" and game.trav.sprinting and speed_now > 0.5:
+				run_phase += dt * 13.5
+				pose = P.sprint(run_phase)
 			elif speed_now > 0.08:
 				run_phase += dt * (5.0 + 6.5 * speed_now)
 				pose = P.run_free(run_phase, speed_now) if unarmed() else P.run(run_phase, speed_now)
+				if kind == "hero" and game.trav.exhausted:
+					pose["Spine01"] = P.lean(0.38)
 			else:
 				pose = P.idle_free(anim_t) if unarmed() else P.idle(anim_t, kind != "ally")
 			if kind == "hero" and game.draw_t > 0.0 and state == "idle" and is_on_floor():

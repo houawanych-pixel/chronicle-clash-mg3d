@@ -11,6 +11,8 @@ const RuinScript = preload("res://scripts/citadel/Ruin.gd")
 const Ruin3Script = preload("res://scripts/citadel/Ruin3.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
 const GrappleScript = preload("res://scripts/citadel/Grapple.gd")
+const TraverseScript = preload("res://scripts/citadel/Traverse.gd")
+const TrialsScript = preload("res://scripts/citadel/Trials.gd")
 const FrogtownScript = preload("res://scripts/citadel/Frogtown.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
@@ -64,6 +66,8 @@ var checkpoint: int = 0
 var barriers: Array = []
 var hero_key: String = "blonde_lance"
 var stamina: float = 100.0
+var trav: RefCounted   # Traverse.gd: sprint, ledges, glider, slopes, stamina rules
+var trials: RefCounted  # Trials.gd: the movement test course
 var block_t: float = 0.0
 var queued_attack: bool = false
 var tokens: Array = []
@@ -170,6 +174,8 @@ func _ready() -> void:
 	ruin = Ruin3Script.new(self) if FileAccess.file_exists("res://assets/ruin3/route3.json") else RuinScript.new(self)
 	fx = FxScript.new(self)
 	grapple = GrappleScript.new(self)
+	trav = TraverseScript.new(self)
+	trials = TrialsScript.new(self)
 	village_square = VillageScript.new(self)
 	frogtown = FrogtownScript.new(self)
 	village = village_square
@@ -189,6 +195,8 @@ func _ready() -> void:
 		village.enter()
 	elif url_has("forest"):
 		stage = "forest"
+	elif url_has("trials"):
+		stage = "trials"
 	build_stage()
 	camera = Camera3D.new()
 	camera.fov = 54
@@ -222,7 +230,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V], "cc_sprint": [KEY_CTRL]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -231,7 +239,7 @@ func setup_input() -> void:
 			var ev: InputEventKey = InputEventKey.new()
 			ev.physical_keycode = code
 			InputMap.action_add_event(n, ev)
-	var pad: Dictionary = {"cc_jump": JOY_BUTTON_A, "cc_attack": JOY_BUTTON_X, "cc_block": JOY_BUTTON_RIGHT_SHOULDER, "cc_pause": JOY_BUTTON_START, "cc_dodge": JOY_BUTTON_B, "cc_skill": JOY_BUTTON_Y, "cc_magic": JOY_BUTTON_LEFT_SHOULDER, "cc_potion": JOY_BUTTON_DPAD_UP}
+	var pad: Dictionary = {"cc_jump": JOY_BUTTON_A, "cc_attack": JOY_BUTTON_X, "cc_block": JOY_BUTTON_RIGHT_SHOULDER, "cc_pause": JOY_BUTTON_START, "cc_dodge": JOY_BUTTON_B, "cc_skill": JOY_BUTTON_Y, "cc_magic": JOY_BUTTON_LEFT_SHOULDER, "cc_potion": JOY_BUTTON_DPAD_UP, "cc_sprint": JOY_BUTTON_LEFT_STICK}
 	for n: String in pad:
 		var ev: InputEventJoypadButton = InputEventJoypadButton.new()
 		ev.button_index = pad[n]
@@ -326,6 +334,8 @@ func build_stage() -> void:
 	ladders.clear()
 	if stage == "citadel":
 		ruin.build()
+	elif stage == "trials":
+		trials.build()
 	elif stage == "forest":
 		sections = ForestScript.SECTIONS
 		map_zones = ForestScript.MAP_ZONES
@@ -779,6 +789,9 @@ func spawn_cast() -> void:
 	if stage == "citadel":
 		ruin.spawn_cast()
 		return
+	if stage == "trials":
+		trials.spawn_cast()
+		return
 	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
 	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.25, sections[0].spawn)
@@ -855,7 +868,7 @@ func restart_with(key: String, new_stage: String = "") -> void:
 	time_played = 0
 	parries = 0
 	boss_seen = false
-	stamina = 100
+	stamina = trav.cfg.stamina_max
 	mana = 100
 	potions = 3
 	charge = 0
@@ -873,6 +886,7 @@ func restart_with(key: String, new_stage: String = "") -> void:
 	takedowns = 0
 	ally_captive = false
 	grapple.reset()
+	trav.reset()
 	spawn_cast()
 	cam_pos = hero.global_position
 
@@ -887,6 +901,9 @@ func start_game() -> void:
 		return
 	if stage == "citadel":
 		ruin.start()
+		return
+	if stage == "trials":
+		trials.start()
 		return
 	say_once("start", "ally", "Guards ahead. Stay sharp!")
 	say_once("tip", "tip", "Hold BLOCK when a knight glows red. Block just before the hit to parry.")
@@ -1078,13 +1095,14 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		jump = false
 		blocking = false
 		mv = Vector2.ZERO
-	if f.state != "block" and f.state != "wallclimb" and (f.is_on_floor() or stage != "citadel"):
-		stamina = minf(100.0, stamina + dt * 28.0)
-	if f.global_position.y < fall_line() and f.alive() and f.state != "climb" and f.state != "launch" and f.state != "wallclimb" and f.state != "grapple":
+	trav.stamina_tick(f, dt)
+	if f.global_position.y < fall_line() and f.alive() and f.state not in ["climb", "launch", "wallclimb", "grapple", "ledge", "pullup"]:
 		fell()
 		return
 	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
 	if launch_tick(f, dt):
+		return
+	if trav.pre_tick(f, dt, mv, dir, jump, attack):
 		return
 	if wallclimb_tick(f, dt, mv, dir, jump):
 		return
@@ -1157,7 +1175,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	if dodge and f.state in ["idle", "block", "attack"] and stamina >= 18.0 and (f.is_on_floor() or not air_dash_used):
 		if not f.is_on_floor():
 			air_dash_used = true
-		stamina -= 18.0
+		trav.spend(18.0)
 		dodge_dir = dir.normalized() if dir.length() > 0.2 else f.forward()
 		f.yaw = atan2(-dodge_dir.x, -dodge_dir.z)
 		f.rig.trail_on = false
@@ -1252,8 +1270,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	if in_cover():
 		cover_move(f, dt, mv, dir)
 	else:
-		f.velocity.x = dir.x * speed
-		f.velocity.z = dir.z * speed
+		trav.ground_move(f, dt, dir, speed)
 		if dir.length() > 0.15:
 			f.face_toward(f.global_position + dir, dt, 14.0)
 		auto_cover(f, dt, dir)
@@ -1265,8 +1282,10 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	if jump and f.is_on_floor():
 		if crouched:
 			set_crouch(false)
-		f.velocity.y = 9.6
+		f.velocity.y = trav.cfg.jump_speed
 		sound("step", -10)
+	elif jump and trav.air_jump(f):
+		return
 	if attack:
 		if crouched:
 			set_crouch(false)
@@ -1477,7 +1496,8 @@ func respawn() -> void:
 	hero.hp = hero.max_hp
 	hero.set_state("idle")
 	hero.visible = true
-	stamina = 100
+	stamina = trav.cfg.stamina_max
+	trav.reset()
 	hero.global_position = sections[checkpoint].spawn
 	hero.velocity = Vector3.ZERO
 	ally.global_position = ruin.captive_pos() if stage == "citadel" and ally_captive else hero.global_position + Vector3(1.6, 0, 2.4)
@@ -1514,6 +1534,8 @@ func respawn() -> void:
 func fall_line() -> float:
 	if stage == "citadel":
 		return ruin.fall_line()
+	if stage == "trials":
+		return trials.fall_line()
 	return -9.0
 
 ## Ladders: walk into one and push forward to climb (stick up/down while on it).
@@ -1573,7 +1595,10 @@ var wall_n: Vector3 = Vector3.ZERO
 var climb_leap: float = 0.0
 
 func wall_ray(f: CharacterBody3D, h: float, dir: Vector3, length: float = 1.1) -> Dictionary:
-	var from: Vector3 = f.global_position + Vector3.UP * h
+	return wall_ray_at(f.global_position + Vector3.UP * h, dir, length)
+
+## Climbable stone along a ray (not gates, not floors or ceilings).
+func wall_ray_at(from: Vector3, dir: Vector3, length: float = 1.1, smooth_ok: bool = false) -> Dictionary:
 	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, from + dir * length)
 	q.collision_mask = 1
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
@@ -1581,18 +1606,18 @@ func wall_ray(f: CharacterBody3D, h: float, dir: Vector3, length: float = 1.1) -
 		return hit
 	var c: Object = hit.collider
 	# gates can't be climbed
-	if c is Node and (c as Node).get_parent() in barriers:
+	if c is Node and ((c as Node).get_parent() in barriers or (not smooth_ok and (c as Node).is_in_group("noclimb"))):
 		return {}
 	if absf((hit.normal as Vector3).y) > 0.55:
 		return {}
 	return hit
 
 func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, jump: bool) -> bool:
-	if stage != "citadel":
+	if not trav.climb_stage():
 		return false
 	if f.state != "wallclimb":
 		# grab a wall: in the air (after a jump) and pushing into it, with some stamina left
-		if f.state != "idle" or f.is_on_floor() or stamina < 8.0 or dir.length() < 0.3 or f.velocity.y > 6.0:
+		if f.state != "idle" or f.is_on_floor() or stamina < 8.0 or trav.exhausted or dir.length() < 0.3 or f.velocity.y > 6.0:
 			return false
 		var hit: Dictionary = wall_ray(f, 1.1, dir.normalized(), 0.95)
 		if hit.is_empty() or dir.normalized().dot(-(hit.normal as Vector3)) < 0.5:
@@ -1601,6 +1626,7 @@ func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, ju
 		wall_n.y = 0
 		wall_n = wall_n.normalized()
 		f.state = "wallclimb"
+		trav.note("wallclimb")
 		f.state_t = 0.0
 		climb_leap = 0.0
 		f.velocity = Vector3.ZERO
@@ -1615,28 +1641,31 @@ func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, ju
 	var up_in: float = -mv.y
 	var side_in: float = mv.x
 	var moving: bool = absf(up_in) > 0.2 or absf(side_in) > 0.2
-	stamina -= dt * (11.0 if moving else 3.0)
+	trav.spend(dt * (trav.cfg.climb_drain if moving else trav.cfg.hang_drain))
 	if jump:
 		if up_in < -0.3:
 			# kick off backwards
 			f.state = "idle"
+			trav.note("wall_kick")
 			f.velocity = wall_n * 5.0 + Vector3.UP * 5.5
 			return true
 		if stamina > 12.0:
-			stamina -= 18.0
+			trav.spend(trav.cfg.climb_leap_cost)
 			climb_leap = 0.32
 			sound("step", -6)
 	if stamina <= 0.0:
 		stamina = 0.0
 		f.state = "idle"
+		trav.note("wall_tired")
 		f.velocity = wall_n * 1.5
 		hud.popup("OUT OF STAMINA", Color("ffd36b"))
 		return true
-	var v: Vector3 = right * side_in * CLIMB_SPEED + Vector3.UP * up_in * CLIMB_SPEED
+	var cs: float = trav.cfg.climb_speed
+	var v: Vector3 = right * side_in * cs + Vector3.UP * up_in * cs
 	if climb_leap > 0.0:
 		climb_leap -= dt
 		v = Vector3.UP * 7.5 + right * side_in * 1.5
-	climb_phase += (v.length() / CLIMB_SPEED) * dt * 4.0
+	climb_phase += (v.length() / cs) * dt * 4.0
 	# stay on the wall: follow its surface and lean in
 	var chest: Dictionary = wall_ray(f, 1.2, -wall_n, 1.2)
 	var knee: Dictionary = wall_ray(f, 0.35, -wall_n, 1.2)
@@ -1652,17 +1681,17 @@ func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, ju
 		q.collision_mask = 1
 		var top: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
 		if not top.is_empty() and (top.normal as Vector3).y > 0.6:
-			f.global_position = (top.position as Vector3) + Vector3.UP * 0.1
-			f.velocity = -wall_n * 1.0
-			f.state = "idle"
-			sound("step", -8)
+			# climb up over the lip (smooth, collisions off for the move)
+			trav.start_pullup(f, (top.position as Vector3) + Vector3.UP * 0.02, wall_n, trav.cfg.pullup_time)
 			return true
 	if chest.is_empty() and knee.is_empty():
 		f.state = "idle"
+		trav.note("wall_lost")
 		f.velocity = Vector3.ZERO
 		return true
 	if f.is_on_floor() and up_in < -0.2:
 		f.state = "idle"
+		trav.note("wall_floor")
 		return true
 	f.velocity = v - wall_n * 1.2
 	return true
@@ -1729,6 +1758,9 @@ func progress_check() -> void:
 		return
 	if stage == "citadel":
 		ruin.progress()
+		return
+	if stage == "trials":
+		trials.progress()
 		return
 	if section < 3 and section_clear(section):
 		open_barrier(section)
@@ -1898,6 +1930,9 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 
 ## TALK shows only in the village, next to a villager (or while chatting).
 func button_visible(id: String) -> bool:
+	if id == "sprint":
+		return hero != null and hero.alive() and hero.state == "idle" and hero.is_on_floor() and not crouched and not prone \
+				and not in_cover() and not grapple.aiming and not (in_village() and village.chat.is_open())
 	if id == "door":
 		return stage == "frogtown" and village.active and village.near_door() != ""
 	if id == "hook":
@@ -1908,8 +1943,56 @@ func button_visible(id: String) -> bool:
 		return in_village() and village.active and (village.chat.is_open() or village.chat.nearest() != null)
 	return true
 
+## Contextual names for the shared buttons (JUMP becomes GLIDE / CLIMB UP..., DODGE becomes DROP).
+func button_label(id: String) -> String:
+	if hero == null or mode != "play":
+		return ""
+	var s: String = hero.state
+	match id:
+		"jump":
+			match s:
+				"glide":
+					return "CLOSE"
+				"ledge":
+					return "CLIMB UP"
+				"wallclimb":
+					return "LEAP"
+				"climb":
+					return "LET GO"
+			if s == "idle" and not hero.is_on_floor() and trav.enabled() and hero.velocity.y < 3.0 and not trav.ground_below(hero, trav.cfg.glide_min_height):
+				return "GLIDE"
+			if s == "idle" and hero.is_on_floor() and trav.climb_stage() and facing_wall():
+				return "CLIMB"
+		"dodge":
+			if s in ["wallclimb", "ledge", "glide"]:
+				return "DROP"
+		"sprint":
+			if trav.exhausted:
+				return "TIRED"
+	return ""
+
+func button_glyph(id: String) -> String:
+	match button_label(id):
+		"GLIDE", "CLOSE":
+			return "glide"
+		"CLIMB", "CLIMB UP", "LEAP":
+			return "climb"
+		"DROP", "LET GO":
+			return "drop"
+	return ""
+
+## On the ground, pushing into climbable stone right in front of you.
+func facing_wall() -> bool:
+	var mv: Vector2 = move_input()
+	var dir: Vector3 = cam_right() * mv.x - cam_forward() * mv.y
+	if dir.length() < 0.3:
+		dir = hero.forward()
+	return not wall_ray(hero, 1.1, dir.normalized(), 0.9).is_empty()
+
 func button_ready(id: String) -> bool:
 	match id:
+		"sprint":
+			return not trav.exhausted
 		"dodge":
 			return stamina >= 18.0
 		"magic":
@@ -2270,8 +2353,8 @@ func footsteps(f: CharacterBody3D, dt: float) -> void:
 	foot_time -= dt
 	var hs: float = Vector2(f.velocity.x, f.velocity.z).length()
 	if hs > 2.6 and f.is_on_floor() and foot_time <= 0 and not crouched and not prone:
-		foot_time = 0.42
-		noise(f.global_position, 4.5)
+		foot_time = 0.3 if trav.sprinting else 0.42
+		noise(f.global_position, 7.5 if trav.sprinting else 4.5)
 
 func noise(at: Vector3, radius: float) -> void:
 	for e: CharacterBody3D in enemies:

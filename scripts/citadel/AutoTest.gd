@@ -110,6 +110,11 @@ func run() -> void:
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
 		get_tree().quit()
 		return
+	if "--trials-only" in OS.get_cmdline_user_args():
+		await trials_tests()
+		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
+		get_tree().quit()
+		return
 	if "--ruin-only" in OS.get_cmdline_user_args():
 		await ruin_tests()
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
@@ -287,6 +292,7 @@ func run() -> void:
 	await village_tests()
 	await frog_tests()
 	await ruin_tests()
+	await trials_tests()
 	var passed: int = results.count(true)
 	print("CITADEL RESULT %d/%d %s" % [passed, results.size(), "PASS" if passed == results.size() else "FAIL"])
 	if OS.has_feature("web"):
@@ -712,7 +718,7 @@ func walk_to(p: Vector3, timeout: float = 12.0, jumps: Array = []) -> bool:
 		var c: KinematicCollision3D = h.get_slide_collision(i)
 		var o: Object = c.get_collider()
 		hits.append("%s@%s" % [(o as Node).get_path() if o is Node else o, c.get_position()])
-	print("WALK STUCK at ", h.global_position, " -> ", p, " state=", h.state, " cover=", game.in_cover(), " crouch=", game.crouched, " mode=", game.mode, " vel=", h.velocity, " input=", game.move_input(), " paused=", game.paused(), " floor=", h.is_on_floor(), " hits=", hits)
+	print("WALK STUCK events=", game.trav.events, " at ", h.global_position, " -> ", p, " state=", h.state, " cover=", game.in_cover(), " crouch=", game.crouched, " mode=", game.mode, " vel=", h.velocity, " input=", game.move_input(), " paused=", game.paused(), " floor=", h.is_on_floor(), " hits=", hits)
 	return false
 
 func climb(l: Dictionary, timeout: float = 10.0) -> bool:
@@ -1561,3 +1567,330 @@ func frog_tests() -> void:
 	game.restart_with("blonde_lance", "village")
 	await wait(0.6)
 	check("the old village square still loads after Frogtown", game.stage == "village" and game.village == game.village_square and game.village.villagers.size() == 6, "n=%d" % game.village.villagers.size())
+
+# ---------------------------------------------------------------- traversal (TRAINING course)
+
+const TR = preload("res://scripts/citadel/Trials.gd")
+
+func aim(t: Vector3) -> void:
+	## Point the camera so stick-up walks along t.
+	game.cam_yaw = atan2(-t.x, -t.z)
+
+func hspeed() -> float:
+	return Vector2(game.hero.velocity.x, game.hero.velocity.z).length()
+
+func until(cond: Callable, timeout: float) -> bool:
+	var t0: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(timeout * 1000):
+		if cond.call():
+			return true
+		await wait(0.03)
+	return false
+
+func trials_tests() -> void:
+	for key: String in ["blonde_lance", "lance"]:
+		await trials_run(key)
+
+func trials_run(key: String) -> void:
+	game.restart_with(key, "trials")
+	game.start_game()
+	await wait(0.6)
+	var h: CharacterBody3D = game.hero
+	var T: RefCounted = game.trav
+	var tag: String = "[%s] " % key
+	check(tag + "training course loads with the real hero model", game.stage == "trials" and h.rig != null and game.enemies.size() == 3 and game.ladders.size() == 2, "enemies=%d ladders=%d" % [game.enemies.size(), game.ladders.size()])
+	await shot("t0_course_" + key)
+	# --- acceleration, run speed, stop
+	place(Vector3(0, 0.2, 4), 0.0)
+	await wait(0.4)
+	aim(Vector3(0, 0, -1))
+	game.hud.stick = Vector2(0, -1)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var early: float = hspeed()
+	await wait(0.5)
+	var run_v: float = hspeed()
+	game.hud.stick = Vector2.ZERO
+	await wait(0.2)
+	check(tag + "running speeds up smoothly and stops quickly", early < run_v * 0.8 and absf(run_v - T.cfg.run_speed) < 0.4 and hspeed() < 0.3, "start %.2f run %.2f after stop %.2f" % [early, run_v, hspeed()])
+	# --- sprint (touch toggle) uses stamina, then a short pause before it refills
+	place(Vector3(0, 0.2, 4), 0.0)
+	game.stamina = 100.0
+	await wait(0.3)
+	check(tag + "SPRINT button shows on the ground", game.button_visible("sprint"))
+	game.hud.stick = Vector2(0, -1)
+	game.hud.pressed["sprint"] = true
+	await wait(1.0)
+	var spr_v: float = hspeed()
+	var spr_on: bool = T.sprinting
+	var st_after: float = game.stamina
+	await shot("t1_sprint_" + key)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.45)
+	var st_pause: float = game.stamina
+	await wait(1.0)
+	check(tag + "sprinting is faster and drains stamina", spr_on and absf(spr_v - T.cfg.sprint_speed) < 0.5 and st_after < 92.0, "speed %.2f stamina %.1f" % [spr_v, st_after])
+	check(tag + "stamina waits a moment after exertion, then refills", absf(st_pause - st_after) < 3.0 and game.stamina > st_pause + 10.0 and not T.sprint_toggle, "%.1f -> %.1f -> %.1f" % [st_after, st_pause, game.stamina])
+	# keyboard sprint (hold CTRL)
+	game.stamina = 100.0
+	Input.action_press("cc_sprint")
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.8)
+	var key_v: float = hspeed()
+	Input.action_release("cc_sprint")
+	game.hud.stick = Vector2.ZERO
+	await wait(0.3)
+	check(tag + "keyboard/pad sprint (hold) works", key_v > T.cfg.run_speed + 2.0, "speed %.2f" % key_v)
+	# --- exhaustion
+	place(Vector3(0, 0.2, 4), 0.0)
+	await wait(0.3)
+	game.stamina = 4.0
+	T.regen_wait = 1.0
+	game.hud.stick = Vector2(0, -1)
+	game.hud.pressed["sprint"] = true
+	await wait(0.8)
+	var ex: bool = T.exhausted
+	var ex_v: float = hspeed()
+	check(tag + "running out of stamina: exhausted, no sprint, slower", ex and not T.sprinting and ex_v <= T.cfg.exhausted_speed + 0.2 and game.button_label("sprint") == "TIRED", "exhausted=%s speed %.2f" % [ex, ex_v])
+	await shot("t2_exhausted_" + key)
+	game.hud.stick = Vector2.ZERO
+	await until(func() -> bool: return not T.exhausted, 4.0)
+	check(tag + "exhaustion ends once stamina is back to 30%", not T.exhausted and game.stamina >= 29.0, "stamina %.1f" % game.stamina)
+	game.stamina = 100.0
+	# --- jump; glide can't open on the ground or low down
+	place(Vector3(0, 0.2, 4), 0.0)
+	await wait(0.4)
+	game.hud.pressed["jump"] = true
+	await wait(0.25)
+	var up: float = h.global_position.y
+	await wait(0.2)
+	game.hud.pressed["jump"] = true   # near the apex, but under 2.2 m: no glider
+	await wait(0.05)
+	var low_glide: bool = h.state == "glide"
+	await until(func() -> bool: return h.is_on_floor(), 2.0)
+	check(tag + "jumping works and lands; no glider close to the ground", up > 1.2 and not low_glide and h.is_on_floor(), "height %.2f glide=%s" % [up, low_glide])
+	# --- vault a low ledge (1.2 m smooth block)
+	var lo: Vector3 = TR.LEDGE_LOW
+	T.events.clear()
+	place(Vector3(lo.x + 3.6, 0.2, lo.z), 0.0)
+	await wait(0.3)
+	aim(Vector3(-1, 0, 0))
+	game.hud.stick = Vector2(0, -1)
+	await until(func() -> bool: return h.global_position.x < lo.x + 2.4, 2.0)
+	game.hud.pressed["jump"] = true
+	var vaulted: bool = await until(func() -> bool: return h.is_on_floor() and h.global_position.y > TR.LEDGE_LOW_H - 0.2, 3.0)
+	game.hud.stick = Vector2.ZERO
+	check(tag + "jumping at a 2.6 m ledge catches it and vaults up", vaulted and "mantle" in T.events, "pos %s events %s" % [h.global_position, T.events.slice(-4)])
+	# --- catch a high smooth ledge, hang, shimmy, climb up
+	var hi: Vector3 = TR.LEDGE_HIGH
+	T.events.clear()
+	place(Vector3(hi.x + 2.3, 0.2, hi.z), 0.0)
+	await wait(0.4)
+	game.stamina = 100.0
+	aim(Vector3(-1, 0, 0))
+	game.hud.stick = Vector2(0, -0.6)
+	await wait(0.1)
+	game.hud.pressed["jump"] = true
+	var hung: bool = await until(func() -> bool: return h.state == "ledge", 2.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	var hang_y: float = h.global_position.y
+	check(tag + "jumping at a high ledge catches it and hangs (smooth wall: no wall climb)", hung and h.state == "ledge" and "wallclimb" not in str(T.events) and absf(hang_y - (TR.LEDGE_HIGH_H - T.HANG_DROP)) < 0.2, "state %s y %.2f events %s" % [h.state, hang_y, T.events])
+	check(tag + "on a ledge JUMP reads CLIMB UP and DODGE reads DROP", game.button_label("jump") == "CLIMB UP" and game.button_label("dodge") == "DROP" and not game.button_visible("sprint"))
+	await shot("t3_ledge_" + key)
+	var z0: float = h.global_position.z
+	game.hud.stick = Vector2(1, 0)
+	await wait(1.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.1)
+	check(tag + "shimmy sideways along the ledge", h.state == "ledge" and absf(h.global_position.z - z0) > 1.0, "dz %.2f state %s" % [h.global_position.z - z0, h.state])
+	game.hud.stick = Vector2(-1, 0)
+	await wait(6.0)
+	game.hud.stick = Vector2.ZERO
+	check(tag + "you can't shimmy off the end of a ledge", h.state == "ledge" and absf(h.global_position.z - hi.z) < 4.2, "z %.2f" % h.global_position.z)
+	game.hud.stick = Vector2(0, -1)
+	var topped: bool = await until(func() -> bool: return h.state == "idle" and h.is_on_floor() and h.global_position.y > TR.LEDGE_HIGH_H - 0.3, 3.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.2)
+	check(tag + "push up to pull up onto the ledge", topped and "pullup_done" in T.events, "pos %s" % h.global_position)
+	# drop from a ledge
+	place(Vector3(hi.x + 2.3, 0.2, hi.z), 0.0)
+	await wait(0.4)
+	game.hud.stick = Vector2(0, -0.6)
+	await wait(0.1)
+	game.hud.pressed["jump"] = true
+	await until(func() -> bool: return h.state == "ledge", 2.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.3)
+	game.hud.pressed["dodge"] = true
+	var dropped: bool = await until(func() -> bool: return h.is_on_floor() and h.global_position.y < 0.5, 2.0)
+	check(tag + "DODGE lets go of a ledge", dropped and "drop" in T.events)
+	# out of stamina on a ledge: you let go
+	game.hud.stick = Vector2(0, -0.6)
+	await wait(0.1)
+	game.hud.pressed["jump"] = true
+	await until(func() -> bool: return h.state == "ledge", 2.0)
+	game.hud.stick = Vector2.ZERO
+	game.stamina = 0.5
+	var fell_off: bool = await until(func() -> bool: return h.state != "ledge" and h.is_on_floor(), 3.0)
+	check(tag + "no stamina left on a ledge: controlled drop", fell_off and h.global_position.y < 0.5)
+	game.stamina = 100.0
+	T.exhausted = false
+	# --- climb the stone wall (up and sideways) and over the top
+	var cw: Vector3 = TR.CLIMB_WALL
+	T.events.clear()
+	place(Vector3(cw.x + 2.25, 0.2, cw.z), 0.0)
+	await wait(0.4)
+	game.stamina = 100.0
+	aim(Vector3(-1, 0, 0))
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.12)
+	check(tag + "facing a climbable wall, JUMP reads CLIMB", game.button_label("jump") == "CLIMB", game.button_label("jump"))
+	game.hud.pressed["jump"] = true
+	var on_wall: bool = await until(func() -> bool: return h.state == "wallclimb", 2.0)
+	game.hud.stick = Vector2(1, 0)
+	await wait(0.6)
+	var side_z: float = h.global_position.z
+	await shot("t4_wallclimb_" + key)
+	game.hud.stick = Vector2(0, -1)
+	var over: bool = await until(func() -> bool: return h.state == "idle" and h.is_on_floor() and h.global_position.y > TR.CLIMB_WALL_H - 0.3, 9.0)
+	game.hud.stick = Vector2.ZERO
+	check(tag + "climbing: up, sideways and pull up over the top", on_wall and absf(side_z - cw.z) > 0.5 and over and game.stamina < 70.0, "z moved %.2f top=%s stamina %.0f" % [side_z - cw.z, over, game.stamina])
+	# drop off a wall with DODGE
+	place(Vector3(cw.x + 3.2, 0.2, cw.z), 0.0)
+	await wait(0.4)
+	game.stamina = 100.0
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.12)
+	game.hud.pressed["jump"] = true
+	await until(func() -> bool: return h.state == "wallclimb", 2.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.3)
+	check(tag + "on a wall DODGE reads DROP", game.button_label("dodge") == "DROP")
+	game.hud.pressed["dodge"] = true
+	await wait(0.15)
+	check(tag + "DODGE lets go of a wall", h.state != "wallclimb")
+	await until(func() -> bool: return h.is_on_floor(), 2.0)
+	# --- climb the tower (long climb, stamina matters)
+	var tw: Vector3 = TR.TOWER
+	T.events.clear()
+	place(Vector3(tw.x - 5.2, 0.2, tw.z), 0.0)
+	await wait(0.4)
+	game.stamina = 100.0
+	aim(Vector3(1, 0, 0))
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.12)
+	game.hud.pressed["jump"] = true
+	var topped2: bool = await until(func() -> bool: return h.state == "idle" and h.is_on_floor() and h.global_position.y > TR.TOWER_H, 14.0)
+	game.hud.stick = Vector2.ZERO
+	check(tag + "climb the 14 m tower to the top", topped2, "pos %s stamina %.0f events %s" % [h.global_position, game.stamina, T.events.slice(-6)])
+	# --- glide from the glide tower
+	var gt: Vector3 = TR.GLIDE_TOWER
+	T.events.clear()
+	place(gt + Vector3(0, TR.GLIDE_H + 0.7, 1.5), 0.0)
+	await until(func() -> bool: return h.is_on_floor(), 2.0)
+	await wait(0.3)
+	game.stamina = 100.0
+	aim(Vector3(0, 0, 1))
+	game.hud.stick = Vector2(0, -1)
+	await until(func() -> bool: return h.global_position.y < TR.GLIDE_H - 1.0, 3.0)
+	check(tag + "in the air high up, JUMP reads GLIDE", game.button_label("jump") == "GLIDE", game.button_label("jump"))
+	game.hud.pressed["jump"] = true
+	await wait(0.6)
+	var g_on: bool = h.state == "glide"
+	var y1: float = h.global_position.y
+	var z1: float = h.global_position.z
+	await wait(1.0)
+	var sink: float = y1 - h.global_position.y
+	var travel: float = h.global_position.z - z1
+	await shot("t5_glide_" + key)
+	check(tag + "the glider opens in the air, sinks slowly and flies forward", g_on and sink < 3.8 and sink > 1.5 and travel > 4.5 and T.glider != null and T.glider.visible, "sink %.2f m/s travel %.2f m/s" % [sink, travel])
+	game.hud.stick = Vector2(1, 0)
+	await wait(1.0)
+	var steer_x: float = h.velocity.x
+	check(tag + "the glider steers with the stick and uses stamina", absf(steer_x) > 2.0 and game.stamina < 90.0, "vx %.2f stamina %.0f" % [steer_x, game.stamina])
+	game.hud.stick = Vector2(0, -1)
+	var landed: bool = await until(func() -> bool: return h.is_on_floor(), 12.0)
+	await wait(0.3)
+	var far: float = Vector2(h.global_position.x - gt.x, h.global_position.z - gt.z).length()
+	check(tag + "glide lands smoothly far from the tower (glider folds away)", landed and h.state == "idle" and far > 18.0 and h.hp == h.max_hp and not T.glider.visible, "dist %.1f hp %d events %s" % [far, h.hp, T.events.slice(-3)])
+	# closing the glider drops you; no stamina closes it too
+	place(gt + Vector3(0, TR.GLIDE_H + 0.7, 1.5), 0.0)
+	await until(func() -> bool: return h.is_on_floor(), 2.0)
+	await wait(0.3)
+	game.stamina = 100.0
+	game.hud.stick = Vector2(0, -1)
+	await until(func() -> bool: return h.global_position.y < TR.GLIDE_H - 1.0, 3.0)
+	game.hud.pressed["jump"] = true
+	await until(func() -> bool: return h.state == "glide", 1.0)
+	await wait(0.3)
+	game.hud.pressed["jump"] = true
+	await wait(0.5)
+	check(tag + "JUMP again closes the glider and you fall", h.state == "idle" and h.velocity.y < -6.0, "state %s vy %.1f" % [h.state, h.velocity.y])
+	await wait(0.15)
+	game.hud.pressed["jump"] = true
+	var reopened: bool = await until(func() -> bool: return h.state == "glide", 1.0)
+	game.stamina = 0.5
+	await wait(0.5)
+	check(tag + "running out of stamina folds the glider", reopened and h.state != "glide" and T.exhausted, "reopened %s" % reopened)
+	await until(func() -> bool: return h.is_on_floor(), 6.0)
+	game.stamina = 100.0
+	T.exhausted = false
+	await wait(0.3)
+	# --- walkable ramp (no slide) and the steep slope (slide)
+	var rb: Vector3 = TR.RAMP_BASE
+	place(Vector3(rb.x, 0.2, rb.z + 2.0), 0.0)
+	await wait(0.3)
+	T.events.clear()
+	aim(Vector3(0, 0, -1))
+	game.hud.stick = Vector2(0, -1)
+	var up_ramp: bool = await until(func() -> bool: return h.global_position.y > 3.8 and h.is_on_floor(), 5.0)
+	game.hud.stick = Vector2.ZERO
+	check(tag + "walk up an 18 degree ramp without sliding", up_ramp and "slide" not in T.events, "pos %s" % h.global_position)
+	var st: Vector3 = TR.SLIDE_TOP
+	place(Vector3(st.x, TR.SLIDE_H + 0.3, st.z - 1.0), 0.0)
+	await wait(0.4)
+	T.events.clear()
+	aim(Vector3(0, 0, 1))
+	game.hud.stick = Vector2(0, -1)
+	var sliding: bool = await until(func() -> bool: return h.state == "slide", 3.0)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.3)
+	await shot("t6_slide_" + key)
+	var slid: bool = await until(func() -> bool: return h.state == "idle" and h.global_position.y < 0.6 and h.is_on_floor(), 4.0)
+	check(tag + "a 42 degree slope makes you slide to the bottom", sliding and slid and "slide_end:flat" in T.events, "pos %s events %s" % [h.global_position, T.events])
+	# --- combat still works after traversal
+	var k: CharacterBody3D = game.enemies[1]
+	place(k.global_position + Vector3(0, 0, 1.6), 0.0)
+	await wait(0.3)
+	k.active = true
+	for e: CharacterBody3D in game.enemies:
+		e.attack_cd = 99.0
+	game.hud.pressed["attack"] = true
+	await wait(0.6)
+	check(tag + "sword attack still hits after traversal", k.hp < k.max_hp, "hp %d" % k.hp)
+	game.stamina = 100.0
+	game.hud.stick = Vector2(1, 0)
+	game.hud.pressed["dodge"] = true
+	await wait(0.05)
+	var dodged: bool = h.state == "dodge"
+	game.hud.stick = Vector2.ZERO
+	await wait(0.4)
+	game.hud.holds["block"] = 1
+	var blocked: bool = await until(func() -> bool: return h.state == "block", 0.6)
+	game.hud.holds["block"] = 0
+	await wait(0.2)
+	check(tag + "dodge and block still work", dodged and blocked and game.stamina < 100.0, "dodge %s block %s state %s floor %s sword %s" % [dodged, blocked, h.state, h.is_on_floor(), game.sword_out])
+	# sprint into an attack: the attack wins
+	place(k.global_position + Vector3(0, 0, 5.0), 0.0)
+	await wait(0.3)
+	aim(Vector3(0, 0, -1))
+	game.hud.stick = Vector2(0, -1)
+	game.hud.pressed["sprint"] = true
+	await wait(0.3)
+	var was_spr: bool = T.sprinting
+	game.hud.pressed["attack"] = true
+	await wait(0.1)
+	check(tag + "attacking while sprinting stops the sprint and swings", was_spr and h.state == "attack" and not T.sprinting, h.state)
+	game.hud.stick = Vector2.ZERO
+	await wait(0.6)

@@ -1,0 +1,51 @@
+{
+ "columns": [
+  "x_m",
+  "y_m",
+  "z_m",
+  "height_or_size_m",
+  "rot_z_rad"
+ ],
+ "counts": {
+  "tree_conifer": 1036,
+  "tree_broadleaf": 574,
+  "boulder": 1023,
+  "bush": 1773,
+  "rock_small": 4256,
+  "reeds": 2424
+ },
+ "scale_m": {
+  "tree_conifer": [
+   14,
+   26
+  ],
+  "tree_broadleaf": [
+   10,
+   18
+  ],
+  "bush": [
+   0.8,
+   2.0
+  ],
+  "boulder": [
+   1.2,
+   4.0
+  ],
+  "rock_small": [
+   0.25,
+   0.9
+  ],
+  "reeds": [
+   1.4,
+   2.4
+  ]
+ },
+ "spacing_m": {
+  "tree_conifer": 4.5,
+  "tree_broadleaf": 6.5,
+  "bush": 1.8,
+  "boulder": 2.5,
+  "rock_small": 0.8,
+  "reeds": 0.6
+ }
+}

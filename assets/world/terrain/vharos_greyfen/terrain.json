@@ -1,0 +1,51 @@
+{
+ "region": "Greyfen",
+ "nation": "Vharos",
+ "node": "CC_Location_Vharos_Greyfen",
+ "size_m": 786.76,
+ "height_decode": "metres = value/65535*250 - 60 (sea level = 0)",
+ "water_decode": "0 = no water, else metres = value/65535*250 - 60",
+ "splat_a_rgba": [
+  "grass",
+  "drygrass",
+  "forest",
+  "moss"
+ ],
+ "splat_b_rgba": [
+  "mud",
+  "sand",
+  "scree",
+  "rock"
+ ],
+ "north": "image top = north (+Y in Blender, -Z in Godot)",
+ "sites": {
+  "Castle_NE": [
+   1510,
+   640,
+   230
+  ],
+  "RingFort_S": [
+   1037,
+   1331,
+   150
+  ],
+  "Village_SE": [
+   1664,
+   1536,
+   250
+  ]
+ },
+ "stats": {
+  "px_m": 0.38416015625,
+  "size_m": 786.76,
+  "zmin": -48.61581039692658,
+  "zmax": 136.52191342910137,
+  "floor_guide": 23.776248931884766,
+  "marsh_lvl": 1.2,
+  "lake_lvl": 0.9,
+  "land_pct": 0.6073024272918701,
+  "slope_p95": 54.70913211073878,
+  "secs": 166
+ },
+ "guide": "CC_Terrain_Vharos_Greyfen.glb (Tripo) used as tracing guide only"
+}

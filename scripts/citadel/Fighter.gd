@@ -17,6 +17,11 @@ var state_len: float = 0.0
 var anim_t: float = 0.0
 var run_phase: float = 0.0
 var speed_now: float = 0.0
+## Retargeted clips (hero): shared walk/run phase, hip bob, and the hip height they are scaled to.
+var loco_phase: float = 0.0
+var clip_lift: float = 0.0
+var clip_on: bool = false
+var hip_h: float = 0.0
 var flash: float = 0.0
 var flash_color: Color = Color.WHITE
 var combo: int = 0
@@ -154,6 +159,41 @@ func _physics_process(dt: float) -> void:
 			break
 	animate(dt)
 
+## Idle / walk / run / sprint from the retargeted Mixamo clips (Running, Standard Walk, Idle):
+## walk and run share one phase so they blend in step; the phase advances by distance covered,
+## so the feet match the ground speed up to a natural cadence (2.3 strides a second), then the stride lengthens.
+func loco_clip(dt: float, hs: float) -> Dictionary:
+	var C: RefCounted = game.clips
+	if hip_h <= 0.0:
+		var hi: int = rig.sk.find_bone("Hip")
+		hip_h = (rig.model.transform * rig.sk.get_bone_global_rest(hi)).origin.y if hi >= 0 else height * 0.55
+	var w: float = clampf((hs - 1.6) / 2.4, 0.0, 1.0)
+	var walk_stride: float = C.move_rate("mx_walk") * hip_h * C.length("mx_walk")
+	var run_stride: float = C.move_rate("mx_run") * hip_h * C.length("mx_run")
+	var stride: float = lerpf(walk_stride, run_stride, w)
+	loco_phase = fposmod(loco_phase + dt * minf(hs / maxf(stride, 0.1), 2.3), 1.0)
+	var moving: Dictionary = C.mix(C.sample("mx_walk", loco_phase * C.length("mx_walk")), C.sample("mx_run", loco_phase * C.length("mx_run")), w)
+	var p: Dictionary = C.mix(C.sample("mx_idle", anim_t), moving, clampf(hs / 1.0, 0.0, 1.0))
+	if game.trav.sprinting:
+		p["Spine01"] = (p.get("Spine01", Quaternion()) as Quaternion) * P.lean(0.18)
+	elif game.trav.exhausted and hs > 0.5:
+		p["Spine01"] = (p.get("Spine01", Quaternion()) as Quaternion) * P.lean(0.3)
+	# Sword out (Link-style carry): lean into the run, the shield arm stays across the body
+	# (half the swing, forearm forward) so the shield rides in front-left instead of flapping.
+	if not unarmed() and hs > 0.5:
+		var k: float = clampf((hs - 0.5) / 3.0, 0.0, 1.0)
+		p["Spine01"] = (p.get("Spine01", Quaternion()) as Quaternion) * P.lean(0.1 * k)
+		var ua: Vector3 = p.get("L_Upperarm", P.d(0, -1, -0.3))
+		p["L_Upperarm"] = ua.slerp(P.d(0.25, -0.9, -0.45), 0.55 * k).normalized()
+		var fa: Vector3 = p.get("L_Forearm", P.d(0.5, -0.6, -0.1))
+		p["L_Forearm"] = fa.slerp(P.d(0.85, 0.15, 0.35), 0.6 * k).normalized()
+	clip_lift = float(p.get("lift", 0.0)) * hip_h
+	# the sword trails back and down from the hand while running, hangs low and forward when standing
+	var fore: Vector3 = p.get("R_Forearm", P.d(0, -1, 0))
+	var held: Vector3 = (fore * 0.05 + P.d(-0.85, -0.2, 0.45)).normalized()
+	p["blade"] = P.d(0.7, -0.25, 0.25).slerp(held, clampf(hs / 1.5, 0.0, 1.0))
+	return p
+
 ## Hero with the sword on his back walks and stands with loose arms.
 func unarmed() -> bool:
 	return kind == "hero" and not game.sword_out
@@ -161,6 +201,7 @@ func unarmed() -> bool:
 func animate(dt: float) -> void:
 	var pose: Dictionary
 	var rate: float = 14.0
+	clip_on = false
 	var t: float = clampf(state_t / maxf(state_len, 0.001), 0.0, 1.0)
 	match state:
 		"attack":
@@ -239,6 +280,10 @@ func animate(dt: float) -> void:
 				pose = P.airborne(velocity.y)
 			elif kind == "hero" and game.trav.land_t > 0.0 and is_on_floor():
 				pose = P.land(game.trav.land_t)
+			elif kind == "hero" and game.clips != null and game.clips.has("mx_run"):
+				pose = loco_clip(dt, hs)
+				rate = 30.0
+				clip_on = true
 			elif kind == "hero" and game.trav.sprinting and speed_now > 0.5:
 				run_phase += dt * 13.5
 				pose = P.sprint(run_phase)
@@ -281,7 +326,10 @@ func animate(dt: float) -> void:
 		if kind == "hero" and state == "surf":
 			drop = 0.12
 		rig.rotation.x = lerpf(rig.rotation.x, tilt, 1.0 - exp(-10.0 * dt))
-		rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
+		if clip_on:
+			rig.position.y = lerpf(rig.position.y, clip_lift, 1.0 - exp(-30.0 * dt))
+		else:
+			rig.position.y = lerpf(rig.position.y, drop, 1.0 - exp(-12.0 * dt))
 	# Anyone the close camera would clip through fades out of the way.
 	if kind != "hero" and game.camera:
 		var cd: float = game.camera.global_position.distance_to(global_position + Vector3.UP * height * 0.5)

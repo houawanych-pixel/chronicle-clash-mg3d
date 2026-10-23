@@ -12,6 +12,7 @@ const Ruin3Script = preload("res://scripts/citadel/Ruin3.gd")
 const FxScript = preload("res://scripts/citadel/Fx.gd")
 const GrappleScript = preload("res://scripts/citadel/Grapple.gd")
 const TraverseScript = preload("res://scripts/citadel/Traverse.gd")
+const ClipScript = preload("res://scripts/citadel/ClipPlayer.gd")
 const TrialsScript = preload("res://scripts/citadel/Trials.gd")
 const FrogtownScript = preload("res://scripts/citadel/Frogtown.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
@@ -66,6 +67,7 @@ var checkpoint: int = 0
 var barriers: Array = []
 var hero_key: String = "blonde_lance"
 var stamina: float = 100.0
+var clips: RefCounted  # ClipPlayer.gd: retargeted motion-capture clips (assets/anim/clips.json)
 var trav: RefCounted   # Traverse.gd: sprint, ledges, glider, slopes, stamina rules
 var trials: RefCounted  # Trials.gd: the movement test course
 var block_t: float = 0.0
@@ -180,6 +182,8 @@ func _ready() -> void:
 	fx = FxScript.new(self)
 	grapple = GrappleScript.new(self)
 	trav = TraverseScript.new(self)
+	clips = ClipScript.new()
+	clips.load_file("res://assets/anim/clips.json")
 	trials = TrialsScript.new(self)
 	village_square = VillageScript.new(self)
 	frogtown = FrogtownScript.new(self)

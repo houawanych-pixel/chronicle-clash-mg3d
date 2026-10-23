@@ -110,6 +110,10 @@ func run() -> void:
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
 		get_tree().quit()
 		return
+	if "--anim-shots" in OS.get_cmdline_user_args():
+		await anim_shots()
+		get_tree().quit()
+		return
 	if "--trials-only" in OS.get_cmdline_user_args():
 		await trials_tests()
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
@@ -1972,3 +1976,26 @@ func trials_run(key: String) -> void:
 	check(tag + "attacking while sprinting stops the sprint and swings", was_spr and h.state == "attack" and not T.sprinting, h.state)
 	game.hud.stick = Vector2.ZERO
 	await wait(0.6)
+
+## Screenshots of the hero's retargeted idle / walk / run / sprint as the game camera sees them.
+func anim_shots() -> void:
+	game.restart_with("blonde_lance", "trials")
+	game.start_game()
+	await wait(0.6)
+	var h: CharacterBody3D = game.hero
+	for spec: Array in [["idle", Vector2.ZERO, false], ["walk", Vector2(0, -0.35), false], ["run", Vector2(0, -1), false], ["sprint", Vector2(0, -1), true], ["run_side", Vector2(1, 0), false], ["sneaky_side", Vector2(0.3, 0), false]]:
+		place(Vector3(0, 0.2, 4), 0.0)
+		game.cam_yaw = 0.0
+		game.stamina = 100.0
+		await wait(0.3)
+		game.hud.stick = spec[1]
+		if spec[2]:
+			Input.action_press("cc_sprint")
+		await wait(1.0)
+		for i in 4:
+			await shot("anim_%s_%d" % [spec[0], i])
+			await wait(0.09)
+		print("ANIM ", spec[0], " speed ", Vector2(h.velocity.x, h.velocity.z).length(), " clip ", h.clip_on, " lift ", h.clip_lift)
+		Input.action_release("cc_sprint")
+		game.hud.stick = Vector2.ZERO
+		await wait(0.4)

@@ -19,3 +19,8 @@ The hero's idle, walk, run and sprint now come from real motion-capture clips in
 - Also looked at: GDQuest 3D Mannequin (MIT code, CC-BY 4.0 art; Godot 3 project, 10 clips) and the
   Recreating_Zelda study project (its Godette character uses KayKit-style clips; no licence file for the model).
   The KayKit run is chunkier and suits these realistic characters less than Mixamo.
+
+## Turning, starting and stopping (Link-inspired)
+- `Fighter.loco_clip()` banks the hips into turns (yaw rate x 0.06, up to 0.3 rad, scaled by run speed) and leans
+  forward when speeding up / back when stopping (acceleration x 0.012). Ideas from studying BotW's animation system
+  design (speed blender, per-transition cross-fades, separate turn and brake actions); no Nintendo data is used.

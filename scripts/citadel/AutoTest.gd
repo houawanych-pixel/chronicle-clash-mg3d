@@ -1999,3 +1999,19 @@ func anim_shots() -> void:
 		Input.action_release("cc_sprint")
 		game.hud.stick = Vector2.ZERO
 		await wait(0.4)
+	# a hard turn while running, then a stop
+	place(Vector3(0, 0.2, 4), 0.0)
+	game.cam_yaw = 0.0
+	game.hud.stick = Vector2(0, -1)
+	await wait(1.0)
+	game.hud.stick = Vector2(-1, 0)
+	for i in 4:
+		await wait(0.05)
+		await shot("anim_turn_%d" % i)
+		print("ANIM turn bank ", h.bank)
+	await wait(0.6)
+	game.hud.stick = Vector2.ZERO
+	for i in 4:
+		await wait(0.03)
+		await shot("anim_stop_%d" % i)
+		print("ANIM stop surge ", h.surge)

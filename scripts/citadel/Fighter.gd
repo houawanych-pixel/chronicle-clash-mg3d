@@ -22,6 +22,11 @@ var loco_phase: float = 0.0
 var clip_lift: float = 0.0
 var clip_on: bool = false
 var hip_h: float = 0.0
+## Turn bank and start/stop lean (BotW-style: lean into turns, dip forward to start, sit back to stop).
+var last_yaw: float = 0.0
+var last_hs: float = 0.0
+var bank: float = 0.0
+var surge: float = 0.0
 var flash: float = 0.0
 var flash_color: Color = Color.WHITE
 var combo: int = 0
@@ -187,6 +192,16 @@ func loco_clip(dt: float, hs: float) -> Dictionary:
 		p["L_Upperarm"] = ua.slerp(P.d(0.25, -0.9, -0.45), 0.55 * k).normalized()
 		var fa: Vector3 = p.get("L_Forearm", P.d(0.5, -0.6, -0.1))
 		p["L_Forearm"] = fa.slerp(P.d(0.85, 0.15, 0.35), 0.6 * k).normalized()
+	# lean into turns (bank about the forward axis) and with speed changes (forward to start, back to stop)
+	var yaw_rate: float = wrapf(yaw - last_yaw, -PI, PI) / maxf(dt, 0.001)
+	last_yaw = yaw
+	var accel: float = (hs - last_hs) / maxf(dt, 0.001)
+	last_hs = hs
+	var run_k: float = clampf(hs / 6.0, 0.0, 1.0)
+	bank = lerpf(bank, clampf(-yaw_rate * 0.06, -0.3, 0.3) * run_k, 1.0 - exp(-8.0 * dt))
+	surge = lerpf(surge, clampf(accel * 0.012, -0.18, 0.2), 1.0 - exp(-6.0 * dt))
+	var tilt: Quaternion = Quaternion(Vector3(1, 0, 0), bank) * P.lean(surge)
+	p["Hip"] = tilt * (p.get("Hip", Quaternion()) as Quaternion)
 	clip_lift = float(p.get("lift", 0.0)) * hip_h
 	# the sword trails back and down from the hand while running, hangs low and forward when standing
 	var fore: Vector3 = p.get("R_Forearm", P.d(0, -1, 0))

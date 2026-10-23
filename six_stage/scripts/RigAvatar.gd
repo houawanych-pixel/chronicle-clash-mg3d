@@ -13,6 +13,12 @@ var rig: Node3D
 var turn: Node3D
 var muzzle: Marker3D
 var current_clip: String=""
+var crouched: bool=false
+## Motion-capture clips (Mixamo, retargeted by MocapClips.gd): sneak, run, crouch idle, idle, roll.
+const Mocap=preload("res://scripts/MocapClips.gd")
+const MOCAP_CLIPS: Array=["mx_sneak","mx_run","mx_walk","mx_idle","mx_crouch_idle","mx_roll","mx_backstep"]
+var mocap: bool=false
+var mocap_speed: Dictionary={}
 ## Ground speed each clip is animated for at speed_scale 1 (measured with tests/stride.gd:
 ## planted foot speed with the body held still). Playback is scaled to the real move speed.
 const WALK_CLIP_SPEED: float=1.1
@@ -35,6 +41,14 @@ func _ready() -> void:
 			library.add_animation(name,clip_copy)
 		animation.add_animation_library("movement",library)
 		template.free()
+		var data: Dictionary=Mocap.load_clips("res://assets/anim/clips.json")
+		if not data.is_empty():
+			var ml: AnimationLibrary=Mocap.build(target_skeleton,str(animation.get_node(animation.root_node).get_path_to(target_skeleton)),data,MOCAP_CLIPS)
+			if ml.get_animation_list().size()>0:
+				animation.add_animation_library("mocap",ml); mocap=true
+				var hip: float=(target_skeleton.global_transform*target_skeleton.get_bone_global_rest(target_skeleton.find_bone("Hip"))).origin.y if target_skeleton.is_inside_tree() else .56*1.78
+				for n: String in MOCAP_CLIPS:
+					if data.has(n): mocap_speed[n]=float(data[n].move)*maxf(hip,.5)
 	if animation:
 		for clip: String in animation.get_animation_list():
 			if clip.get_file() in ["walk","run","idle_guard","idle","crawl","crouch"]: animation.get_animation(clip).loop_mode=Animation.LOOP_LINEAR
@@ -47,11 +61,23 @@ func tick(delta: float,_camera: Camera3D) -> void:
 	if facing.length()>.1: turn.rotation.y=atan2(-facing.x,-facing.z)
 	var clip: String="idle_guard"
 	if move_speed>.2: clip="run" if move_speed>=RUN_FROM else "walk"
+	# Mocap (Kai): crouched sneak + crouch idle, upright sneak for slow steps, run for walk/run.
+	var mc: String=""
+	if mocap and pose in [-1,14]:
+		if crouched or pose==14: mc="mx_sneak" if move_speed>.2 else "mx_crouch_idle"
+		elif move_speed>.2: mc="mx_sneak" if move_speed<1.8 else "mx_run"
+		elif not weapon_drawn: mc="mx_idle"
 	if pose in [4,5]:clip="fire"
 	elif pose in [13,22,23]:clip="punch"
 	elif pose in [17,19]:clip="climb"
 	elif pose==18:clip="dive"
-	if animation:
+	if animation and mc!="":
+		var mclip: String="mocap/"+mc
+		if current_clip!=mclip:
+			animation.play(mclip,.2);current_clip=mclip
+		var cs: float=float(mocap_speed.get(mc,0.0))
+		animation.speed_scale=clampf(move_speed/cs,.5,1.8) if cs>.1 and move_speed>.2 else 1.0
+	elif animation:
 		if not guard:clip="movement/"+clip
 		if not animation.has_animation(clip):clip="idle" if animation.has_animation("idle") else animation.get_animation_list()[0]
 		if current_clip!=clip:

@@ -253,6 +253,7 @@ func _update_visual(delta: float) -> void:
 	avatar.weapon_id=str(game.gear.current().id);avatar.weapon_drawn=game.lab.drawn
 	avatar.pose=-1
 	avatar.height=1.9
+	avatar.crouched=crouched
 	avatar.position=Vector3.ZERO
 	var gear: Node=game.gear
 	if mode=="cover":

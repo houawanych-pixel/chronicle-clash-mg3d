@@ -54,6 +54,10 @@ func _draw() -> void:
 	scale_ui=minf(size.x/1280,size.y/720); offset_ui=(size-Vector2(1280,720)*scale_ui)*.5
 	draw_set_transform(offset_ui,0,Vector2.ONE*scale_ui); buttons.clear(); text_sizes.clear()
 	if not is_instance_valid(game.player): return
+	if game.mode=="play" and game.fps.active() and str(game.gear.current().id)=="sniper" and game.fps.ads_blend>.85:
+		# scope mask under the buttons so they stay visible
+		draw_arc(Vector2(640,360),650,0,TAU,96,Color(0,0,0,.97),800)
+		draw_arc(Vector2(640,360),250,0,TAU,96,Color(0,0,0,.9),6)
 	panel(Rect2(24,18,406,116)); bar(Vector2(42,58),game.player.health,"HP",Color("ed767b")); bar(Vector2(42,108),game.lab.stamina,"STA",CYAN)
 	panel(Rect2(24,150,830,52)); center(Vector2(439,184),game.lab.objective(),24)
 	label(Vector2(40,232),"%02d / 06   %s"%[game.room+1,game.rooms[game.room].name],20,CYAN,true)
@@ -66,10 +70,13 @@ func _draw() -> void:
 	round_button(Vector2(1160,612),90,"FIRE" if game.lab.drawn else "STRIKE","fire",game.held("fire"))
 	round_button(Vector2(930,618),60,game.lab.context(),"action")
 	round_button(Vector2(935,455),60,"STAND" if game.player.prone or game.player.crouched else "CROUCH","crouch",game.player.crouched or game.player.prone)
-	round_button(Vector2(1110,455),55,"LOWER" if game.lab.aim else "AIM","aim",game.lab.aim)
+	if game.fps.active(): round_button(Vector2(1110,455),55,"HIP" if game.fps.ads else "ADS","aim",game.fps.ads)
+	else: round_button(Vector2(1110,455),55,"LOWER" if game.lab.aim else "AIM","aim",game.lab.aim)
+	round_button(Vector2(1228,455),40,"3RD" if game.fps.on else "1ST","view",game.fps.on)
 	var mc: Vector2=move_center if joy_id!=-99 else Vector2(165,575)
 	draw_circle(mc,78,Color(.02,.08,.12,.45)); draw_arc(mc,78,0,TAU,64,CYAN,2); draw_circle(mc+joystick*58,27,Color(CYAN,.7))
 	draw_guide()
+	if game.fps.active(): draw_fps()
 	if game.lab.aim:
 		if game.lab.spectrum>0:
 			draw_rect(Rect2(0,0,1280,720),Color(.05,.6,.12,.13) if game.lab.spectrum==1 else Color(.65,.12,.05,.13))
@@ -180,6 +187,16 @@ func draw_puzzle() -> void:
 	label(Vector2(95,535),c.puzzle_message,23,GOLD)
 	button(Rect2(95,593,280,67),"STEP AWAY","puzzle_close")
 func _input(event: InputEvent) -> void:
+	if Input.mouse_mode==Input.MOUSE_MODE_CAPTURED and game.fps.active() and game.mode=="play":
+		# Desktop first person: mouse looks, left button fires, right button aims down sights.
+		if event is InputEventMouseMotion:
+			game.lab.look(event.relative*(0.35 if game.fps.ads else 0.7)); get_viewport().set_input_as_handled(); return
+		if event is InputEventMouseButton:
+			if event.button_index==MOUSE_BUTTON_LEFT:
+				game.mouse_fire=event.pressed
+				if event.pressed: game.fire_tapped=true
+			elif event.button_index==MOUSE_BUTTON_RIGHT: game.fps.set_ads(event.pressed)
+			get_viewport().set_input_as_handled(); return
 	if event is InputEventScreenTouch:
 		if event.pressed: press(event.position,event.index)
 		else: release(event.index)
@@ -188,7 +205,9 @@ func _input(event: InputEvent) -> void:
 		if event.button_index==MOUSE_BUTTON_LEFT:
 			if event.pressed: press(event.position,-1)
 			else: release(-1)
-		elif event.button_index==MOUSE_BUTTON_RIGHT: game.set_precision(event.pressed)
+		elif event.button_index==MOUSE_BUTTON_RIGHT:
+			if game.fps.active(): game.fps.set_ads(event.pressed)
+			else: game.set_precision(event.pressed)
 	elif event is InputEventMouseMotion:
 		if aim_id==-1: drag(event.position,-1)
 func press(at: Vector2,id: int) -> void:
@@ -207,9 +226,9 @@ func press(at: Vector2,id: int) -> void:
 	if p.x<640 and p.y>215 and joy_id==-99 and id!=-1:
 		if game.lab.aim: game.aim_acquired=true
 		joy_id=id; move_center=p.clamp(Vector2(90,220),Vector2(585,625)); joystick=Vector2.ZERO; fingers[id]={"action":"move"}
-	elif p.x>=640 and aim_id==-99 and (game.lab.aim or game.camera_controller.view=="vent"):
+	elif p.x>=640 and aim_id==-99 and (game.lab.aim or game.fps.active() or game.camera_controller.view=="vent"):
 		aim_id=id; last_look=p; fingers[id]={"action":"look"}
-		if not game.lab.aim: game.lab.yaw=atan2(-game.player.facing.x,-game.player.facing.z); game.lab.pitch=0
+		if not game.lab.aim and not game.fps.active(): game.lab.yaw=atan2(-game.player.facing.x,-game.player.facing.z); game.lab.pitch=0
 	elif id==-1 and game.lab.aim:
 		aim_id=id; last_look=p; fingers[id]={"action":"look"}; game.aim_acquired=true
 	get_viewport().set_input_as_handled()
@@ -219,7 +238,7 @@ func drag(at: Vector2,id: int) -> void:
 		joystick=((p-move_center)/78).limit_length()
 		if joystick.length()<.1: joystick=Vector2.ZERO
 	elif id==aim_id:
-		game.lab.look(p-last_look); last_look=p; game.aim_acquired=true
+		game.lab.look((p-last_look)*(0.45 if game.fps.ads and game.fps.active() else 1.0)); last_look=p; game.aim_acquired=true
 		if not game.lab.aim: game.player.facing=Vector3(-sin(game.lab.yaw),0,-cos(game.lab.yaw))
 func release(id: int) -> void:
 	if fingers.has(id):
@@ -274,3 +293,29 @@ func draw_guide() -> void:
 	var arrow: PackedVector2Array=[tip,tip-dir*46+side*26,tip-dir*46-side*26]
 	draw_colored_polygon(arrow,Color(green,.9)); draw_polyline(arrow+PackedVector2Array([arrow[0]]),Color.WHITE,2)
 	center(tip-dir*80+Vector2(0,8),"%d m"%metres,24,green,true)
+
+## First-person overlay: crosshair that opens with spread, hit marker, head-shot text, ammo.
+func draw_fps() -> void:
+	var c: Vector2=Vector2(640,360)
+	var f: RefCounted=game.fps
+	var sniper_scope: bool=str(game.gear.current().id)=="sniper" and f.ads_blend>.85
+	if sniper_scope:
+		draw_line(c-Vector2(240,0),c+Vector2(240,0),Color(0,0,0,.85),2); draw_line(c-Vector2(0,240),c+Vector2(0,240),Color(0,0,0,.85),2)
+		draw_circle(c,2.5,Color("ff4a4a"))
+	elif f.ads_blend<.6:
+		var gap: float=clampf(6.0+360.0*tan(deg_to_rad(f.spread_deg()))/maxf(tan(deg_to_rad(f.fov()*.5)),.01),8,90)
+		var col: Color=Color(1,1,1,.85)
+		for d: Vector2 in [Vector2(1,0),Vector2(-1,0),Vector2(0,1),Vector2(0,-1)]:
+			draw_line(c+d*gap,c+d*(gap+14),Color(0,0,0,.5),5); draw_line(c+d*gap,c+d*(gap+14),col,2.5)
+		draw_circle(c,1.8,col)
+	else:
+		draw_circle(c,2.5,Color("ff5a4a")); draw_arc(c,7,0,TAU,24,Color(1,1,1,.5),1.5)
+	if f.hit_time>0:
+		var hc: Color=Color("ff3b3b") if f.hit_kill else (GOLD if f.hit_head else Color.WHITE)
+		var s: float=10.0+ (1.0-f.hit_time/.22)*4.0
+		for d: Vector2 in [Vector2(1,1),Vector2(-1,1),Vector2(1,-1),Vector2(-1,-1)]:
+			draw_line(c+d*s,c+d*(s+11),hc,3.5)
+	if f.head_text_time>0: center(c+Vector2(0,-60),"HEADSHOT",34,Color(GOLD,minf(1,f.head_text_time*2)),true)
+	var item: Dictionary=game.gear.current()
+	if item.has("reserve") and int(item.capacity)>1:
+		label(Vector2(560,700),"%d / %d"%[int(item.ammo),int(item.reserve)],30,Color("ff7a7a") if int(item.ammo)<=int(item.capacity)/4 else WHITE,true)

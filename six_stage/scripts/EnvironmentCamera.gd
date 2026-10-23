@@ -67,7 +67,7 @@ func update(delta: float) -> void:
 			mode=wanted_mode; candidate_time=0; switches+=1
 			transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
 	else: candidate=mode; candidate_time=0
-	var wanted_view: String="aim" if game.lab.aim else "vent" if p.prone and game.in_vent(p.global_position) else ("cover" if p.mode=="cover" else mode)
+	var wanted_view: String="fps" if game.fps.active() else "aim" if game.lab.aim else "vent" if p.prone and game.in_vent(p.global_position) else ("cover" if p.mode=="cover" else mode)
 	if wanted_view!=view or (wanted_view=="cover" and p.cover_side!=last_cover_side):
 		view=wanted_view; last_cover_side=p.cover_side
 		transition_time=0; start_position=camera.position; start_rotation=camera.quaternion; start_fov=camera.fov
@@ -76,6 +76,17 @@ func update(delta: float) -> void:
 	var position: Vector3
 	var fov: float
 	reveal=Vector3.ZERO
+	if view=="fps":
+		position=game.fps.eye(); focus=position+game.lab.look_direction()*5
+		fov=game.fps.fov()
+		var fb: Basis=Transform3D.IDENTITY.looking_at(focus-position,Vector3.UP).basis
+		# First person follows the look directly (no smoothing lag on aim).
+		camera.projection=Camera3D.PROJECTION_PERSPECTIVE
+		camera.position=position; camera.quaternion=fb.get_rotation_quaternion(); camera.fov=fov
+		transition_time=SWITCH_TIME
+		p.avatar.visible=false
+		game.stage01.update_cutaway(camera.global_position,center,p.global_position.y,false)
+		return
 	if view=="aim":
 		position=p.target_point(); focus=position+game.lab.look_direction()*5
 		fov=[40.0,22.0,12.0][game.lab.zoom] if game.lab.optic=="binoculars" or str(game.gear.current().id)=="sniper" else 58
@@ -124,5 +135,5 @@ func update(delta: float) -> void:
 		else:
 			camera.position=next; camera.quaternion=camera.quaternion.slerp(target_rotation,1-exp(-delta*10))
 		camera.fov=fov
-	p.avatar.visible=not view in ["vent","aim"] and not game.lab.missions.hidden
+	p.avatar.visible=not view in ["vent","aim","fps"] and not game.lab.missions.hidden
 	game.stage01.update_cutaway(camera.global_position,center,p.global_position.y,not view in ["aim","vent"])

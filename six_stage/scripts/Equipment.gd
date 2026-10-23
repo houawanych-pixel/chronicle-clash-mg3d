@@ -113,8 +113,10 @@ func fire() -> void:
 	game.player.exposed_time = 1.5
 	var origin: Vector3 = game.player.target_point()
 	var target: Vector3 = game.aim_point
+	if game.fps.active(): origin = game.fps.eye()
 	var direction: Vector3 = (target-origin).normalized()
 	if direction.length()<.5: direction = game.player.facing
+	if game.fps.active(): direction = game.fps.spread(direction)
 	if str(item.id) in ["pistol","rifle","sniper","smg"]:
 		var hit: Dictionary = game.ray(origin,origin+direction*65,29,[game.player.get_rid()])
 		var end: Vector3 = hit.get("position",origin+direction*65)
@@ -125,12 +127,17 @@ func fire() -> void:
 		game.sound("rifle" if selected==1 else ("sniper" if selected==2 else "pistol"),-9)
 		game.emit_noise(origin,float(item.noise))
 		if hit.has("collider") and hit.collider.has_method("receive_hit"):
-			hit.collider.receive_hit(float(item.damage),str(item.id),end)
+			var head: bool = game.fps.head_shot(hit.collider,end)
+			var dmg: float = float(item.damage)*(game.fps.HEAD_MULT if head else 1.0)
+			hit.collider.receive_hit(dmg,str(item.id),end)
+			game.fps.register_hit(hit.collider,end,dmg,head)
+		game.fps.kicked()
 		if selected==1:
 			jam_countdown -= 1
 			item.heat = minf(100,item.heat+1.1)
 	elif selected == 3:
 		game.spawn_projectile("rocket",origin+direction*.6,direction*17)
+		game.fps.kicked()
 		game.sound("rocket",-9)
 		game.emit_noise(origin,20)
 		game.projectiles.back().homing_target=game.lab.lock_target()

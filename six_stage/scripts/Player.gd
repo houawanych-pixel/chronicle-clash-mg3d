@@ -184,7 +184,7 @@ func tick(delta: float, move: Vector2) -> void:
 			last_safe=global_position
 		if mode=="ground":
 			if direction.length()>.15 and not (prone and game.in_vent(global_position)): facing=direction.normalized()
-			if not prone and is_on_wall() and direction.length()>.3 and cover_cooldown<=0:
+			if not prone and is_on_wall() and direction.length()>.3 and cover_cooldown<=0 and not game.fps.active():
 				wall_pressure+=delta
 				if wall_pressure>.22: toggle_cover(); wall_pressure=0
 			else: wall_pressure=0

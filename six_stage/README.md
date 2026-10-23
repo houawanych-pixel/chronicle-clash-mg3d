@@ -27,6 +27,7 @@ Open `project.godot` in Godot 4.3 to edit the source. The web folder can be serv
 - ACTION: nearby terminals, pickups, doors, context interactions, jump, or CQC when holstered.
 - CROUCH then move to crawl; tap again to stand. Push against a wall to take cover; push away to leave. ACTION knocks in cover.
 - Keyboard: WASD/arrows move, Shift runs, Alt sneaks, V aims, J fires, Space acts, R reloads, C crouches, hold E/Q for weapon/item selection, Esc pauses.
+- First person (Call of Duty-style): tap 1ST (keyboard O) to switch, 3RD to go back. Drag the right side to look while the left stick moves. FIRE shoots from the hip; ADS aims down the sights (zoom, tight spread, slower walk; sniper shows a scope). Guns kick and recover, spread opens while firing, hits show a hit marker, head shots do triple damage. Desktop: the mouse looks, left button fires, right button holds ADS, Esc frees the mouse.
 - Rations heal; chaff temporarily disables drones. Guards react to sight and noise, call by radio, investigate, and search.
 
 ## Editing

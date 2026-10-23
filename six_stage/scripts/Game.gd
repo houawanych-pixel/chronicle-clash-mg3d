@@ -1,6 +1,8 @@
 extends Node3D
 const LabScript=preload("res://scripts/Lab.gd")
+const ShooterScript=preload("res://scripts/Shooter.gd")
 var lab: RefCounted
+var fps: RefCounted
 var stage01: RefCounted
 var fire_was_down: bool=false
 var fire_blocked: bool=false
@@ -73,6 +75,7 @@ var demo_kind: String=""
 var verify_web: bool=false
 func _ready() -> void:
 	lab=LabScript.new(self)
+	fps=ShooterScript.new(self)
 	stage01=preload("res://scripts/Campaign.gd").new(self)
 	rooms=stage01.data
 	setup_input()
@@ -101,7 +104,7 @@ func _ready() -> void:
 		if arg.begins_with("--demo="): demo_kind=arg.trim_prefix("--demo=")
 	if not demo_kind.is_empty(): setup_demo.call_deferred()
 func setup_input() -> void:
-	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"run":[KEY_SHIFT],"sneak":[KEY_ALT],"action":[KEY_SPACE],"aim":[KEY_V],"weapon_slot":[KEY_E],"item_slot":[KEY_Q],"crawl":[KEY_Z],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_H],"brace":[KEY_T],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Y],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_V]}
+	var keys: Dictionary={"left":[KEY_A,KEY_LEFT],"right":[KEY_D,KEY_RIGHT],"up":[KEY_W,KEY_UP],"down":[KEY_S,KEY_DOWN],"fire":[KEY_J],"scope":[KEY_V],"run":[KEY_SHIFT],"sneak":[KEY_ALT],"action":[KEY_SPACE],"aim":[KEY_V],"weapon_slot":[KEY_E],"item_slot":[KEY_Q],"crawl":[KEY_Z],"climb_box":[KEY_B],"reload":[KEY_R],"hook":[KEY_H],"brace":[KEY_T],"crouch":[KEY_C],"knock":[KEY_K],"cloak":[KEY_X],"drop":[KEY_Y],"detonate":[KEY_G],"equipment":[KEY_TAB],"use":[KEY_F],"pause":[KEY_ESCAPE,KEY_P],"confirm":[KEY_ENTER],"next":[KEY_BRACKETRIGHT],"previous":[KEY_BRACKETLEFT],"zoom":[KEY_V],"view":[KEY_O]}
 	for name: String in keys:
 		InputMap.add_action(name)
 		for code: int in keys[name]:
@@ -126,7 +129,7 @@ func load_room(index: int, brief: bool=true) -> void:
 	room=index; mode="brief" if brief else "title"
 	guards.clear(); drones.clear(); locked_drone=null; chips.clear(); targets.clear(); projectiles.clear(); mines.clear(); effects.clear(); goals.clear()
 	titan=null; collected=0; alarms=0; elapsed=0; support_count=0; support_cooldown=0; lab_drill=0
-	gear.reset(); lab.reset(); last_scope=false; aim_enabled=false
+	gear.reset(); lab.reset(); fps.reset(); last_scope=false; aim_enabled=false
 	stage01.build()
 func spawn_guard(route: Array) -> void:
 	var g: CharacterBody3D=GuardScript.new(); g.game=self; g.route=route; stage.add_child(g)
@@ -159,7 +162,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif action=="weapon_slot": lab.drawn=not lab.drawn
 			else: lab.use_item()
 	if event.is_action_pressed("aim"): toggle_aim()
-	for action: String in ["reload","action","crouch","pause","confirm"]:
+	for action: String in ["reload","action","crouch","pause","confirm","view"]:
 		if event.is_action_pressed(action): command(action)
 func command(action: String) -> void:
 	if action=="new_game":stage01.fresh();return
@@ -186,7 +189,7 @@ func command(action: String) -> void:
 	if action=="menu": lab.close_wheel(); mode="title"; hud.release_controls(); return
 	if action=="retry": stage01.retry(); return
 	if action=="pause":
-		lab.close_wheel()
+		lab.close_wheel(); Input.mouse_mode=Input.MOUSE_MODE_VISIBLE
 		if mode=="play": mode="paused"
 		elif mode in ["paused","equipment"]: mode="play"
 		hud.release_controls(); return
@@ -199,6 +202,7 @@ func command(action: String) -> void:
 		hud.release_controls(); return
 	if mode!="play": return
 	match action:
+		"view": fps.toggle()
 		"action": lab.action()
 		"aim": toggle_aim()
 		"zoom_in": lab.zoom=mini(2,lab.zoom+1)
@@ -228,6 +232,12 @@ func update_aim(screen: Vector2) -> void:
 func refresh_aim() -> void:
 	var from: Vector3
 	var direction: Vector3
+	if fps.active():
+		from=fps.eye(); direction=lab.look_direction()
+		locked_drone=null
+		aim_hit=ray(from,from+direction*80,29,[player.get_rid()])
+		aim_point=aim_hit.get("position",from+direction*40)
+		return
 	if lab.aim:
 		from=player.target_point(); direction=lab.look_direction()
 	elif hud.touch_aim_active:
@@ -273,7 +283,7 @@ func _physics_process(delta: float) -> void:
 			if stick.length()>.2: move=stick.limit_length()
 			var look: Vector2=Vector2(Input.get_joy_axis(pad,JOY_AXIS_RIGHT_X),Input.get_joy_axis(pad,JOY_AXIS_RIGHT_Y))
 			if look.length()>.2:
-				if lab.aim: lab.look(look*delta*250)
+				if lab.aim or fps.active(): lab.look(look*delta*(120.0 if fps.ads else 250.0))
 				elif gear.scope: scope_yaw-=look.x*delta*1.8; scope_pitch=clampf(scope_pitch-look.y*delta*1.3,-1.1,1.1)
 				else: aim_screen+=look*delta*400; aim_screen=aim_screen.clamp(Vector2.ZERO,get_viewport().get_visible_rect().size); aim_enabled=true
 		if move.length()>.05 and not lab.aim:
@@ -298,12 +308,13 @@ func _physics_process(delta: float) -> void:
 		if not lab.wheel.is_empty() or lab.missions.hidden: move=Vector2.ZERO
 		player.tick(delta,move)
 		gear.tick(delta)
+		fps.tick(delta)
 		# A tap shorter than one frame still counts (latched by the HUD on touch-down).
 		var fire_down: bool=held("fire") or fire_tapped
 		fire_tapped=false
 		if not fire_down: fire_blocked=false
 		var automatic: bool=str(gear.current().id) in ["rifle","smg"]
-		var can_shoot: bool=lab.aim or not lab.drawn or gear.scope
+		var can_shoot: bool=lab.aim or not lab.drawn or gear.scope or fps.active()
 		if fire_down and not fire_was_down and not can_shoot and not fire_blocked: toast("Tap AIM first, then FIRE.")
 		if fire_down and can_shoot and not fire_blocked and (automatic or not fire_was_down) and player.mode!="mantle" and (not lab.aim or aim_acquired) and not (lab.aim and lab.optic=="binoculars"):
 			lab.fire()
@@ -465,6 +476,7 @@ func assist_drone(direction: Vector3) -> Node3D:
 ## AIM is a toggle: tap AIM to raise the weapon (button then reads LOWER), tap LOWER to put it away.
 func toggle_aim() -> void:
 	if mode!="play": return
+	if fps.active(): fps.toggle_ads(); return
 	if lab.aim: set_precision(false)
 	else:
 		set_precision(true)

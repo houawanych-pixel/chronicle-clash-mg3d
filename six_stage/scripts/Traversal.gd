@@ -24,6 +24,7 @@ func speed(move: Vector2) -> float:
 	var p=game.player
 	if p.prone: tier="crawl"; return 1.1
 	if game.lab.aim: tier="aim"; return 1.3
+	if game.fps.ads and game.fps.active(): tier="aim"; return 1.7
 	if p.crouched: tier="sneak"; return 1.3
 	var m: float=move.length()
 	var keyboard: bool=game.hud.joy_id==-99 and Input.get_connected_joypads().is_empty()

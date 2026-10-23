@@ -16,7 +16,7 @@ func run() -> void:
 	av.facing=Vector3(0,0,-1)
 	await process_frame
 	print("mocap ",av.mocap," speeds ",av.mocap_speed)
-	for spec: Array in [["sneak",1.4,false,true],["run",4.4,false,true],["crouch_idle",0.0,true,true],["idle_holstered",0.0,false,false]]:
+	for spec: Array in [["sneak",1.4,false,true],["run",4.4,false,true],["crouch_idle",0.0,true,true],["idle_holstered",0.0,false,false],["run_holstered",4.4,false,false]]:
 		av.move_speed=spec[1]; av.crouched=spec[2]; av.weapon_drawn=spec[3]; av.pose=14 if spec[2] else -1
 		for i in 40:
 			av.tick(1.0/60,cam); await process_frame

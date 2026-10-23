@@ -19,6 +19,15 @@ const Mocap=preload("res://scripts/MocapClips.gd")
 const MOCAP_CLIPS: Array=["mx_sneak","mx_run","mx_walk","mx_idle","mx_crouch_idle","mx_roll","mx_backstep"]
 var mocap: bool=false
 var mocap_speed: Dictionary={}
+## Weapon-ready movement: the mocap legs keep running/sneaking while the arms (and upper spine)
+## take the gun-ready hold from the "fire" clip. Turns ease round (quick pivots, no snapping).
+const READY_BONES: Array=["L_Clavicle","L_Upperarm","L_Forearm","L_Hand","R_Clavicle","R_Upperarm","R_Forearm","R_Hand","Spine02"]
+var ready_w: float=0.0
+var ready_tracks: Dictionary={}
+var skel: Skeleton3D
+var yaw_now: float=0.0
+var yaw_init: bool=false
+var turn_rate: float=0.0
 ## Ground speed each clip is animated for at speed_scale 1 (measured with tests/stride.gd:
 ## planted foot speed with the body held still). Playback is scaled to the real move speed.
 const WALK_CLIP_SPEED: float=1.1
@@ -46,6 +55,14 @@ func _ready() -> void:
 			var ml: AnimationLibrary=Mocap.build(target_skeleton,str(animation.get_node(animation.root_node).get_path_to(target_skeleton)),data,MOCAP_CLIPS)
 			if ml.get_animation_list().size()>0:
 				animation.add_animation_library("mocap",ml); mocap=true
+				skel=target_skeleton
+				animation.callback_mode_process=AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+				var fire: Animation=animation.get_animation("movement/fire") if animation.has_animation("movement/fire") else null
+				if fire:
+					var base: String=str(animation.get_node(animation.root_node).get_path_to(target_skeleton))
+					for b: String in READY_BONES:
+						var ti: int=fire.find_track(NodePath("%s:%s"%[base,b]),Animation.TYPE_ROTATION_3D)
+						if ti>=0 and target_skeleton.find_bone(b)>=0: ready_tracks[b]=[fire,ti,target_skeleton.find_bone(b)]
 				var hip: float=(target_skeleton.global_transform*target_skeleton.get_bone_global_rest(target_skeleton.find_bone("Hip"))).origin.y if target_skeleton.is_inside_tree() else .56*1.78
 				for n: String in MOCAP_CLIPS:
 					if data.has(n): mocap_speed[n]=float(data[n].move)*maxf(hip,.5)
@@ -58,7 +75,16 @@ func _ready() -> void:
 	muzzle=Marker3D.new();turn.add_child(muzzle);muzzle.position=Vector3(.25,1.05,-.7)
 func tick(delta: float,_camera: Camera3D) -> void:
 	flash=maxf(0,flash-delta)
-	if facing.length()>.1: turn.rotation.y=atan2(-facing.x,-facing.z)
+	if facing.length()>.1:
+		var want: float=atan2(-facing.x,-facing.z)
+		if not mocap or not yaw_init: yaw_now=want; yaw_init=true
+		else:
+			# ease toward the new heading: quick pivots, never a one-frame snap
+			var diff: float=wrapf(want-yaw_now,-PI,PI)
+			var step: float=diff*(1.0-exp(-16.0*delta))
+			turn_rate=step/maxf(delta,.001)
+			yaw_now+=step
+		turn.rotation.y=yaw_now
 	var clip: String="idle_guard"
 	if move_speed>.2: clip="run" if move_speed>=RUN_FROM else "walk"
 	# Mocap (Kai): crouched sneak + crouch idle, upright sneak for slow steps, run for walk/run.
@@ -77,6 +103,19 @@ func tick(delta: float,_camera: Camera3D) -> void:
 			animation.play(mclip,.2);current_clip=mclip
 		var cs: float=float(mocap_speed.get(mc,0.0))
 		animation.speed_scale=clampf(move_speed/cs,.5,1.8) if cs>.1 and move_speed>.2 else 1.0
+	if mocap and animation:
+		animation.advance(delta)
+		var ready: bool=mc in ["mx_run","mx_sneak","mx_crouch_idle"] and weapon_drawn and weapon_id in ["pistol","rifle","smg","sniper","rocket"]
+		ready_w=move_toward(ready_w,1.0 if ready else 0.0,delta*6.0)
+		if ready_w>.01 and skel:
+			var k: float=ready_w*(0.75 if mc=="mx_run" else 0.9)
+			for b: String in ready_tracks:
+				var tr: Array=ready_tracks[b]
+				var q: Quaternion=(tr[0] as Animation).rotation_track_interpolate(tr[1],0.05)
+				var cur: Quaternion=skel.get_bone_pose_rotation(tr[2])
+				skel.set_bone_pose_rotation(tr[2],cur.slerp(q,k if b!="Spine02" else k*.5))
+		# lean into turns while running (bank about the travel direction)
+		turn.rotation.z=lerpf(turn.rotation.z,clampf(turn_rate*0.035,-.22,.22) if move_speed>1.5 else 0.0,1.0-exp(-10.0*delta))
 	elif animation:
 		if not guard:clip="movement/"+clip
 		if not animation.has_animation(clip):clip="idle" if animation.has_animation("idle") else animation.get_animation_list()[0]

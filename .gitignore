@@ -4,3 +4,8 @@
 
 docs/screenshots/*.import
 build/
+
+# HOVAGI: Mixamo-derived animation data lives in private repo hovagi-anim-private
+six_stage/assets/anim/clips.json
+six_stage/assets/anim/**/*.fbx
+six_stage/assets/anim/**/*.FBX

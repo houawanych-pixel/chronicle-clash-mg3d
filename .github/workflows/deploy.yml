@@ -20,6 +20,18 @@ jobs:
       image: barichello/godot-ci:4.3
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch private HOVAGI animation data (Mixamo-derived)
+        uses: actions/checkout@v4
+        with:
+          repository: houawanych-pixel/hovagi-anim-private
+          token: ${{ secrets.ANIM_REPO_TOKEN }}
+          path: _anim_private
+      - name: Copy clips.json into six_stage
+        run: |
+          mkdir -p six_stage/assets/anim
+          cp _anim_private/assets/anim/clips.json six_stage/assets/anim/clips.json
+          rm -rf _anim_private
+          test -s six_stage/assets/anim/clips.json
       - name: Setup templates
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates

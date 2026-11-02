@@ -234,6 +234,24 @@ func run() -> void:
 	await wait(0.5)
 	check("Mist Isle chest opens", mc.open)
 
+	# chase camera: run toward the camera, it waits a second, then swings round behind
+	place(Vector3(2, field.top_at(2, 10) + 0.3, 10), 0.0)
+	await wait(0.5)
+	game.look_hold = 0.0
+	game.cam_yaw = 0.0
+	game.toward_t = 0.0
+	var yaw0: float = game.cam_yaw
+	var dt: float = 1.0 / 60.0
+	for k in 36:    # 0.6 s running straight at the camera (+z)
+		h.velocity = Vector3(0, 0, 6.0)
+		game.chase_follow(dt)
+	check("camera waits while running at it", absf(game.cam_yaw - yaw0) < 0.01, "yaw %.2f" % game.cam_yaw)
+	for k in 120:   # 2 s more
+		h.velocity = Vector3(0, 0, 6.0)
+		game.chase_follow(dt)
+	var behind: float = absf(wrapf(game.cam_yaw - PI, -PI, PI))
+	check("then swings round behind him", behind < 0.5, "off by %.2f rad" % behind)
+
 	var ok: int = 0
 	for r: bool in results:
 		if r:

@@ -1085,20 +1085,40 @@ func camera_clip(eye: Vector3, dt: float) -> Vector3:
 
 ## Chase camera: while you run (and haven't turned the view yourself for a
 ## moment), the camera swings round behind the hero.
+## ISLES: running back toward the camera is allowed for a second, then the
+## camera swings all the way round behind him (also behind the boat when sailing).
+var toward_t: float = 0.0
+const TOWARD_WAIT: float = 1.0
 func chase_follow(dt: float) -> void:
-	if stage != "citadel" or look_hold > 0.0 or grapple.aiming or in_cover():
-		return
-	if hero.state != "idle" or not hero.is_on_floor():
+	var isle: bool = stage == "isles"
+	if not (stage == "citadel" or isle) or look_hold > 0.0 or grapple.aiming or in_cover():
+		toward_t = 0.0
 		return
 	var v: Vector2 = Vector2(hero.velocity.x, hero.velocity.z)
+	if isle and isles.aboard:
+		var bs: float = isles.boat_speed
+		v = Vector2(sin(isles.boat_yaw), cos(isles.boat_yaw)) * bs
+	elif hero.state != "idle" or not hero.is_on_floor():
+		return
 	if v.length() < 1.5:
+		toward_t = 0.0
 		return
 	var heading: float = atan2(-v.x, -v.y)
 	var diff: float = wrapf(heading - cam_yaw, -PI, PI)
-	# running back toward the camera: don't spin round
+	var rate: float = 1.6
 	if absf(diff) > 2.3:
-		return
-	cam_yaw += diff * (1.0 - exp(-1.6 * dt)) * clampf(v.length() / 6.6, 0.0, 1.0)
+		# running back toward the camera: wait a moment before swinging round
+		if not isle:
+			return
+		toward_t += dt
+		if toward_t < TOWARD_WAIT:
+			return
+		rate = 3.2
+	elif absf(diff) < 0.4:
+		toward_t = 0.0
+	elif toward_t > 0.0:
+		rate = 3.2    # finish the swing round
+	cam_yaw += diff * (1.0 - exp(-rate * dt)) * clampf(v.length() / 6.6, 0.4 if isle else 0.0, 1.0)
 
 func move_input() -> Vector2:
 	var v: Vector2 = hud.stick

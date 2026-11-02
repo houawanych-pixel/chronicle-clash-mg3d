@@ -28,6 +28,9 @@ const BUTTONS: Array = [
 	{"id": "door", "c": Vector2(990, 186), "r": 42.0, "label": "ENTER", "glyph": "door", "color": Color("ffd27a")},
 	{"id": "talk", "c": Vector2(1108, 186), "r": 40.0, "label": "TALK", "glyph": "talk", "color": Color("7dffcf")},
 	{"id": "sheathe", "c": Vector2(1222, 186), "r": 38.0, "label": "SHEATHE", "glyph": "sheath", "color": Color("d8b45a")},
+	# ISLES only: bombs, and board / land the boat.
+	{"id": "bomb", "c": Vector2(990, 186), "r": 42.0, "label": "BOMB", "glyph": "bomb", "color": Color("ffb347")},
+	{"id": "boat", "c": Vector2(1108, 186), "r": 42.0, "label": "BOARD", "glyph": "boat", "color": Color("7fd4ff")},
 	# Shown only on the ground out of a fight; tap to sprint, it stays on while you keep moving.
 	{"id": "sprint", "c": Vector2(862, 640), "r": 42.0, "label": "SPRINT", "glyph": "sprint", "color": Color("ffe14a")},
 ]
@@ -278,6 +281,9 @@ func menu_action(a: String) -> void:
 		"stage_trials":
 			if game.stage != "trials":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "trials")
+		"stage_isles":
+			if game.stage != "isles":
+				game.restart_with("lance", "isles")
 		"stage_village":
 			if game.stage != "village":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "village")
@@ -407,6 +413,15 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 				var a: float = i * TAU / 6.0 + clock
 				draw_line(c, c + Vector2(cos(a), sin(a)) * r * 0.32, Color(MAGIC_C, 0.95), 4)
 			draw_circle(c, r * 0.14, WHITE)
+		"bomb":
+			draw_circle(c + Vector2(0, r * 0.08), r * 0.3, Color("1f2a44"))
+			draw_arc(c + Vector2(0, r * 0.08), r * 0.3, 0, TAU, 24, WHITE, 3)
+			draw_line(c + Vector2(r * 0.12, -r * 0.2), c + Vector2(r * 0.28, -r * 0.4), Color("d8b45a"), 4)
+			draw_circle(c + Vector2(r * 0.3, -r * 0.42), r * 0.08, Color("ffb347"))
+		"boat":
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-r * 0.4, r * 0.1), c + Vector2(r * 0.4, r * 0.1), c + Vector2(r * 0.26, r * 0.32), c + Vector2(-r * 0.26, r * 0.32)]), Color(WHITE, 0.9))
+			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r * 0.42), c + Vector2(r * 0.3, r * 0.02), c + Vector2(0, r * 0.02)]), Color("efe4c8"))
+			draw_line(c + Vector2(0, -r * 0.42), c + Vector2(0, r * 0.1), WHITE, 3)
 		"talk":
 			var bub: Rect2 = Rect2(c + Vector2(-r * 0.36, -r * 0.34), Vector2(r * 0.72, r * 0.46))
 			draw_rect(bub, WHITE)
@@ -577,18 +592,21 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"], ["trials", "TRAINING", "Sprint, climb, glide test course", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"], ["trials", "TRAINING", "Sprint, climb, glide test course", "lance"], ["isles", "ISLES", "Islands, bombs and a boat", "lance"]]
+	var pitch: float = minf(244.0, (W - 24.0) / stages.size())
+	var roomy: bool = pitch >= 240.0
+	var pic: float = 66.0 if roomy else 50.0
 	for i in stages.size():
 		var st: Array = stages[i]
-		var sr: Rect2 = Rect2(640.0 - stages.size() * 122.0 + 4.0 + i * 244, 392, 236, 82)
+		var sr: Rect2 = Rect2(640.0 - stages.size() * pitch * 0.5 + 4.0 + i * pitch, 392, pitch - 8.0, 82)
 		var son: bool = game.stage == st[0]
 		frame(sr, Color(0.06, 0.22, 0.32, 0.95) if son else INK, CYAN if son else Color(0.6, 0.7, 0.85, 0.5))
 		if portraits.has(st[3]):
 			var tex: Texture2D = portraits[st[3]]
 			var tsz: Vector2 = tex.get_size()
-			draw_texture_rect_region(tex, Rect2(sr.position + Vector2(8, 8), Vector2(66, 66)), Rect2(Vector2((tsz.x - tsz.y) * 0.5, 0), Vector2(tsz.y, tsz.y)))
-		text(sr.position + Vector2(80, 36), st[1], 21, CYAN if son else WHITE, true, -1)
-		text(sr.position + Vector2(80, 62), st[2], 13, Color(WHITE, 0.8), false, -1)
+			draw_texture_rect_region(tex, Rect2(sr.position + Vector2(8, 8 + (66 - pic) * 0.5), Vector2(pic, pic)), Rect2(Vector2((tsz.x - tsz.y) * 0.5, 0), Vector2(tsz.y, tsz.y)))
+		text(sr.position + Vector2(pic + 14, 36), st[1], 21 if roomy else 15, CYAN if son else WHITE, true, -1)
+		text(sr.position + Vector2(pic + 14, 62), st[2], 13 if roomy else 11, Color(WHITE, 0.8), false, -1)
 		menu_buttons.append({"rect": Rect2(sr.position + Vector2(group_dx, 0), sr.size), "action": "stage_" + st[0]})
 	if game.stage == "forest":
 		text(Vector2(640, 525), "You play LANCE. Blonde Lance is the hunter.", 20, WHITE, false)

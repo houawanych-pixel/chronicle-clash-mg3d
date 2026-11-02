@@ -16,6 +16,7 @@ const ClipScript = preload("res://scripts/citadel/ClipPlayer.gd")
 const TrialsScript = preload("res://scripts/citadel/Trials.gd")
 const FrogtownScript = preload("res://scripts/citadel/Frogtown.gd")
 const VillageScript = preload("res://scripts/citadel/Village.gd")
+const IslesScript = preload("res://scripts/citadel/Isles.gd")
 const CITADEL_ZONES: Array = [Rect2(-13, -38, 26, 42), Rect2(-3.5, -92, 7, 54), Rect2(-14, -128, 28, 36), Rect2(-12, -172, 24, 44)]
 const Spatial = preload("res://scripts/StealthMath.gd")
 
@@ -70,6 +71,7 @@ var stamina: float = 100.0
 var clips: RefCounted  # ClipPlayer.gd: retargeted motion-capture clips (assets/anim/clips.json)
 var trav: RefCounted   # Traverse.gd: sprint, ledges, glider, slopes, stamina rules
 var trials: RefCounted  # Trials.gd: the movement test course
+var isles: RefCounted   # Isles.gd: the island test world (Homelancer block ground, wrap-around sea)
 var block_t: float = 0.0
 var queued_attack: bool = false
 var tokens: Array = []
@@ -185,6 +187,7 @@ func _ready() -> void:
 	clips = ClipScript.new()
 	clips.load_file("res://assets/anim/clips.json")
 	trials = TrialsScript.new(self)
+	isles = IslesScript.new(self)
 	village_square = VillageScript.new(self)
 	frogtown = FrogtownScript.new(self)
 	village = village_square
@@ -206,6 +209,9 @@ func _ready() -> void:
 		stage = "forest"
 	elif url_has("trials"):
 		stage = "trials"
+	elif url_has("isles"):
+		stage = "isles"
+		hero_key = "lance"
 	build_stage()
 	camera = Camera3D.new()
 	camera.fov = 54
@@ -233,13 +239,17 @@ func _ready() -> void:
 	if OS.has_feature("web"):
 		web_test = str(JavaScriptBridge.eval("location.search", true)).contains("autotest")
 		print("CITADEL web search check: ", web_test)
+	if "--isles-test" in OS.get_cmdline_user_args():
+		var it: Node = load("res://scripts/citadel/IslesTest.gd").new()
+		it.set("game", self)
+		add_child(it)
 	if "--autotest" in OS.get_cmdline_user_args() or web_test:
 		autotest = AutoTestScript.new()
 		autotest.game = self
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V], "cc_sprint": [KEY_CTRL]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V], "cc_sprint": [KEY_CTRL], "cc_bomb": [KEY_B], "cc_boat": [KEY_N]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -345,6 +355,8 @@ func build_stage() -> void:
 		ruin.build()
 	elif stage == "trials":
 		trials.build()
+	elif stage == "isles":
+		isles.build()
 	elif stage == "forest":
 		sections = ForestScript.SECTIONS
 		map_zones = ForestScript.MAP_ZONES
@@ -801,6 +813,9 @@ func spawn_cast() -> void:
 	if stage == "trials":
 		trials.spawn_cast()
 		return
+	if stage == "isles":
+		isles.spawn_cast()
+		return
 	boss_name = "DARK KNIGHT"
 	var h: Dictionary = HEROES[hero_key]
 	hero = make_fighter("hero", h.model, 1.8, h.blade, 1.25, sections[0].spawn)
@@ -852,6 +867,8 @@ func restart_with(key: String, new_stage: String = "") -> void:
 	hero_key = key
 	if village.active:
 		village.leave()
+	if isles.active:
+		isles.leave()
 	if new_stage != "":
 		stage = new_stage
 	village = frogtown if stage == "frogtown" else village_square
@@ -913,6 +930,9 @@ func start_game() -> void:
 		return
 	if stage == "trials":
 		trials.start()
+		return
+	if stage == "isles":
+		isles.start()
 		return
 	say_once("start", "ally", "Guards ahead. Stay sharp!")
 	say_once("tip", "tip", "Hold BLOCK when a knight glows red. Block just before the hit to parry.")
@@ -1105,6 +1125,8 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 		blocking = false
 		mv = Vector2.ZERO
 	trav.stamina_tick(f, dt)
+	if stage == "isles" and isles.hero_tick(f, dt, mv):
+		return
 	if f.global_position.y < fall_line() and f.alive() and f.state not in ["climb", "launch", "wallclimb", "grapple", "ledge", "pullup"]:
 		fell()
 		return
@@ -1395,6 +1417,8 @@ func hero_strike(f: CharacterBody3D, dmg: float, reach: float, arc_cos: float, s
 		e.damage(dmg, f.global_position, stagger)
 		fx.sword_hit(f, e, f.rig.blade_color, heavy, f.combo if f.state == "attack" else 2)
 		hit_any = true
+	if stage == "isles":
+		isles.sword_hit(f, reach, hit_any)
 	if hit_any:
 		sound("hit", -6)
 		shake = maxf(shake, 0.55 if stagger >= 0.6 else 0.35)
@@ -1592,6 +1616,8 @@ func fall_line() -> float:
 		return ruin.fall_line()
 	if stage == "trials":
 		return trials.fall_line()
+	if stage == "isles":
+		return isles.fall_line()
 	return -9.0
 
 ## Ladders: walk into one and push forward to climb (stick up/down while on it).
@@ -1818,6 +1844,9 @@ func progress_check() -> void:
 	if stage == "trials":
 		trials.progress()
 		return
+	if stage == "isles":
+		isles.progress()
+		return
 	if section < 3 and section_clear(section):
 		open_barrier(section)
 		section += 1
@@ -1986,6 +2015,8 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 
 ## TALK shows only in the village, next to a villager (or while chatting).
 func button_visible(id: String) -> bool:
+	if stage == "isles" and isles.aboard and id in ["attack", "jump", "dodge", "block", "skill", "sprint", "sheathe"]:
+		return false    # sailing: steer, bomb, land
 	if id == "sprint":
 		return hero != null and hero.alive() and hero.state == "idle" and hero.is_on_floor() and not crouched and not prone \
 				and not in_cover() and not grapple.aiming and not (in_village() and village.chat.is_open())
@@ -1993,6 +2024,10 @@ func button_visible(id: String) -> bool:
 		return stage == "frogtown" and village.active and village.near_door() != ""
 	if id == "hook":
 		return stage == "citadel"
+	if id == "bomb":
+		return stage == "isles" and hero != null and hero.alive()
+	if id == "boat":
+		return stage == "isles" and isles.boat_action() != ""
 	if grapple.aiming and id in ["attack", "dodge", "block", "skill", "magic", "potion", "sheathe"]:
 		return false
 	if id == "talk":
@@ -2004,6 +2039,8 @@ func button_label(id: String) -> String:
 	if hero == null or mode != "play":
 		return ""
 	var s: String = hero.state
+	if id == "boat" and stage == "isles":
+		return isles.boat_action()
 	match id:
 		"jump":
 			match s:

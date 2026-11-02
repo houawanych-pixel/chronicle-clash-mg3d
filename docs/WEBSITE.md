@@ -7,6 +7,7 @@ The domain is served by this repo through GitHub Pages (`.github/workflows/deplo
 | `/` | Homepage: `site/index.html`, `site/site.css`, `site/site.js` |
 | `/play/` | The Godot game (Gameplay Test: Sky Citadel, Forest Escape) |
 | `/play/?village` | Same game, opened on the Village Simulation |
+| `/play/?isles` | Same game, opened on the ISLES island test world (see `docs/ISLES.md`) |
 
 Old links such as `/?village` forward to `/play/?village`.
 

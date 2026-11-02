@@ -109,3 +109,6 @@ Turns on by itself on phones and touch screens (`?lite` forces it on, `?full` fo
 xvfb-run -a godot --audio-driver Dummy --rendering-driver opengl3 --path . -- --autotest --quit-after-test [--shots=/dir]
 ```
 Expect `CITADEL RESULT 211/211 PASS` (citadel, stealth, forest, village, frogtown, sky ruin, and the TRAINING traversal checks run with both real hero models). `--trials-only` runs just the traversal checks (76). Add `--lite` to run in phone mode. The web build runs the same test with `?autotest`.
+
+## Isles (sixth card, test world)
+Islands built on Homelancer's breakable block ground: wrap-around sea, boat, bombs, rocks you break with the sword, fog and dust zones. Open with `?isles`. Details: `docs/ISLES.md`.

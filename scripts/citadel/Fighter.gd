@@ -568,6 +568,9 @@ func boss_tick(dt: float) -> void:
 ## Eliza follows the hero and heals once the hero is hurt.
 func ally_tick(dt: float) -> void:
 	var hero: CharacterBody3D = game.hero
+	if game.stage == "isles" and game.isles.aboard:
+		game.isles.seat_ally(self)
+		return
 	if game.ally_captive:
 		# held in the crystal cage: kneel and watch the fight
 		velocity.x = 0

@@ -41,7 +41,7 @@ func sample(name: String, t: float) -> Dictionary:
 	for key: String in a.t:
 		var qa: Array = a.t[key]
 		var qb: Array = b.t[key]
-		p[key] = Quaternion(qa[0], qa[1], qa[2], qa[3]).slerp(Quaternion(qb[0], qb[1], qb[2], qb[3]), k)
+		p[key] = Quaternion(qa[0], qa[1], qa[2], qa[3]).normalized().slerp(Quaternion(qb[0], qb[1], qb[2], qb[3]).normalized(), k)
 	p["lift"] = lerpf(float(a.lift), float(b.lift), k)
 	return p
 
@@ -54,7 +54,7 @@ static func mix(a: Dictionary, b: Dictionary, k: float) -> Dictionary:
 		elif a[key] is Vector3:
 			out[key] = (a[key] as Vector3).slerp(b[key], k).normalized()
 		elif a[key] is Quaternion:
-			out[key] = (a[key] as Quaternion).slerp(b[key], k)
+			out[key] = (a[key] as Quaternion).normalized().slerp((b[key] as Quaternion).normalized(), k)
 		elif a[key] is float:
 			out[key] = lerpf(a[key], b[key], k)
 	return out

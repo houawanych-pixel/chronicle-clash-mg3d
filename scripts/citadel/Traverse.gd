@@ -52,7 +52,7 @@ func reset() -> void:
 ## Ledges, the glider and slope sliding are on in the sky stages; sprint and
 ## acceleration work everywhere.
 func enabled() -> bool:
-	return game.stage == "citadel" or game.stage == "trials"
+	return game.stage == "citadel" or game.stage == "trials" or game.stage == "isles"
 
 func slide_stage() -> bool:
 	return game.stage == "trials"

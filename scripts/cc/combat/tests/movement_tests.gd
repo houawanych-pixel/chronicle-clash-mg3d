@@ -258,6 +258,7 @@ func climb_tests() -> void:
 	await ticks(120)
 	var used: float = s0 - StaminaPool.value
 	check("dry climb drains about 12 / s", absf(used - 24.0) < 5.0, "%.1f in 2 s" % used)
+	check("climbing puts the sword and shield away", p.sheathed and p.rig.sheathed and p.rig.shield_mode == "back")
 	await shot("mv_04_climb")
 	StaminaPool.value = 30.0
 	var fell_off: bool = false
@@ -313,6 +314,19 @@ func climb_tests() -> void:
 			break
 	p.inp.move = Vector2.ZERO
 	check("glider drains stamina and folds when empty", opened and folded)
+	await reset(Vector3(0, 0.1, 6), 0.0)
+	p = pl()
+	p.sheathed = false
+	await ticks(int(p.SHEATHE_AFTER_S * 60.0) + 20)
+	var away_quiet: bool = p.sheathed
+	p.press("attack")
+	await ticks(2)
+	check("quiet for a few seconds: sheathes; ATTACK draws and swings", away_quiet and not p.sheathed and p.cur_move != null)
+	var k: CharacterBody3D = arena.enemies[0]
+	k.global_position = p.global_position + Vector3(0, 0, -5)
+	k.brain_state = "battle"
+	await ticks(int(p.SHEATHE_AFTER_S * 60.0) + 40)
+	check("stays drawn while a foe is fighting nearby", not p.sheathed)
 	await ticks(200)
 
 # ---------------------------------------------------------------- weapon classes

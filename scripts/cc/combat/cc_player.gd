@@ -68,6 +68,10 @@ var stun_f: float = 0.0
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var bag_slot: int = -1          # which InventoryService.weapons entry is in hand (-1 = bare hands)
 var cold_resist: bool = false
+var sheathed: bool = false       # weapon + shield on the back
+var peace_t: float = 0.0         # seconds since the last fight action
+const SHEATHE_AFTER_S: float = 4.0
+const HANDS_FREE: Array[String] = ["climb", "glide", "mantle"]
 
 func _ready() -> void:
 	is_player = true
@@ -177,6 +181,36 @@ func set_weapon_by_id(id: String) -> void:
 
 func cycle_weapon() -> void:
 	equip_slot(bag_slot + 1)
+
+## Weapon and shield go on the back for climbing, gliding and vaulting, and after a few
+## quiet seconds out of a fight. Any fight input draws them again.
+func sheathe_tick(cdt: float) -> void:
+	if state in HANDS_FREE or riding:
+		if not sheathed:
+			put_away()
+		return
+	if cur_move != null or state in ["guard", "parry", "heavy_charge", "flurry", "hurt", "stagger"] or lock_target != null or foe_fighting_near():
+		peace_t = 0.0
+	else:
+		peace_t += cdt
+	if not sheathed and peace_t >= SHEATHE_AFTER_S:
+		put_away()
+
+func foe_fighting_near() -> bool:
+	for e: Node in get_tree().get_nodes_in_group("cc_enemy"):
+		var n: Node3D = e as Node3D
+		if n.alive() and str(n.get("brain_state")) == "battle" and n.global_position.distance_to(global_position) < 15.0:
+			return true
+	return false
+
+func put_away() -> void:
+	sheathed = true
+	CombatFx.sound(get_tree(), "chip", -16.0)
+
+func draw_weapon() -> void:
+	sheathed = false
+	peace_t = 0.0
+	CombatFx.sound(get_tree(), "chip", -10.0)
 
 func weapon_life() -> float:
 	if bag_slot < 0 or bag_slot >= InventoryService.weapons.size():
@@ -307,6 +341,11 @@ func brain(cdt: float) -> Vector3:
 	if jump_now:
 		jump_buf = f
 	attack_hold_f = attack_hold_f + cdt * 60.0 if inp.attack_held else 0.0
+	# drawing: any fight input pulls the weapon (the swing / guard still happens this frame)
+	if inp.attack or inp.heavy or inp.guard or inp.guard_held or inp.lock or inp.attack_held or inp.throw:
+		peace_t = 0.0
+		if sheathed and state not in HANDS_FREE:
+			draw_weapon()
 	if inp.lock:
 		toggle_lock()
 	if inp.aim:
@@ -388,6 +427,7 @@ func brain(cdt: float) -> Vector3:
 			if cur_move != null and state == str(cur_move.id):
 				move_tick(mv)
 	inp.heavy = false
+	sheathe_tick(cdt)
 	if gravity_on:
 		if on_ground and vy <= 0.0:
 			vy = -1.0
@@ -901,6 +941,13 @@ func thrust_pose(u: float) -> Dictionary:
 func pose() -> Dictionary:
 	if glider_node != null:
 		glider_node.visible = state == "glide"
+	rig.sheathed = sheathed
+	if sheathed:
+		rig.shield_mode = "back"
+	elif state in ["guard", "parry"]:
+		rig.shield_mode = "guard"
+	else:
+		rig.shield_mode = "arm"
 	var t: float = frames / 60.0
 	var u: float = clampf(state_f / maxf(clip_len_f(), 1.0), 0.0, 1.0)
 	if cur_move != null and state == str(cur_move.id):
@@ -942,5 +989,9 @@ func pose() -> Dictionary:
 		return P.airborne(vy)
 	var sp: float = Vector2(velocity.x, velocity.z).length()
 	if sp > 0.4:
-		return P.crouch(t * 8.0, sp / 3.0) if crouched else P.run(t * (6.0 + sp), clampf(sp / 6.0, 0.3, 1.0))
-	return P.crouch(0.0, 0.0) if crouched else P.idle(t, true)
+		if crouched:
+			return P.crouch(t * 8.0, sp / 3.0)
+		return P.run_free(t * (6.0 + sp), clampf(sp / 6.0, 0.3, 1.0)) if sheathed else P.run(t * (6.0 + sp), clampf(sp / 6.0, 0.3, 1.0))
+	if crouched:
+		return P.crouch(0.0, 0.0)
+	return P.idle_free(t) if sheathed else P.idle(t, true)

@@ -353,10 +353,12 @@ func animate(dt: float) -> void:
 		if cd > 38.0 and state != "dead":
 			return
 	if kind == "hero":
-		rig.sheathed = not game.sword_out
+		# hands free on walls, ledges, ladders and the glider (weapon and shield on the back)
+		var hands_busy: bool = state in ["wallclimb", "ledge", "pullup", "glide", "climb"]
+		rig.sheathed = not game.sword_out or hands_busy
 		if state == "surf":
 			rig.shield_mode = "surf"
-		elif not game.sword_out:
+		elif not game.sword_out or hands_busy:
 			rig.shield_mode = "back"
 		elif state == "block" or game.spin_charge > 0.0:
 			rig.shield_mode = "guard"

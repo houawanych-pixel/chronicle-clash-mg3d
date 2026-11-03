@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/survival/tree_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "pine"
+display_name = "Pine"
+hp = 22.0
+chop_mult = {"axe": 1.0, "blade": 0.5, "blunt": 0.0}
+wood_item = "pine_wood"
+wood_min = 1
+wood_max = 2
+trunk_height = 5.2
+trunk_radius = 0.22
+stump_height = 0.4
+canopy_radius = 1.2
+log_mass = 40.0
+bark_color = Color(0.36, 0.25, 0.17, 1)
+leaf_color = Color(0.18, 0.4, 0.26, 1)

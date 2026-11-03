@@ -1,0 +1,19 @@
+{
+  "_note": "Chronicle Clash items (original). cat: material | food | meat | wood | fuel | trophy. stack = max per slot.",
+  "oak_wood":        {"name": "Oak Wood",        "cat": "wood",     "stack": 999},
+  "pine_wood":       {"name": "Pine Wood",       "cat": "wood",     "stack": 999},
+  "field_mushroom":  {"name": "Field Mushroom",  "cat": "food",     "stack": 999},
+  "sunpear":         {"name": "Sunpear",         "cat": "food",     "stack": 999},
+  "emberroot":       {"name": "Emberroot",       "cat": "food",     "stack": 999},
+  "ironcap":         {"name": "Ironcap",         "cat": "food",     "stack": 999},
+  "hushleaf":        {"name": "Hushleaf",        "cat": "food",     "stack": 999},
+  "windthistle":     {"name": "Windthistle",     "cat": "food",     "stack": 999},
+  "saltbloom":       {"name": "Saltbloom",       "cat": "food",     "stack": 999},
+  "doe_venison":     {"name": "Doe Venison",     "cat": "meat",     "stack": 999},
+  "boar_flank":      {"name": "Boar Flank",      "cat": "meat",     "stack": 999},
+  "hare_leg":        {"name": "Hare Leg",        "cat": "meat",     "stack": 999},
+  "mossback_antler": {"name": "Mossback Antler", "cat": "trophy",   "stack": 999},
+  "boar_tusk":       {"name": "Boar Tusk",       "cat": "trophy",   "stack": 999},
+  "hare_pelt":       {"name": "Hare Pelt",       "cat": "material", "stack": 999},
+  "sparkcoal":       {"name": "Sparkcoal",       "cat": "fuel",     "stack": 999}
+}

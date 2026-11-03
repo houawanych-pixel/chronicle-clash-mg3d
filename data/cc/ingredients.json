@@ -1,0 +1,13 @@
+{
+  "_note": "Cooking data (CC-tuned). hearts = raw heal (1 heart = 4 hp). tag = buff family ('' = none). potency adds toward tier (thresholds in cooking_tuning.tres). duration = seconds added. crit = % crit chance this ingredient offers (max across the pot is used).",
+  "field_mushroom":  {"hearts": 1.0, "tag": "",      "potency": 0, "duration": 0,   "crit": 0},
+  "sunpear":         {"hearts": 1.0, "tag": "",      "potency": 0, "duration": 0,   "crit": 0},
+  "emberroot":       {"hearts": 0.5, "tag": "might", "potency": 2, "duration": 50,  "crit": 0},
+  "ironcap":         {"hearts": 0.5, "tag": "guard", "potency": 2, "duration": 50,  "crit": 0},
+  "hushleaf":        {"hearts": 0.5, "tag": "hush",  "potency": 2, "duration": 90,  "crit": 0},
+  "windthistle":     {"hearts": 0.5, "tag": "swift", "potency": 2, "duration": 60,  "crit": 0},
+  "saltbloom":       {"hearts": 0.5, "tag": "",      "potency": 0, "duration": 30,  "crit": 25},
+  "doe_venison":     {"hearts": 2.0, "tag": "",      "potency": 0, "duration": 0,   "crit": 0},
+  "boar_flank":      {"hearts": 3.0, "tag": "",      "potency": 0, "duration": 0,   "crit": 0},
+  "hare_leg":        {"hearts": 1.5, "tag": "",      "potency": 0, "duration": 0,   "crit": 0}
+}

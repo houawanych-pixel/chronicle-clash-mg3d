@@ -1,0 +1,24 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/survival/bike_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+max_speed = 22.0
+accel = 9.0
+brake = 20.0
+coast_drag = 2.5
+steer_rate = 1.9
+steer_high_speed = 0.9
+drift_enter_speed = 13.0
+drift_exit_speed = 9.0
+drift_steer_mult = 1.8
+drift_slip = 0.55
+wheelie_min_speed = 4.0
+wheelie_angle = 28.0
+wheelie_time = 2.2
+jump_speed = 6.5
+jump_interval = 1.2
+tank_seconds = 300.0
+refuel_max_items = 5
+summon_deny_tags = Array[String](["interior", "sanctum", "deep_water"])

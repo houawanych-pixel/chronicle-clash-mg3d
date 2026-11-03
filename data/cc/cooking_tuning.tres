@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/survival/cooking_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+max_ingredients = 5
+pot_heal_mult = 2.0
+roast_heal_mult = 1.5
+fail_heal_mult = 1.0
+tier_thresholds = Array[int]([2, 6, 10])
+count_crit_rates = Array[int]([0, 4, 8, 12, 16])
+crit_heart_bonus = 2.0
+crit_duration_bonus = 240.0
+max_duration = 1800.0
+max_hearts = 30.0

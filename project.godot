@@ -3,6 +3,12 @@ config_version=5
 config/name="Chronicle Clash — Sky Citadel"
 run/main_scene="res://scenes/citadel.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+[autoload]
+InventoryService="*res://scripts/cc/survival/inventory_service.gd"
+CookingService="*res://scripts/cc/survival/cooking_service.gd"
+StaminaPool="*res://scripts/cc/survival/stamina_pool.gd"
+WorldClock="*res://scripts/cc/survival/world_clock.gd"
+SaveService="*res://scripts/cc/survival/save_service.gd"
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720

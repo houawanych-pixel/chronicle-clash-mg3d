@@ -1,0 +1,4 @@
+{
+  "_note": "Bike refuel values: percent of a full tank each item adds. Up to 5 items per refuel; the tank caps at 100.",
+  "oak_wood": 12, "pine_wood": 12, "emberroot": 25, "sparkcoal": 45, "boar_tusk": 8
+}

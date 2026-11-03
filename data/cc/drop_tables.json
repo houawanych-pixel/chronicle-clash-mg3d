@@ -1,0 +1,12 @@
+{
+  "_note": "Wildlife drops. Each entry: item, min, max, chance (0-1). rolls = passes over the table; stealth_bonus_rolls added for an unaware kill.",
+  "mossback_doe": {"rolls": 1, "stealth_bonus_rolls": 1, "entries": [
+    {"item": "doe_venison", "min": 1, "max": 2, "chance": 1.0},
+    {"item": "mossback_antler", "min": 1, "max": 1, "chance": 0.25}]},
+  "bristle_boar": {"rolls": 1, "stealth_bonus_rolls": 1, "entries": [
+    {"item": "boar_flank", "min": 1, "max": 2, "chance": 1.0},
+    {"item": "boar_tusk", "min": 1, "max": 1, "chance": 0.35}]},
+  "dune_hare": {"rolls": 1, "stealth_bonus_rolls": 0, "entries": [
+    {"item": "hare_leg", "min": 1, "max": 1, "chance": 1.0},
+    {"item": "hare_pelt", "min": 1, "max": 1, "chance": 0.5}]}
+}

@@ -249,7 +249,7 @@ func _ready() -> void:
 		add_child(autotest)
 
 func setup_input() -> void:
-	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V], "cc_sprint": [KEY_CTRL], "cc_bomb": [KEY_B], "cc_boat": [KEY_N]}
+	var keys: Dictionary = {"cc_left": [KEY_A, KEY_LEFT], "cc_right": [KEY_D, KEY_RIGHT], "cc_up": [KEY_W, KEY_UP], "cc_down": [KEY_S, KEY_DOWN], "cc_jump": [KEY_SPACE], "cc_attack": [KEY_J], "cc_block": [KEY_K, KEY_SHIFT], "cc_pause": [KEY_ESCAPE, KEY_P], "cc_dodge": [KEY_L], "cc_skill": [KEY_I], "cc_magic": [KEY_U], "cc_potion": [KEY_R], "cc_crouch": [KEY_C], "cc_hug": [KEY_H], "cc_peek": [KEY_Q], "cc_distract": [KEY_F], "cc_crawl": [KEY_Z], "cc_sheathe": [KEY_X], "cc_talk": [KEY_T], "cc_aim": [KEY_G], "cc_fire": [KEY_E], "cc_door": [KEY_V], "cc_sprint": [KEY_CTRL], "cc_bomb": [KEY_B], "cc_boat": [KEY_N], "cc_cook": [KEY_O], "cc_bike": [KEY_M]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -996,6 +996,10 @@ func update_camera(dt: float) -> void:
 		dist = 5.2
 	elif stage == "frogtown" and village.inside != "":
 		dist = 2.3   # small rooms
+	elif stage == "isles" and isles.survival != null and isles.survival.riding:
+		dist = 5.4   # on the bike: see the bike and the road ahead
+		ahead = 7.0
+		side = 0.0
 	var back: Vector3 = -cam_forward() * dist * cos(cam_pitch) + Vector3.UP * (dist * sin(cam_pitch) + 0.95) + cam_right() * side
 	cam_pos = cam_pos.lerp(hero.global_position, 1.0 - exp(-7.0 * dt))
 	var jitter: Vector3 = Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * shake * 0.25
@@ -1095,7 +1099,9 @@ func chase_follow(dt: float) -> void:
 		toward_t = 0.0
 		return
 	var v: Vector2 = Vector2(hero.velocity.x, hero.velocity.z)
-	if isle and isles.aboard:
+	if isle and isles.survival.riding:
+		v = Vector2(isles.survival.bike.velocity.x, isles.survival.bike.velocity.z)
+	elif isle and isles.aboard:
 		var bs: float = isles.boat_speed
 		v = Vector2(sin(isles.boat_yaw), cos(isles.boat_yaw)) * bs
 	elif hero.state != "idle" or not hero.is_on_floor():
@@ -1202,6 +1208,9 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 	if not f.alive():
 		charge = 0.0
 		return
+	if potion and potion_cd <= 0 and f.hp < f.max_hp and stage == "isles" and isles.survival.eat(f):
+		potion = false
+		potion_cd = 0.8
 	if potion and potions > 0 and potion_cd <= 0 and f.hp < f.max_hp:
 		potions -= 1
 		potion_cd = 0.8
@@ -2035,6 +2044,8 @@ func sword_tick(f: CharacterBody3D, dt: float, toggle: bool, wants_fight: bool) 
 
 ## TALK shows only in the village, next to a villager (or while chatting).
 func button_visible(id: String) -> bool:
+	if stage == "isles" and isles.survival != null and isles.survival.riding and id in ["attack", "skill", "sprint", "sheathe", "magic", "potion"]:
+		return false    # on the bike: throttle with the stick, JUMP, DRIFT, WHEELIE, BOMB
 	if stage == "isles" and isles.aboard and id in ["attack", "jump", "dodge", "block", "skill", "sprint", "sheathe"]:
 		return false    # sailing: steer, bomb, land
 	if id == "sprint":
@@ -2047,7 +2058,11 @@ func button_visible(id: String) -> bool:
 	if id == "bomb":
 		return stage == "isles" and hero != null and hero.alive()
 	if id == "boat":
-		return stage == "isles" and isles.boat_action() != ""
+		return stage == "isles" and isles.boat_action() != "" and not isles.survival.riding
+	if id == "cook":
+		return stage == "isles" and isles.survival.near_pot() and not isles.survival.riding
+	if id == "bike":
+		return stage == "isles" and isles.survival.bike_label() != ""
 	if grapple.aiming and id in ["attack", "dodge", "block", "skill", "magic", "potion", "sheathe"]:
 		return false
 	if id == "talk":
@@ -2061,6 +2076,13 @@ func button_label(id: String) -> String:
 	var s: String = hero.state
 	if id == "boat" and stage == "isles":
 		return isles.boat_action()
+	if id == "bike" and stage == "isles":
+		return isles.survival.bike_label()
+	if stage == "isles" and isles.survival.riding:
+		if id == "block":
+			return "DRIFT"
+		if id == "dodge":
+			return "WHEELIE"
 	match id:
 		"jump":
 			match s:
@@ -2119,7 +2141,7 @@ func button_ready(id: String) -> bool:
 		"magic":
 			return mana >= 25.0
 		"potion":
-			return potions > 0
+			return potions > 0 or (stage == "isles" and not InventoryService.meals.is_empty())
 		"skill":
 			return hero != null and hero.state in ["idle", "block"] or charge > 0.0
 	return true
@@ -2137,7 +2159,13 @@ func button_fill(id: String) -> float:
 func button_badge(id: String) -> String:
 	match id:
 		"potion":
+			if stage == "isles" and not InventoryService.meals.is_empty():
+				return "%d+%d" % [InventoryService.meals.size(), potions]
 			return str(potions)
+		"bike":
+			if stage == "isles" and isles.survival.riding:
+				return "%d%%" % int(isles.survival.bike.fuel)
+			return ""
 		"skill", "magic":
 			return str(marks.size()) if marks.size() > 0 else ""
 	return ""

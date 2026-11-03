@@ -12,6 +12,7 @@ extends RefCounted
 ## Open it from the title (ISLES card) or with ?isles on the web build.
 
 const IsleBlocks = preload("res://scripts/citadel/IsleBlocks.gd")
+const SurvivalScript = preload("res://scripts/citadel/IslesSurvival.gd")
 const TILE: float = 48.0
 const WORLD: float = 144.0
 const HALF: float = 72.0
@@ -57,6 +58,7 @@ var wraps: int = 0          # tests
 var splashes: int = 0       # tests
 var rocks_broken: int = 0   # tests
 var bomb_mat: StandardMaterial3D
+var survival: RefCounted       # IslesSurvival.gd: trees, wildlife, forage, cooking pot, bike
 
 func _init(g: Node) -> void:
 	game = g
@@ -100,6 +102,8 @@ func build() -> void:
 	build_boat()
 	build_chests()
 	build_dust()
+	survival = SurvivalScript.new(self)
+	survival.build(root)
 
 func look() -> void:
 	var sm: ProceduralSkyMaterial = game.env_res.sky.sky_material
@@ -119,6 +123,8 @@ func look() -> void:
 func leave() -> void:
 	active = false
 	aboard = false
+	if survival != null:
+		survival.riding = false
 	game.citadel_look()
 
 ## A standing point on the ground at (x, z).
@@ -319,10 +325,12 @@ func spawn_cast() -> void:
 		e.dmg = 6
 		e.home = p
 		game.enemies.append(e)
+	survival.spawn_animals()
 
 func start() -> void:
 	game.say_once("isles_start", "tip", "The Isles: rocks break after a few sword hits. Darker rock is tougher.")
 	game.say_once("isles_bomb", "tip", "BOMB blasts craters and tunnels. The boat is moored off the south beach.")
+	game.say_once("isles_survival", "tip", "Chop trees, hunt, pick herbs. COOK at the pot by camp. BIKE summons the Stormrunner.")
 
 # ---------------------------------------------------------------- per frame (hero)
 
@@ -332,6 +340,17 @@ func hero_tick(f: CharacterBody3D, dt: float, mv: Vector2) -> bool:
 	var playing: bool = game.mode == "play" and f.alive()
 	var bomb: bool = game.hud.take("bomb") or Input.is_action_just_pressed("cc_bomb")
 	var boat_btn: bool = game.hud.take("boat") or Input.is_action_just_pressed("cc_boat")
+	var cook_btn: bool = game.hud.take("cook") or Input.is_action_just_pressed("cc_cook")
+	var bike_btn: bool = game.hud.take("bike") or Input.is_action_just_pressed("cc_bike")
+	if playing and cook_btn and survival.near_pot() and not survival.riding:
+		survival.cook()
+	if playing and bike_btn:
+		survival.bike_button(f)
+	if survival.riding:
+		if playing and bomb:
+			throw_bomb(f)
+		survival.ride(f, mv, playing)
+		return true
 	if playing and bomb:
 		throw_bomb(f)
 	if playing and boat_btn:
@@ -437,6 +456,8 @@ func seat_ally(a: CharacterBody3D) -> void:
 
 ## A sword swing hits the rock in front of Lance at body height (never the floor under him).
 func sword_hit(f: CharacterBody3D, reach: float, hit_enemy: bool) -> void:
+	if survival.sword_hit(f, reach):
+		return
 	var p: Vector3 = f.global_position + f.forward() * minf(reach, 1.4) * 0.8 + Vector3.UP * 1.0
 	var r: Dictionary = field.blast(p, 0.6, SWORD_POWER)
 	if int(r.broken) > 0:
@@ -560,6 +581,7 @@ func progress() -> void:
 		return
 	wrap_world()
 	tick_bombs(dt)
+	survival.progress(dt)
 	water_check(hero, dt)
 	weather(dt)
 	tick_serpent(dt)
@@ -609,6 +631,7 @@ func wrap_world() -> void:
 		game.camera.global_position += shift
 	if aboard:
 		boat.position += shift
+	survival.shift(shift)
 	if game.ally != null:
 		game.ally.global_position += shift
 	for b: Dictionary in bombs:

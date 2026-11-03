@@ -31,6 +31,8 @@ const BUTTONS: Array = [
 	# ISLES only: bombs, and board / land the boat.
 	{"id": "bomb", "c": Vector2(990, 186), "r": 42.0, "label": "BOMB", "glyph": "bomb", "color": Color("ffb347")},
 	{"id": "boat", "c": Vector2(1108, 186), "r": 42.0, "label": "BOARD", "glyph": "boat", "color": Color("7fd4ff")},
+	{"id": "cook", "c": Vector2(872, 186), "r": 42.0, "label": "COOK", "glyph": "cook", "color": Color("ffd27a")},
+	{"id": "bike", "c": Vector2(990, 300), "r": 42.0, "label": "BIKE", "glyph": "bike", "color": Color("7fd4ff")},
 	# Shown only on the ground out of a fight; tap to sprint, it stays on while you keep moving.
 	{"id": "sprint", "c": Vector2(862, 640), "r": 42.0, "label": "SPRINT", "glyph": "sprint", "color": Color("ffe14a")},
 ]
@@ -422,6 +424,17 @@ func glyph(kind: String, c: Vector2, r: float) -> void:
 			draw_colored_polygon(PackedVector2Array([c + Vector2(-r * 0.4, r * 0.1), c + Vector2(r * 0.4, r * 0.1), c + Vector2(r * 0.26, r * 0.32), c + Vector2(-r * 0.26, r * 0.32)]), Color(WHITE, 0.9))
 			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r * 0.42), c + Vector2(r * 0.3, r * 0.02), c + Vector2(0, r * 0.02)]), Color("efe4c8"))
 			draw_line(c + Vector2(0, -r * 0.42), c + Vector2(0, r * 0.1), WHITE, 3)
+		"cook":
+			draw_arc(c + Vector2(0, r * 0.02), r * 0.32, 0, PI, 18, WHITE, 5)
+			draw_line(c + Vector2(-r * 0.4, r * 0.02), c + Vector2(r * 0.4, r * 0.02), WHITE, 4)
+			for k5 in 3:
+				var x5: float = (k5 - 1) * r * 0.16
+				draw_line(c + Vector2(x5, -r * 0.12), c + Vector2(x5 + r * 0.05, -r * 0.36), Color(WHITE, 0.7), 3)
+		"bike":
+			draw_arc(c + Vector2(-r * 0.24, r * 0.16), r * 0.17, 0, TAU, 16, WHITE, 4)
+			draw_arc(c + Vector2(r * 0.26, r * 0.16), r * 0.17, 0, TAU, 16, WHITE, 4)
+			draw_polyline(PackedVector2Array([c + Vector2(-r * 0.24, r * 0.16), c + Vector2(-r * 0.02, -r * 0.1), c + Vector2(r * 0.18, -r * 0.1), c + Vector2(r * 0.26, r * 0.16)]), Color("7fd4ff"), 4)
+			draw_line(c + Vector2(r * 0.14, -r * 0.1), c + Vector2(r * 0.2, -r * 0.3), WHITE, 3)
 		"talk":
 			var bub: Rect2 = Rect2(c + Vector2(-r * 0.36, -r * 0.34), Vector2(r * 0.72, r * 0.46))
 			draw_rect(bub, WHITE)

@@ -252,6 +252,87 @@ func run() -> void:
 	var behind: float = absf(wrapf(game.cam_yaw - PI, -PI, PI))
 	check("then swings round behind him", behind < 0.5, "off by %.2f rad" % behind)
 
+	# ---- survival systems in the Isles
+	var sv: RefCounted = isles.survival
+	check("trees, animals, forage and a pot are placed", sv.trees.size() >= 8 and sv.animals.size() >= 4 and sv.forage.size() >= 10 and sv.pot != null)
+	var tree: StaticBody3D = sv.trees[0]
+	var tp: Vector3 = tree.global_position
+	var stand2: Vector3 = Vector3(tp.x + 1.4, field.top_at(tp.x + 1.4, tp.z) + 0.3, tp.z)
+	place(stand2, atan2(-(tp.x - stand2.x), -(tp.z - stand2.z)))
+	await wait(0.3)
+	var wood0: int = InventoryService.count("oak_wood") + InventoryService.count("pine_wood")
+	var swings: int = 0
+	while not tree.is_felled and swings < 20:
+		game.hero_strike(h, 10.0, 2.3, 0.5, 0.3)
+		swings += 1
+	var wood1: int = InventoryService.count("oak_wood") + InventoryService.count("pine_wood")
+	check("Lance's sword fells a tree", tree.is_felled and wood1 > wood0, "%d swings, +%d wood" % [swings, wood1 - wood0])
+	await wait(1.0)
+	await shot("08_timber")
+	# forage pickup
+	var fg: Dictionary = sv.forage[0]
+	var fitem: String = fg.item
+	var c0: int = InventoryService.count(fitem)
+	place((fg.node as Node3D).global_position + Vector3(0, 0.6, 0), 0.0)
+	await wait(0.3)
+	check("walking over a herb picks it up", InventoryService.count(fitem) == c0 + 1, fitem)
+	# cook at the pot and eat
+	InventoryService.add("emberroot", 3)
+	InventoryService.add("doe_venison", 1)
+	var pp: Vector3 = sv.pot.global_position
+	place(Vector3(pp.x + 1.5, field.top_at(pp.x + 1.5, pp.z) + 0.3, pp.z), PI * 0.5)
+	await wait(0.3)
+	check("COOK shows at the pot", game.button_visible("cook"))
+	var picked: Array = sv.pick_ingredients()
+	check("the pot picks a matching mix", picked.count("emberroot") >= 3, str(picked))
+	game.hud.pressed["cook"] = true
+	await wait(0.2)
+	check("cooking makes a meal", InventoryService.meals.size() >= 1, str(InventoryService.meals.back().get("name", "") if not InventoryService.meals.is_empty() else ""))
+	await shot("09_cooked")
+	h.hp = 40.0
+	var meals0: int = InventoryService.meals.size()
+	var pots0: int = game.potions
+	game.hud.pressed["potion"] = true
+	await wait(0.2)
+	check("POTION eats a meal first", InventoryService.meals.size() == meals0 - 1 and h.hp > 40.0 and game.potions == pots0, "hp %.0f" % h.hp)
+	# bike
+	place(Vector3(2, field.top_at(2, 14) + 0.3, 14), PI * 0.5)
+	await wait(0.3)
+	check("BIKE button offered on land", sv.bike_label() == "BIKE")
+	game.hud.pressed["bike"] = true
+	await wait(0.3)
+	check("the Stormrunner comes", sv.riding and sv.bike != null)
+	var bk: CharacterBody3D = sv.bike
+	var bk0: Vector3 = bk.global_position
+	game.hud.stick = Vector2(0, -1)
+	await wait(1.5)
+	game.hud.stick = Vector2.ZERO
+	check("the stick drives the bike", bk.global_position.distance_to(bk0) > 3.0 and bk.fuel < 100.0, "%.1f m, fuel %.1f%%" % [bk.global_position.distance_to(bk0), bk.fuel])
+	check("Lance rides on it", h.global_position.distance_to(bk.global_position) < 1.2)
+	await shot("10_bike")
+	game.hud.pressed["bike"] = true
+	await wait(0.3)
+	check("GET OFF puts him back on foot", not sv.riding and not bk.visible)
+	# no summoning in the Mist Isle sanctum
+	place(isles.ground_point(Vector2(-8, -47)), 0.0)
+	await wait(0.3)
+	sv.summon(h)
+	check("bike can't be summoned in the sanctum", not sv.riding)
+	# a doe flees from a sprinting Lance
+	var doe: CharacterBody3D = sv.animals[0]
+	doe.awareness = 0.0
+	doe.set_state("idle", 5.0)
+	place(doe.global_position + Vector3(6, 0.4, 0), -PI * 0.5)
+	var heard: float = 0.0
+	for k in 90:   # keep the sprint flag on (the traversal code clears it when he stands still)
+		game.trav.sprinting = true
+		h.global_position = doe.global_position + Vector3(6, 0.4, 0)
+		heard = maxf(heard, sv.hero_noise())
+		await get_tree().physics_frame
+	game.trav.sprinting = false
+	check("sprinting is loud", heard >= 0.99, "noise %.2f" % heard)
+	check("wildlife flees a loud Lance", doe.state == "flee", doe.state)
+
 	var ok: int = 0
 	for r: bool in results:
 		if r:

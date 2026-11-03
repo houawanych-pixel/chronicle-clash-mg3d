@@ -29,3 +29,12 @@ The ground round Lance is drawn at load (about 0.5 s on a desktop); the far isla
 xvfb-run -a godot --path . --audio-driver Dummy -- --isles --isles-test --quit-after-test --shots=/abs/dir
 ```
 `scripts/citadel/IslesTest.gd` checks 34 things (ground, sword vs stone and obsidian, bomb craters and tunnels, water splash, boat board/sail/land, wrap both ways, fog serpent, dust storm, buried and open chests) and prints `ISLES RESULT n/m`.
+
+## Survival systems in the Isles (Nov 2026)
+Built from the CC survival systems (`scripts/cc/survival/`, `docs/SURVIVAL.md`), placed by `scripts/citadel/IslesSurvival.gd`:
+- **Trees** on Home Isle and Mist Isle: the sword chops them (a blade: about 8 swings for an oak). Stump stays, the log falls and rolls, wood goes in the bag.
+- **Wildlife**: Mossback Does on Home Isle, a Bristle Boar below Crag Isle, Dune Hares on Dune Isle. Crouch to sneak (quiet), sprint is loud. A sword hit on an animal that hasn't noticed you, or near its head, does extra damage. Meat and trophies go in the bag.
+- **Forage**: glowing herbs and mushrooms; walk over them to pick them up.
+- **Camp pot** (south of the start): **COOK** (key O) picks the best mix from your bag and cooks it. **POTION** eats your best meal first (badge shows meals+potions).
+- **Stormrunner bike**: **BIKE** (key M) summons it on land (not at sea, not inside the Mist Isle sanctum). Stick = throttle / brake / steer, JUMP jumps, hold GUARD to DRIFT, hold DODGE to WHEELIE, BOMB still works. The badge shows fuel. Empty tank: the button reads REFUEL (burns up to 5 wood / emberroot / sparkcoal).
+- Placeholder: Lance has no riding pose yet, he stands on the bike.

@@ -18,3 +18,5 @@ flurry_hits = 8
 blade_len = 2.3
 blade_width = 0.045
 color = Color(0.490, 1.000, 0.812, 1)
+life = 100.0
+material = "metal"

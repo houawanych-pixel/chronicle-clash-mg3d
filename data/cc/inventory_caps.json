@@ -1,0 +1,10 @@
+{
+  "_note": "Bag slots per category (CC).",
+  "Melee": 4,
+  "Bow": 3,
+  "Shield": 3,
+  "Armor": 20,
+  "Material": 160,
+  "Food": 60,
+  "Key": 99
+}

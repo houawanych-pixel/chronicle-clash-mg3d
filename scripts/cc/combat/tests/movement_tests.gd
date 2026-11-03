@@ -322,7 +322,7 @@ func weapon_tests() -> void:
 	var p: CharacterBody3D = pl()
 	var looks: Dictionary = {}
 	for w: String in ["ironwood_blade", "warden_greatblade", "thornreach_spear"]:
-		p.set_weapon(w)
+		p.set_weapon_by_id(w)
 		p.start_move(str(p.weapon.string_moves[0]))
 		await ticks(int(p.cur_move.startup_f) + 1)
 		looks[w] = [p.rig.blade_len, p.rig.shield.visible, p.pose().get("R_Upperarm", Vector3.ZERO)]
@@ -337,7 +337,7 @@ func weapon_tests() -> void:
 	# string lengths
 	var lens: Array = []
 	for w2: String in ["ironwood_blade", "warden_greatblade", "thornreach_spear"]:
-		p.set_weapon(w2)
+		p.set_weapon_by_id(w2)
 		var n: int = 1
 		var id: String = str(p.weapon.string_moves[0])
 		while str(p.moves[id].chain_to) != "":
@@ -346,7 +346,7 @@ func weapon_tests() -> void:
 		lens.append(n)
 	check("strings: one-hand 3, two-hand 3, spear 5", lens == [3, 3, 5], str(lens))
 	# one-hand: charge drains, empty stamina fires the spin by itself
-	p.set_weapon("ironwood_blade")
+	p.set_weapon_by_id("ironwood_blade")
 	StaminaPool.refill()
 	StaminaPool.value = 6.0
 	p.inp.attack_held = true
@@ -360,7 +360,7 @@ func weapon_tests() -> void:
 	check("one-hand: charge drains, empty stamina auto-fires the spin", fired)
 	await ticks(80)
 	# two-hand: hold = keep spinning (drains), release = slam
-	p.set_weapon("warden_greatblade")
+	p.set_weapon_by_id("warden_greatblade")
 	StaminaPool.refill()
 	p.inp.attack_held = true
 	var spins: int = 0
@@ -383,7 +383,7 @@ func weapon_tests() -> void:
 	check("two-hand: hold keeps spinning (drains), release slams", spins >= 1 and st_after < 95.0 and slam, "stamina %.0f" % st_after)
 	await ticks(80)
 	# spear: hold = rapid thrusts; running dry stops cleanly
-	p.set_weapon("thornreach_spear")
+	p.set_weapon_by_id("thornreach_spear")
 	StaminaPool.refill()
 	StaminaPool.value = 12.0
 	p.inp.attack_held = true

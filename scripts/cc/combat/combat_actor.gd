@@ -126,6 +126,7 @@ func _on_hitbox_touched(hb: Area3D) -> void:
 	info["attacker"] = self
 	info["from"] = global_position
 	info["move"] = cur_move
+	info = pre_hit(target, info)
 	var result: String = target.take_hit(info)
 	if result in ["hit", "guard"]:
 		confirm_impact(target, info, result)
@@ -197,6 +198,10 @@ func _physics_process(dt: float) -> void:
 	flash = maxf(0.0, flash - cdt * 5.0)
 	rig.set_flash(flash * 0.6, flash_color)
 	rig.apply(pose(), cdt)
+
+## Override: change a hit just before it lands (break hits etc.).
+func pre_hit(_target: Node3D, info: Dictionary) -> Dictionary:
+	return info
 
 ## Override: after move_and_slide (landing checks).
 func after_move(_cdt: float) -> void:

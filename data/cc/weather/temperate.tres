@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/climate_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "temperate"
+weights = {"clear": 50, "cloudy": 20, "rain": 15, "heavy_rain": 5, "snow": 0, "thunder": 10}
+temperature_c = 18.0
+reroll_s = 90.0
+wind = Vector3(2, 0, 0)

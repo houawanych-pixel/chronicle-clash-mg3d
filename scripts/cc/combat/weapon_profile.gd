@@ -20,3 +20,7 @@ extends Resource
 @export var color: Color = Color("b48cff")
 @export var walk_mult: float = 1.0
 @export var life: float = 100.0
+@export var damage_mult: float = 1.0
+@export_enum("metal", "wood", "flesh") var material: String = "metal"
+@export var survives_throw: bool = false
+@export var breakable: bool = true

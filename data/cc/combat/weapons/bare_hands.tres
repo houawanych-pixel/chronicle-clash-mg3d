@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/weapon_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "bare_hands"
+display_name = "Bare Hands"
+weapon_class = "one_hand"
+string_moves = Array[String](["light1", "light2", "light3"])
+charge_kind = "spin_release"
+finisher_move = "heavy"
+can_guard = false
+flurry_hits = 4
+blade_len = 0.02
+blade_width = 0.02
+damage_mult = 0.35
+material = "flesh"
+breakable = false
+life = 1.0

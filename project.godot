@@ -12,6 +12,8 @@ SaveService="*res://scripts/cc/survival/save_service.gd"
 TimeDilation="*res://scripts/cc/combat/time_dilation.gd"
 CombatFx="*res://scripts/cc/combat/combat_fx.gd"
 WeatherService="*res://scripts/cc/world/weather_service.gd"
+ChemistryService="*res://scripts/cc/world/chemistry_service.gd"
+AbilityService="*res://scripts/cc/abilities/ability_service.gd"
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720

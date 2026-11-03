@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/climate_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "stormcoast"
+weights = {"clear": 10, "cloudy": 15, "rain": 40, "heavy_rain": 15, "snow": 0, "thunder": 20}
+temperature_c = 14.0
+reroll_s = 60.0
+wind = Vector3(4, 0, 0)

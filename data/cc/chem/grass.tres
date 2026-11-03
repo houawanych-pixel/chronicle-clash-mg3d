@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/chem_material.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "grass"
+tags = 2
+ignition_point = 0.3
+burn_speed = 1.0
+conductive = false
+flammable = true
+fuel = 1.0

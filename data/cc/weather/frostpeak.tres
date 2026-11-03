@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/climate_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "frostpeak"
+weights = {"clear": 20, "cloudy": 20, "rain": 0, "heavy_rain": 0, "snow": 60, "thunder": 0}
+temperature_c = -8.0
+reroll_s = 90.0
+wind = Vector3(1, 0, 1)

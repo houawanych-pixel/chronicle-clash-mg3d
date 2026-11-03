@@ -13,12 +13,52 @@ const MEAL_SLOTS: int = 60
 var defs: Dictionary = {}
 var stacks: Dictionary = {}      # item id -> count
 var meals: Array[Dictionary] = []
+## Weapons are kept one per slot with their own life: [{id, life}] (category "Melee").
+var weapons: Array[Dictionary] = []
+var caps: Dictionary = {}
+const CATEGORIES: Array[String] = ["Melee", "Bow", "Shield", "Armor", "Material", "Food", "Key"]
 
 func _ready() -> void:
 	load_defs()
 
 func load_defs() -> void:
 	defs = CCData.load_json(ITEMS_PATH)
+	caps = CCData.load_json("res://data/cc/inventory_caps.json")
+
+## Which bag an item goes in.
+func category_of(id: String) -> String:
+	var cat: String = str((defs.get(id, {}) as Dictionary).get("cat", "material"))
+	match cat:
+		"food", "meat":
+			return "Food"
+		"key":
+			return "Key"
+	return "Material"
+
+func used(category: String) -> int:
+	match category:
+		"Melee":
+			return weapons.size()
+		"Food":
+			var n: int = meals.size()
+			for id: String in stacks:
+				if category_of(id) == "Food":
+					n += 1
+			return n
+	var m: int = 0
+	for id2: String in stacks:
+		if category_of(id2) == category:
+			m += 1
+	return m
+
+func is_full(category: String) -> bool:
+	return used(category) >= int(caps.get(category, 999))
+
+func add_weapon(id: String, life: float) -> bool:
+	if is_full("Melee"):
+		return false
+	weapons.append({"id": id, "life": life})
+	return true
 
 func item_name(id: String) -> String:
 	var d: Dictionary = defs.get(id, {})
@@ -86,6 +126,7 @@ func take_meal(i: int) -> Dictionary:
 func clear() -> void:
 	stacks.clear()
 	meals.clear()
+	weapons.clear()
 
 func to_save() -> Dictionary:
 	return {"stacks": stacks.duplicate(), "meals": meals.duplicate(true)}

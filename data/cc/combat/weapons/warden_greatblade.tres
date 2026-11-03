@@ -19,3 +19,5 @@ blade_len = 1.85
 blade_width = 0.17
 color = Color(1.000, 0.604, 0.353, 1)
 walk_mult = 0.85
+life = 100.0
+material = "metal"

@@ -18,6 +18,7 @@ const BTN: Array = [
 ]
 
 var arena: Node
+var buttons: Array = BTN.duplicate(true)
 var stick: Vector2 = Vector2.ZERO
 var stick_id: int = -99
 var stick_origin: Vector2 = Vector2(190, 565)
@@ -57,7 +58,7 @@ func down(id: int, p: Vector2) -> void:
 	if arena.state != "play":
 		arena.menu_tap(p)
 		return
-	for b: Dictionary in BTN:
+	for b: Dictionary in buttons:
 		if p.distance_to(btn_pos(b)) < float(b.r) + 10.0:
 			fingers[id] = b.id
 			held[b.id] = true
@@ -82,6 +83,9 @@ func down(id: int, p: Vector2) -> void:
 				"sprint":
 					sprint_on = not sprint_on
 					crouch_on = false
+				_:
+					if arena.has_method("hud_button"):
+						arena.hud_button(str(b.id))
 			return
 	if p.x < 640.0 and stick_id == -99:
 		stick_id = id
@@ -178,7 +182,7 @@ func _draw() -> void:
 	# stick
 	draw_arc(stick_origin, 100, 0, TAU, 48, Color(1, 1, 1, 0.35), 4)
 	draw_circle(stick_origin + stick * 100.0, 34, Color(1, 1, 1, 0.35))
-	for b: Dictionary in BTN:
+	for b: Dictionary in buttons:
 		var c: Vector2 = btn_pos(b)
 		var on: bool = held.get(b.id, false) or (b.id == "crouch" and crouch_on) or (b.id == "sprint" and sprint_on) or (b.id == "lock" and pl != null and pl.lock_target != null) or (b.id == "aim" and pl != null and pl.aiming)
 		draw_circle(c, b.r, Color(0.05, 0.14, 0.24, 0.85 if on else 0.55))

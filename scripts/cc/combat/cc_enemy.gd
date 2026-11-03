@@ -7,6 +7,7 @@ extends "res://scripts/cc/combat/combat_actor.gd"
 ## Light hits stagger 12 f, heavy 30 f, interrupting a normal attack. A parry stuns.
 
 const Arrow = preload("res://scripts/cc/combat/cc_arrow.gd")
+const WildDrops = preload("res://scripts/cc/survival/wildlife_agent.gd")
 
 var team: String = "enemy"
 var profile: Resource
@@ -368,6 +369,9 @@ func take_hit(info: Dictionary) -> String:
 	if not alive():
 		interrupt()
 		marker.text = ""
+		var drops: Dictionary = WildDrops.roll_drops(str(profile.id), false, RandomNumberGenerator.new())
+		for item: String in drops:
+			InventoryService.add(item, int(drops[item]))
 		var tac: Node = tactics()
 		if tac != null:
 			tac.release(self)

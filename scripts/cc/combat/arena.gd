@@ -211,6 +211,7 @@ func start_round(n: int) -> void:
 	round_no = n
 	state = "play"
 	StaminaPool.refill()
+	InventoryService.weapons.clear()
 	player = PlayerScript.new()
 	add_child(player)
 	player.global_position = Vector3(0, 0.1, 14)

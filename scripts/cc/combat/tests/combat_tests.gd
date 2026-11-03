@@ -306,7 +306,7 @@ func enemy_tests() -> void:
 		await reset(true, Vector3(0, 0.1, -2.0))
 		k = knight()
 		p = pl()
-		p.set_weapon({"one_hand": "ironwood_blade", "two_hand": "warden_greatblade", "spear": "thornreach_spear"}[wc])
+		p.set_weapon_by_id({"one_hand": "ironwood_blade", "two_hand": "warden_greatblade", "spear": "thornreach_spear"}[wc])
 		p.lock_target = k
 		k.hp = 500.0
 		k.max_hp = 500.0

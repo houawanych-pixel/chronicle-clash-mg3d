@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/chem_world_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+fire_heat_transfer = 0.3
+burn_speed_rate = 0.4
+fire_extra_radius = 0.3
+lightning_distance = 35.0
+wind_lift_rate = 0.7
+electric_water_radius_mult = 8.0
+ice_melt_fire = 1.0
+character_ignite_ticks = 90

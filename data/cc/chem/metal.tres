@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/chem_material.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "metal"
+tags = 4
+ignition_point = 99.0
+burn_speed = 0.0
+conductive = true
+flammable = false
+fuel = 0.0

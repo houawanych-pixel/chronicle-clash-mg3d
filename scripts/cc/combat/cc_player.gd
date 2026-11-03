@@ -11,11 +11,14 @@ signal perfect_dodge(attacker: Node3D)
 signal parried(attacker: Node3D)
 signal slipped
 signal landed(height: float, damage: float)
+signal weapon_broke(id: String)
+signal bag_full(id: String)
 
 const MOVE_DIR: String = "res://data/cc/combat/moves/"
 const WEAPON_DIR: String = "res://data/cc/combat/weapons/"
 const ALL_MOVES: Array[String] = ["light1", "light2", "light3", "heavy", "flurry", "th1", "th2", "th3", "th_spin", "th_slam", "sp1", "sp2", "sp3", "sp4", "sp5", "sp_rapid"]
-const WEAPONS: Array[String] = ["ironwood_blade", "warden_greatblade", "thornreach_spear"]
+const WEAPONS: Array[String] = ["ironwood_blade", "warden_greatblade", "thornreach_spear", "bare_hands"]
+const Thrown = preload("res://scripts/cc/combat/cc_thrown.gd")
 
 var team: String = "player"
 var moves: Dictionary = {}
@@ -25,7 +28,7 @@ var jt: Resource       # jump_tuning.gd
 var ct: Resource       # climb_tuning.gd
 var inp: Dictionary = {"move": Vector2.ZERO, "attack": false, "attack_held": false, "heavy": false,
 	"guard_held": false, "guard": false, "dodge": false, "lock": false, "sprint": false, "crouch": false,
-	"jump": false, "aim": false, "weapon": false}
+	"jump": false, "aim": false, "weapon": false, "throw": false}
 var attack_buf: float = -999.0
 var dodge_buf: float = -999.0
 var jump_buf: float = -999.0
@@ -63,6 +66,8 @@ var updraft: float = 0.0               # world chemistry can push the glider up
 var hspeed_at_jump: float = 0.0
 var stun_f: float = 0.0
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var bag_slot: int = -1          # which InventoryService.weapons entry is in hand (-1 = bare hands)
+var cold_resist: bool = false
 
 func _ready() -> void:
 	is_player = true
@@ -96,7 +101,10 @@ func _ready() -> void:
 	add_to_group("cc_player")
 	rng.seed = 7
 	build_glider()
-	set_weapon("ironwood_blade")
+	if InventoryService.weapons.is_empty():
+		for w: String in ["ironwood_blade", "warden_greatblade", "thornreach_spear"]:
+			InventoryService.add_weapon(w, float(weapons[w].life))
+	equip_slot(0)
 	air_peak_y = global_position.y
 
 var glider_node: Node3D
@@ -149,9 +157,118 @@ func set_weapon(id: String) -> void:
 	if state == "guard" and not weapon.can_guard:
 		go("locomote")
 
+## Hold the weapon in bag slot i (bare hands if the bag is empty).
+func equip_slot(i: int) -> void:
+	var bag: Array[Dictionary] = InventoryService.weapons
+	if bag.is_empty():
+		bag_slot = -1
+		set_weapon("bare_hands")
+		return
+	bag_slot = posmod(i, bag.size())
+	set_weapon(str(bag[bag_slot].id))
+
+## In the test arenas a weapon picked by id goes to the bag slot holding it.
+func set_weapon_by_id(id: String) -> void:
+	for i in InventoryService.weapons.size():
+		if str(InventoryService.weapons[i].id) == id:
+			equip_slot(i)
+			return
+	set_weapon(id)
+
 func cycle_weapon() -> void:
-	var i: int = WEAPONS.find(str(weapon.id))
-	set_weapon(WEAPONS[(i + 1) % WEAPONS.size()])
+	equip_slot(bag_slot + 1)
+
+func weapon_life() -> float:
+	if bag_slot < 0 or bag_slot >= InventoryService.weapons.size():
+		return 1.0
+	return float(InventoryService.weapons[bag_slot].life)
+
+func weapon_life_frac() -> float:
+	if bag_slot < 0:
+		return 1.0
+	return weapon_life() / maxf(float(weapon.life), 1.0)
+
+func carries_metal() -> bool:
+	return str(weapon.material) == "metal"
+
+## The last hit before a weapon breaks does double damage.
+func pre_hit(_target: Node3D, info: Dictionary) -> Dictionary:
+	if bag_slot >= 0 and bool(weapon.breakable) and weapon_life() <= 1.0:
+		info.damage = float(info.damage) * 2.0
+		info["break_hit"] = true
+	return info
+
+func wear(n: float) -> void:
+	if bag_slot < 0 or not bool(weapon.breakable):
+		return
+	InventoryService.weapons[bag_slot].life = weapon_life() - n
+	if weapon_life() <= 0.0:
+		break_weapon()
+
+func break_weapon() -> void:
+	var id: String = str(weapon.id)
+	InventoryService.weapons.remove_at(bag_slot)
+	drop_stub()
+	CombatFx.sound(get_tree(), "chip", 0.0)
+	CombatFx.spark(get_tree(), global_position + forward() * 0.8 + Vector3.UP * 1.2, Color("dddddd"), 30)
+	weapon_broke.emit(id)
+	equip_slot(bag_slot)
+
+## The broken weapon's stub drops to the ground.
+func drop_stub() -> void:
+	var b: RigidBody3D = RigidBody3D.new()
+	b.name = "BrokenStub"
+	b.add_to_group("cc_stub")
+	var cs: CollisionShape3D = CollisionShape3D.new()
+	var bs: BoxShape3D = BoxShape3D.new()
+	bs.size = Vector3(0.08, 0.4, 0.04)
+	cs.shape = bs
+	b.add_child(cs)
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	var bm: BoxMesh = BoxMesh.new()
+	bm.size = bs.size
+	mi.mesh = bm
+	b.add_child(mi)
+	get_parent().add_child(b)
+	b.global_position = global_position + forward() * 0.6 + Vector3.UP * 1.0
+	b.linear_velocity = forward() * 1.5 + Vector3.UP * 2.0
+
+## Throw the weapon in hand: it flies, hits for double and (usually) breaks.
+func throw_weapon() -> bool:
+	if bag_slot < 0 or cur_move != null or state != "locomote":
+		return false
+	var t: Area3D = Thrown.new()
+	t.thrower = self
+	t.damage = float(moves[str(weapon.string_moves[0])].damage) * float(weapon.damage_mult) * 2.0
+	t.weapon_id = str(weapon.id)
+	t.life = weapon_life()
+	t.keeps = bool(weapon.survives_throw)
+	get_parent().add_child(t)
+	t.launch(global_position + Vector3.UP * 1.4 + forward() * 0.6, forward() * 14.0 + Vector3.UP * 1.0, float(weapon.blade_len))
+	InventoryService.weapons.remove_at(bag_slot)
+	equip_slot(bag_slot)
+	return true
+
+## Walking over a weapon: into the bag unless the melee bag is full (then it asks to swap).
+func try_pickup(id: String, life: float) -> bool:
+	if InventoryService.is_full("Melee"):
+		bag_full.emit(id)
+		return false
+	InventoryService.add_weapon(id, life)
+	if bag_slot < 0:
+		equip_slot(0)
+	return true
+
+## Swap the weapon in hand for one on the ground. Returns the dropped [id, life].
+func swap_for(id: String, life: float) -> Array:
+	if bag_slot < 0:
+		InventoryService.add_weapon(id, life)
+		equip_slot(0)
+		return []
+	var old: Dictionary = InventoryService.weapons[bag_slot]
+	InventoryService.weapons[bag_slot] = {"id": id, "life": life}
+	set_weapon(id)
+	return [str(old.id), float(old.life)]
 
 # ---------------------------------------------------------------- input
 
@@ -196,10 +313,12 @@ func brain(cdt: float) -> Vector3:
 		aiming = not aiming
 	if inp.weapon and cur_move == null and state in ["locomote", "guard"]:
 		cycle_weapon()
+	if inp.throw:
+		throw_weapon()
 	crouched = bool(inp.crouch)
 	sprinting = bool(inp.sprint) and not crouched
 	var mv: Vector2 = inp.move
-	for k: String in ["attack", "dodge", "guard", "lock", "jump", "aim", "weapon"]:
+	for k: String in ["attack", "dodge", "guard", "lock", "jump", "aim", "weapon", "throw"]:
 		inp[k] = false
 	if lock_target != null and (not is_instance_valid(lock_target) or not lock_target.alive()):
 		lock_target = null
@@ -395,7 +514,8 @@ func glide(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
 	var dir: Vector3 = cam_dir(mv)
 	if dir.length() > 0.1:
 		yaw = lerp_angle(yaw, atan2(-dir.x, -dir.z), 0.1)
-	return forward() * float(jt.glide_speed) * (0.55 + 0.45 * clampf(dir.length(), 0.0, 1.0))
+	var wind: Vector3 = WeatherService.wind_vec
+	return forward() * float(jt.glide_speed) * (0.55 + 0.45 * clampf(dir.length(), 0.0, 1.0)) + Vector3(wind.x, 0, wind.z) * 0.35
 
 # ---------------------------------------------------------------- climb and mantle
 
@@ -572,7 +692,7 @@ func start_move(id: String) -> void:
 		go("locomote")
 		return
 	cur_move = moves[id]
-	var dmg: float = float(cur_move.damage)
+	var dmg: float = float(cur_move.damage) * float(weapon.damage_mult)
 	var heavy: bool = int(cur_move.stagger_f) >= 30
 	if id == "heavy":
 		dmg *= lerpf(1.0, 1.5, clampf(charge_f / float(tuning.charge_full_f), 0.0, 1.0))
@@ -694,6 +814,7 @@ func confirm_impact(target: Node3D, info: Dictionary, result: String) -> void:
 	super.confirm_impact(target, info, result)
 	if info.get("flurry", false):
 		flurry_hits_landed += 1
+	wear(1.0)
 
 # ---------------------------------------------------------------- lock-on
 

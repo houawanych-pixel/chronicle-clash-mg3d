@@ -20,7 +20,10 @@ const CLIFF: Vector3 = Vector3(0, 0, -30)
 const FIELD: Vector3 = Vector3(20, 0, 0)
 const FIELD_SIZE: Vector2 = Vector2(24, 24)
 const BRAZIER: Vector3 = Vector3(6.5, 0, 0)
-const POND: Vector3 = Vector3(-18, 0.05, 10)
+const POND: Vector3 = Vector3(-18, -0.3, 10)     # water surface; the basin is 4 m deep
+const POND_SIZE: Vector3 = Vector3(12, 4.0, 12)
+const DIVE_TOWER: Vector3 = Vector3(-26.5, 0, 10)  # 14 m climbable cliff on the pond's west bank
+const SLOPES: Array = [["grass", Vector3(14, 0, 24)], ["snow", Vector3(-28, 0, -26)], ["rock", Vector3(26, 0, -22)]]
 const SNOW: Vector3 = Vector3(-28, 0, -22)
 
 var player: CharacterBody3D
@@ -61,7 +64,12 @@ func _ready() -> void:
 		if t == player:
 			warn_t = float(ChemistryService.tuning.lightning_warn_s))
 	start()
-	if "--world-test" in OS.get_cmdline_user_args():
+	if "--travel-test" in OS.get_cmdline_user_args():
+		autopilot = true
+		var tt2: Node = load("res://scripts/cc/world/tests/travel_tests.gd").new()
+		tt2.set("world", self)
+		add_child(tt2)
+	elif "--world-test" in OS.get_cmdline_user_args():
 		autopilot = true
 		var t: Node = load("res://scripts/cc/world/tests/world_tests.gd").new()
 		t.set("world", self)
@@ -152,6 +160,22 @@ func box(pos: Vector3, size: Vector3, c: Color) -> StaticBody3D:
 	b.add_child(mi)
 	return b
 
+func ground(pos: Vector3, size: Vector3, c: Color) -> StaticBody3D:
+	var b: StaticBody3D = box(pos, size, c)
+	b.set_meta("surface", "grass")
+	return b
+
+## A 20 degree slope (10 m long) of snow, grass or rock, rising toward -z, for shield surfing.
+func slope(surface: String, at: Vector3) -> void:
+	var c: Color = {"snow": Color("e8eef2"), "grass": Color("5d7a3e"), "rock": Color("7a7268")}[surface]
+	var ang: float = deg_to_rad(20.0)
+	var length: float = 10.0
+	var b: StaticBody3D = box(Vector3.ZERO, Vector3(6, 0.4, length), c)
+	b.set_meta("surface", surface)
+	b.position = at + Vector3(0, sin(ang) * length * 0.5 - 0.1, 0)
+	b.rotation.x = ang
+	b.add_to_group("cc_slope")
+
 func crate(pos: Vector3, metal: bool) -> RigidBody3D:
 	var b: RigidBody3D = RigidBody3D.new()
 	b.mass = 10.0
@@ -179,7 +203,22 @@ func crate(pos: Vector3, metal: bool) -> RigidBody3D:
 	return b
 
 func build_world() -> void:
-	box(Vector3(0, -0.5, 0), Vector3(90, 1, 90), Color("55633f"))
+	# ground in four slabs round the pond basin
+	var px0: float = POND.x - POND_SIZE.x * 0.5
+	var px1: float = POND.x + POND_SIZE.x * 0.5
+	var pz0: float = POND.z - POND_SIZE.z * 0.5
+	var pz1: float = POND.z + POND_SIZE.z * 0.5
+	var g: Color = Color("55633f")
+	ground(Vector3((-45 + px0) * 0.5, -0.5, 0), Vector3(px0 + 45, 1, 90), g)
+	ground(Vector3((px1 + 45) * 0.5, -0.5, 0), Vector3(45 - px1, 1, 90), g)
+	ground(Vector3(POND.x, -0.5, (-45 + pz0) * 0.5), Vector3(POND_SIZE.x, 1, pz0 + 45), g)
+	ground(Vector3(POND.x, -0.5, (pz1 + 45) * 0.5), Vector3(POND_SIZE.x, 1, 45 - pz1), g)
+	ground(Vector3(POND.x, -4.8, POND.z), Vector3(POND_SIZE.x, 1, POND_SIZE.z), Color("3d4a4a"))
+	var dive: StaticBody3D = box(DIVE_TOWER + Vector3(0, 7, 0), Vector3(3, 14, 3), Color("7d7368"))
+	dive.add_to_group("cc_climbable")
+	dive.set_meta("surface", "rock")
+	for sl: Array in SLOPES:
+		slope(str(sl[0]), sl[1])
 	var cliff: StaticBody3D = box(CLIFF + Vector3(0, 5, 0), Vector3(14, 10, 3), Color("7d7368"))
 	cliff.add_to_group("cc_climbable")
 	box(SNOW + Vector3(0, 0.02, 0), Vector3(20, 0.04, 20), Color("e8eef2"))
@@ -196,7 +235,7 @@ func build_world() -> void:
 	add_child(brazier)
 	brazier.global_position = BRAZIER
 	pond = Water.new()
-	pond.size = Vector3(12, 2, 12)
+	pond.size = POND_SIZE
 	add_child(pond)
 	pond.global_position = POND
 
@@ -222,6 +261,10 @@ func start() -> void:
 	WeatherService.apply("clear", Vector3(3, 0, 0))
 	WorldClock.force_omen = false
 	InventoryService.weapons.clear()
+	InventoryService.stacks.erase("arrow")
+	InventoryService.stacks.erase("fire_arrow")
+	InventoryService.add("arrow", 30)
+	InventoryService.add("fire_arrow", 10)
 	StaminaPool.refill()
 	player = PlayerScript.new()
 	add_child(player)

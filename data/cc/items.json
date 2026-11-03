@@ -89,5 +89,15 @@
     "name": "Briar Fletching",
     "cat": "material",
     "stack": 999
+  },
+  "arrow": {
+    "name": "Arrow",
+    "cat": "material",
+    "stack": 999
+  },
+  "fire_arrow": {
+    "name": "Ember Arrow",
+    "cat": "material",
+    "stack": 999
   }
 }

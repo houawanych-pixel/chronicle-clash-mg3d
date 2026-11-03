@@ -13,12 +13,17 @@ signal slipped
 signal landed(height: float, damage: float)
 signal weapon_broke(id: String)
 signal bag_full(id: String)
+signal dove(height: float)
+signal drowned
+signal shield_broke
+signal arrow_fired(arrow: Node3D)
 
 const MOVE_DIR: String = "res://data/cc/combat/moves/"
 const WEAPON_DIR: String = "res://data/cc/combat/weapons/"
 const ALL_MOVES: Array[String] = ["light1", "light2", "light3", "heavy", "flurry", "th1", "th2", "th3", "th_spin", "th_slam", "sp1", "sp2", "sp3", "sp4", "sp5", "sp_rapid"]
 const WEAPONS: Array[String] = ["ironwood_blade", "warden_greatblade", "thornreach_spear", "bare_hands"]
 const Thrown = preload("res://scripts/cc/combat/cc_thrown.gd")
+const PlayerArrow = preload("res://scripts/cc/combat/cc_player_arrow.gd")
 
 var team: String = "player"
 var moves: Dictionary = {}
@@ -71,13 +76,27 @@ var cold_resist: bool = false
 var sheathed: bool = false       # weapon + shield on the back
 var peace_t: float = 0.0         # seconds since the last fight action
 const SHEATHE_AFTER_S: float = 4.0
-const HANDS_FREE: Array[String] = ["climb", "glide", "mantle"]
+const HANDS_FREE: Array[String] = ["climb", "glide", "mantle", "swim", "skydive", "surf", "tumble"]
+var tt: Resource       # traverse_tuning.gd: swim, dive, surf, bow
+var last_dry: Vector3 = Vector3.ZERO
+var has_shield: bool = true
+var shield_life: float = 100.0
+var surf_v: Vector3 = Vector3.ZERO
+var surf_air: bool = false
+var bow_draw_t: float = 0.0
+var aerial_slow_on: bool = false
+var arrow_type: String = "arrow"
+var aim_override: Vector3 = Vector3.INF
+var bow_node: Node3D
+var last_arrow: Node3D
 
 func _ready() -> void:
 	is_player = true
 	own_vertical = true
 	jt = load("res://data/cc/combat/jump_tuning.tres")
 	ct = load("res://data/cc/combat/climb_tuning.tres")
+	tt = load("res://data/cc/combat/traverse_tuning.tres")
+	shield_life = float(tt.shield_life)
 	for id: String in ALL_MOVES:
 		moves[id] = load(MOVE_DIR + id + ".tres")
 	for w: String in WEAPONS:
@@ -87,7 +106,7 @@ func _ready() -> void:
 		var m: Resource = moves[id]
 		clips[id] = {"frames": m.total_f(), "hit": [m.startup_f, m.startup_f + m.active_f],
 			"lunge_m": m.lunge_m, "lunge_f": m.startup_f + m.active_f}
-	for nm: String in ["heavy_charge", "guard", "air", "glide", "climb"]:
+	for nm: String in ["heavy_charge", "guard", "air", "glide", "climb", "swim", "skydive", "surf", "bow_draw"]:
 		clips[nm] = {"frames": 60, "loop": true}
 	clips["dodge_side"] = {"frames": int(tuning.dodge_f)}
 	clips["dodge_back"] = {"frames": int(tuning.dodge_f)}
@@ -98,6 +117,7 @@ func _ready() -> void:
 	clips["land_stun"] = {"frames": int(jt.hard_land_stun_f)}
 	clips["mantle"] = {"frames": int(jt.mantle_f), "lunge_m": 0.0}
 	clips["dead"] = {"frames": 60}
+	clips["tumble"] = {"frames": int(tt.tumble_f)}
 	hp = 120.0
 	max_hp = 120.0
 	setup_body("res://assets/characters/lance.glb", 1.8, Color("b48cff"), clips)
@@ -105,6 +125,8 @@ func _ready() -> void:
 	add_to_group("cc_player")
 	rng.seed = 7
 	build_glider()
+	build_bow()
+	last_dry = global_position
 	if InventoryService.weapons.is_empty():
 		for w: String in ["ironwood_blade", "warden_greatblade", "thornreach_spear"]:
 			InventoryService.add_weapon(w, float(weapons[w].life))
@@ -157,7 +179,7 @@ func set_weapon(id: String) -> void:
 	rig.blade_mat.albedo_color = (weapon.color as Color).lerp(Color.WHITE, 0.5)
 	rig.blade_mat.emission = weapon.color
 	if rig.shield != null:
-		rig.shield.visible = bool(weapon.can_guard)
+		rig.shield.visible = bool(weapon.can_guard) and has_shield
 	if state == "guard" and not weapon.can_guard:
 		go("locomote")
 
@@ -350,7 +372,9 @@ func brain(cdt: float) -> Vector3:
 		toggle_lock()
 	if inp.aim:
 		aiming = not aiming
-	if inp.weapon and cur_move == null and state in ["locomote", "guard"]:
+	if inp.weapon and aiming:
+		arrow_type = "fire_arrow" if arrow_type == "arrow" else "arrow"
+	elif inp.weapon and cur_move == null and state in ["locomote", "guard"]:
 		cycle_weapon()
 	if inp.throw:
 		throw_weapon()
@@ -369,13 +393,17 @@ func brain(cdt: float) -> Vector3:
 	if not alive():
 		vy = -1.0 if on_ground else vy - float(jt.gravity) * cdt
 		return Vector3.ZERO
+	if state not in ["climb", "mantle", "swim"] and in_deep_water():
+		enter_water()
 	var want: Vector3 = Vector3.ZERO
 	var gravity_on: bool = true
 	match state:
 		"locomote":
 			want = locomote(mv, cdt, jump_now)
 		"guard":
-			if not inp.guard_held or not weapon.can_guard:
+			if jump_now and grounded() and has_shield:
+				start_surf()         # hold GUARD, tap JUMP: onto the shield
+			elif not inp.guard_held or not weapon.can_guard:
 				go("locomote")
 			elif try_dodge(mv):
 				pass
@@ -423,6 +451,20 @@ func brain(cdt: float) -> Vector3:
 			mantle_tick()
 			gravity_on = false
 			want = Vector3.ZERO
+		"swim":
+			want = swim(mv, cdt, jump_now)
+			gravity_on = false
+		"skydive":
+			want = skydive(mv, cdt, jump_now)
+			gravity_on = false
+		"surf":
+			want = surf(mv, cdt, jump_now)
+			gravity_on = false
+		"tumble":
+			if state_f >= float(tt.tumble_f):
+				go("locomote")
+		"bow_draw":
+			want = bow_tick(mv, cdt)
 		_:
 			if cur_move != null and state == str(cur_move.id):
 				move_tick(mv)
@@ -441,6 +483,13 @@ func locomote(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
 		start_flurry()
 		return Vector3.ZERO
 	# jump: on the ground or within coyote frames after leaving it, from a press in the buffer
+	if aiming and attack_buffered() and cur_move == null:
+		start_bow()
+		return Vector3(velocity.x, 0, velocity.z)
+	# shield surf: GUARD + JUMP while moving on the ground
+	if on_ground and jump_now and inp.guard_held and has_shield and weapon.can_guard and Vector2(velocity.x, velocity.z).length() > 1.5:
+		start_surf()
+		return Vector3(velocity.x, 0, velocity.z)
 	var can_jump: bool = not jumped and (on_ground or frames - last_ground_f <= float(jt.coyote_f))
 	if can_jump and frames - jump_buf <= float(jt.buffer_f) and cur_move == null:
 		do_jump()
@@ -452,6 +501,10 @@ func locomote(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
 			return Vector3(velocity.x, 0, velocity.z)
 		if try_climb(mv):
 			return Vector3.ZERO
+		# a long drop: spread out and skydive
+		if vy < -6.0 and height_above_ground() > float(tt.skydive_min_height):
+			go("skydive")
+			return Vector3(velocity.x, 0, velocity.z)
 		var dir_a: Vector3 = cam_dir(mv)
 		var hv: Vector3 = Vector3(velocity.x, 0, velocity.z)
 		var cap: float = maxf(float(jt.air_max_speed), hspeed_at_jump)
@@ -523,6 +576,8 @@ func after_move(_cdt: float) -> void:
 		land(h)
 	if on_ground:
 		air_peak_y = global_position.y
+		if state == "locomote" and not in_water_at(global_position + Vector3.UP * 0.2):
+			last_dry = global_position
 	was_air = not on_ground
 
 func land(h: float) -> void:
@@ -530,6 +585,15 @@ func land(h: float) -> void:
 		go("locomote")
 		landed.emit(h, 0.0)
 		return
+	if state == "surf":
+		shield_wear(float(tt.surf_impact_cost))
+		surf_air = false
+		landed.emit(h, 0.0)
+		return
+	if aerial_slow_on:
+		end_aerial()
+	if state == "skydive":
+		go("locomote")
 	var frac: float = float(jt.fall_damage_frac(h))
 	var dmg: float = frac * max_hp
 	if dmg > 0.0:
@@ -542,6 +606,296 @@ func land(h: float) -> void:
 			hitbox.close()
 			go("land_stun")
 	landed.emit(h, dmg)
+
+# ---------------------------------------------------------------- water
+
+func water_at(p: Vector3) -> Node:
+	for w: Node in get_tree().get_nodes_in_group("cc_water"):
+		if w.contains(p):
+			return w
+	return null
+
+func in_water_at(p: Vector3) -> bool:
+	return water_at(p) != null
+
+## Depth of water under the chest (surface to the bottom below), 0 if none.
+func water_depth() -> float:
+	var chest: Vector3 = global_position + Vector3.UP * 0.9
+	var w: Node = water_at(chest)
+	if w == null:
+		return 0.0
+	var top: float = float(w.surface_y())
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(Vector3(chest.x, top, chest.z), Vector3(chest.x, top - 30.0, chest.z), 1)
+	q.exclude = [get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	return top - ((hit.position as Vector3).y if not hit.is_empty() else top - 30.0)
+
+func in_deep_water() -> bool:
+	return water_depth() >= float(tt.deep_water_m) and global_position.y < float(water_at(global_position + Vector3.UP * 0.9).surface_y()) - 0.6
+
+## Into the water: a high dive into deep water is safe (big splash), then swim.
+func enter_water() -> void:
+	var h: float = air_peak_y - global_position.y
+	var depth: float = water_depth()
+	if vy < -8.0:
+		if depth >= float(tt.dive_min_depth):
+			CombatFx.spark(get_tree(), global_position + Vector3.UP * 1.2, Color("cfefff"), 50)
+			CombatFx.sound(get_tree(), "explosion", -14.0)
+			dove.emit(h)
+		else:
+			land(h)     # too shallow for a dive: it hurts like ground
+	if aerial_slow_on:
+		end_aerial()
+	hitbox.close()
+	cur_move = null
+	vy = 0.0
+	air_peak_y = global_position.y
+	was_air = false
+	go("swim")
+
+func swim(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
+	var w: Node = water_at(global_position + Vector3.UP * 0.9)
+	if w == null or water_depth() < float(tt.deep_water_m) * 0.8:
+		go("locomote")       # waded out
+		return Vector3(velocity.x, 0, velocity.z)
+	var target_y: float = float(w.surface_y()) - float(tt.swim_float)
+	vy = clampf((target_y - global_position.y) * 5.0, -4.0, 4.0)
+	var dir: Vector3 = cam_dir(mv)
+	var dash: bool = (sprinting or dodge_pressed()) and dir.length() > 0.2
+	var drain: float = float(tt.swim_dash_drain) if dash else 1.5
+	if not StaminaPool.spend(drain * cdt) or StaminaPool.is_exhausted:
+		drown()
+		return Vector3.ZERO
+	if dir.length() > 0.1:
+		yaw = lerp_angle(yaw, atan2(-dir.x, -dir.z), 0.15)
+		# swimming into the bank or a wall: climb out
+		var d: Vector3 = dir.normalized()
+		if not wall_hit(1.0, d, 0.7).is_empty():
+			if try_climb(mv):
+				return Vector3.ZERO
+			if start_mantle(true, d):
+				return Vector3.ZERO
+	var speed: float = float(tt.swim_dash_speed) if dash else float(tt.swim_speed)
+	return dir.normalized() * speed * clampf(dir.length(), 0.0, 1.0)
+
+## Out of stamina in deep water: you go under, lose some health, and come back on the shore.
+func drown() -> void:
+	apply_damage(float(tt.drown_damage), global_position, 0.0)
+	drowned.emit()
+	CombatFx.sound(get_tree(), "hurt", -4.0)
+	global_position = last_dry + Vector3.UP * 0.2
+	velocity = Vector3.ZERO
+	vy = 0.0
+	air_peak_y = global_position.y
+	was_air = false
+	if alive():
+		go("locomote")
+
+# ---------------------------------------------------------------- skydive
+
+func skydive(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
+	if jump_now and not StaminaPool.is_exhausted:
+		go("glide")
+		return Vector3(velocity.x, 0, velocity.z)
+	if try_climb(mv):
+		return Vector3.ZERO
+	vy = maxf(vy - float(jt.gravity) * cdt, -float(tt.terminal_speed))
+	var dir: Vector3 = cam_dir(mv)
+	var hv: Vector3 = Vector3(velocity.x, 0, velocity.z)
+	var want_v: Vector3 = dir.normalized() * float(tt.skydive_air_speed) * clampf(dir.length(), 0.0, 1.0) if dir.length() > 0.1 else hv * 0.98
+	hv = hv.move_toward(want_v, 13.0 * cdt)
+	if hv.length() > 0.5:
+		yaw = lerp_angle(yaw, atan2(-hv.x, -hv.z), 0.12)
+	return hv
+
+## Water close below while skydiving: the dive pose (head first).
+func diving() -> bool:
+	if state != "skydive":
+		return false
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(global_position, global_position + Vector3.DOWN * 9.0, 1)
+	q.exclude = [get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	var below: Vector3 = (hit.position as Vector3) if not hit.is_empty() else global_position + Vector3.DOWN * 9.0
+	return in_water_at(Vector3(below.x, below.y + 0.5, below.z))
+
+# ---------------------------------------------------------------- shield surf
+
+func surface_under() -> String:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 0.3, global_position + Vector3.DOWN * 1.2, 1)
+	q.exclude = [get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return "grass"
+	return str((hit.collider as Node).get_meta("surface", "grass"))
+
+func start_surf() -> void:
+	surf_v = Vector3(velocity.x, 0, velocity.z)
+	surf_air = false
+	jump_buf = -999.0
+	go("surf")
+
+func surf(mv: Vector2, cdt: float, jump_now: bool) -> Vector3:
+	if not inp.guard_held or not has_shield:
+		go("locomote")
+		return Vector3(surf_v.x, 0, surf_v.z)
+	var on_ground: bool = grounded()
+	var g: float = float(jt.gravity)
+	var surface: String = surface_under()
+	var mu: float = float(tt.surf_friction.get(surface, 0.16))
+	if WeatherService.is_precipitating:
+		mu *= float(tt.surf_rain_friction_mult)
+	if on_ground:
+		var n: Vector3 = get_floor_normal()
+		var downhill: Vector3 = Vector3.DOWN - n * n.dot(Vector3.DOWN)
+		surf_v += downhill * g * float(tt.surf_gravity_k) * cdt
+		# keep the board's velocity in the slope plane
+		surf_v -= n * surf_v.dot(n)
+		surf_v = surf_v.move_toward(Vector3.ZERO, mu * g * cdt)
+		shield_wear(float(tt.surf_sled_wear.get(surface, 0.4)) * cdt)
+		if not has_shield:
+			return Vector3.ZERO
+		if jump_now:
+			vy = float(tt.surf_hop_speed)
+			surf_air = true
+		else:
+			vy = minf(surf_v.y, 0.0) - 1.5
+	else:
+		vy -= g * cdt
+	var dir: Vector3 = cam_dir(mv)
+	var hv: Vector3 = Vector3(surf_v.x, 0, surf_v.z)
+	if dir.length() > 0.2 and hv.length() > 0.5:
+		var want_yaw: float = atan2(-dir.x, -dir.z)
+		var cur_yaw: float = atan2(-hv.x, -hv.z)
+		var ny: float = rotate_toward(cur_yaw, want_yaw, float(tt.surf_turn_rate) * cdt)
+		var rot: Basis = Basis(Vector3.UP, ny - cur_yaw)
+		surf_v = rot * surf_v
+		hv = Vector3(surf_v.x, 0, surf_v.z)
+	if hv.length() > 0.5:
+		yaw = lerp_angle(yaw, atan2(-hv.x, -hv.z), 0.2)
+	return hv
+
+func shield_wear(n: float) -> void:
+	if not has_shield:
+		return
+	shield_life -= n
+	if shield_life <= 0.0:
+		break_shield()
+
+## The shield gives out under you: it shatters and you tumble.
+func break_shield() -> void:
+	has_shield = false
+	shield_life = 0.0
+	if rig.shield != null:
+		rig.shield.visible = false
+	CombatFx.spark(get_tree(), global_position + Vector3.UP * 0.2, Color("dddddd"), 30)
+	CombatFx.sound(get_tree(), "chip", 0.0)
+	apply_damage(max_hp * float(tt.shield_break_damage_frac), global_position, 0.0)
+	shield_broke.emit()
+	if alive():
+		go("tumble")
+
+# ---------------------------------------------------------------- bow
+
+func build_bow() -> void:
+	bow_node = Node3D.new()
+	bow_node.position = Vector3(-0.32, 1.4, -0.45)
+	bow_node.visible = false
+	facing_pivot.add_child(bow_node)
+	var wood: StandardMaterial3D = StandardMaterial3D.new()
+	wood.albedo_color = Color("7a4a2a")
+	for sgn: float in [-1.0, 1.0]:
+		var limb: MeshInstance3D = MeshInstance3D.new()
+		var bm: BoxMesh = BoxMesh.new()
+		bm.size = Vector3(0.04, 0.62, 0.05)
+		limb.mesh = bm
+		limb.material_override = wood
+		limb.position = Vector3(0, 0.28 * sgn, 0.08)
+		limb.rotation.x = -0.35 * sgn
+		bow_node.add_child(limb)
+	var string: MeshInstance3D = MeshInstance3D.new()
+	var sm: BoxMesh = BoxMesh.new()
+	sm.size = Vector3(0.008, 1.1, 0.008)
+	string.mesh = sm
+	string.position = Vector3(0, 0, 0.22)
+	bow_node.add_child(string)
+
+func start_bow() -> void:
+	attack_buf = -999.0
+	if InventoryService.count(arrow_type) <= 0:
+		return
+	bow_draw_t = 0.0
+	go("bow_draw")
+	if not grounded() and height_above_ground() > 2.0 and not StaminaPool.is_exhausted:
+		aerial_slow_on = true
+		TimeDilation.slow(float(tt.aerial_time_scale), 30.0)
+
+func end_aerial() -> void:
+	aerial_slow_on = false
+	TimeDilation.release()
+
+func bow_tick(mv: Vector2, cdt: float) -> Vector3:
+	bow_draw_t += cdt
+	yaw = lerp_angle(yaw, cam_yaw, 0.4)
+	if aerial_slow_on:
+		# real-time drain: the world is slowed, the stamina isn't
+		if not StaminaPool.spend(float(tt.aerial_drain) * cdt / maxf(time_scale(), 0.05)) or StaminaPool.is_exhausted:
+			end_aerial()
+	if not inp.attack_held:
+		fire_arrow()
+		if aerial_slow_on:
+			end_aerial()
+		go("locomote")
+		return Vector3(velocity.x, 0, velocity.z)
+	if grounded():
+		return cam_dir(mv) * float(tuning.walk_speed) * 0.5
+	return Vector3(velocity.x, 0, velocity.z)
+
+## Where the shot should land: the centre of the screen (or a test override).
+func aim_point() -> Vector3:
+	if aim_override != Vector3.INF:
+		return aim_override
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	var from: Vector3 = cam.global_position
+	var to: Vector3 = from - cam.global_transform.basis.z * 80.0
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to, 1 | 16)
+	q.collide_with_areas = true
+	q.exclude = [get_rid(), hurtbox.get_rid()]
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	return (hit.position as Vector3) if not hit.is_empty() else to
+
+## Launch direction that lands on target at this speed (the low arc), so drop is allowed for.
+static func ballistic_dir(from: Vector3, target: Vector3, speed: float, g: float) -> Vector3:
+	var d: Vector3 = target - from
+	var flat: Vector3 = Vector3(d.x, 0, d.z)
+	var x: float = flat.length()
+	var y: float = d.y
+	if x < 0.01:
+		return d.normalized()
+	var v2: float = speed * speed
+	var disc: float = v2 * v2 - g * (g * x * x + 2.0 * y * v2)
+	var ang: float = PI / 4.0 if disc < 0.0 else atan((v2 - sqrt(disc)) / (g * x))
+	return (flat.normalized() * cos(ang) + Vector3.UP * sin(ang)).normalized()
+
+func fire_arrow() -> void:
+	if not InventoryService.remove(arrow_type, 1):
+		return
+	var k: float = clampf(bow_draw_t / float(tt.bow_draw_s), 0.0, 1.0)
+	var speed: float = lerpf(float(tt.arrow_speed_min), float(tt.arrow_speed_max), k)
+	var from: Vector3 = global_position + Vector3.UP * 1.45 + forward() * 0.5
+	var a: Area3D = PlayerArrow.new()
+	a.shooter = self
+	a.damage = float(tt.arrow_damage)
+	a.drop = float(tt.arrow_gravity)
+	a.headshot_mult = float(tt.headshot_mult)
+	a.fire = arrow_type == "fire_arrow"
+	get_parent().add_child(a)
+	a.launch(from, ballistic_dir(from, aim_point(), speed, float(tt.arrow_gravity)) * speed)
+	last_arrow = a
+	CombatFx.sound(get_tree(), "step", -6.0)
+	arrow_fired.emit(a)
 
 # ---------------------------------------------------------------- glide
 
@@ -925,6 +1279,15 @@ func take_hit(info: Dictionary) -> String:
 
 # ---------------------------------------------------------------- look
 
+func bow_pose(k: float) -> Dictionary:
+	var p: Dictionary = P.idle(0.0, false)
+	p["L_Upperarm"] = P.d(1, 0.05, -0.15)
+	p["L_Forearm"] = P.d(1, 0.05, -0.05)
+	p["R_Upperarm"] = P.d(0.6, 0.0, 0.5).slerp(P.d(-0.3, 0.1, 0.9), k)
+	p["R_Forearm"] = P.d(1, 0.1, -0.4).slerp(P.d(0.6, 0.15, -0.8), k)
+	p["Spine02"] = P.yaw(-0.5)
+	return p
+
 func thrust_pose(u: float) -> Dictionary:
 	var p: Dictionary = P.idle(0.0, true)
 	var k: float = sin(clampf(u * 1.4, 0.0, 1.0) * PI)
@@ -941,8 +1304,18 @@ func thrust_pose(u: float) -> Dictionary:
 func pose() -> Dictionary:
 	if glider_node != null:
 		glider_node.visible = state == "glide"
-	rig.sheathed = sheathed
-	if sheathed:
+	rig.sheathed = sheathed or aiming
+	if bow_node != null:
+		bow_node.visible = aiming or state == "bow_draw"
+	var tilt: float = 0.0
+	if state == "skydive":
+		tilt = -2.5 if diving() else -1.25
+	elif state == "swim":
+		tilt = -1.0 if Vector2(velocity.x, velocity.z).length() > 0.5 else -0.3
+	rig.rotation.x = lerpf(rig.rotation.x, tilt, 0.15)
+	if state == "surf":
+		rig.shield_mode = "surf"
+	elif sheathed or aiming:
 		rig.shield_mode = "back"
 	elif state in ["guard", "parry"]:
 		rig.shield_mode = "guard"
@@ -985,6 +1358,16 @@ func pose() -> Dictionary:
 			return P.pullup(u)
 		"land_stun":
 			return P.land(u)
+		"skydive":
+			return P.glide(t)
+		"swim":
+			return P.crawl(t * 5.0, clampf(Vector2(velocity.x, velocity.z).length() / 3.0, 0.2, 1.0))
+		"surf":
+			return P.surf(t)
+		"tumble":
+			return P.hurt(u)
+		"bow_draw":
+			return bow_pose(clampf(bow_draw_t / float(tt.bow_draw_s), 0.0, 1.0))
 	if not is_on_floor():
 		return P.airborne(vy)
 	var sp: float = Vector2(velocity.x, velocity.z).length()

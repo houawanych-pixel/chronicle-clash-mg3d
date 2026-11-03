@@ -18,7 +18,7 @@ func _ready() -> void:
 
 func contains(p: Vector3) -> bool:
 	var d: Vector3 = p - global_position
-	return absf(d.x) <= size.x * 0.5 and absf(d.z) <= size.z * 0.5 and d.y <= 0.3 and d.y >= -size.y
+	return absf(d.x) <= size.x * 0.5 and absf(d.z) <= size.z * 0.5 and d.y <= 0.3 and d.y >= -size.y - 0.5
 
 func surface_y() -> float:
 	return global_position.y

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/traverse_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+swim_speed = 2.4
+dive_min_depth = 2.5
+shield_life = 100.0
+arrow_speed_max = 42.0

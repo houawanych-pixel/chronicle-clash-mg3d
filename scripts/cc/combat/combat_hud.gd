@@ -194,5 +194,11 @@ func _draw() -> void:
 			label = {"glide": "CLOSE", "climb": "LEAP"}.get(pl.state, "JUMP" if pl.is_on_floor() else "GLIDE")
 		if b.id == "weapon" and pl != null:
 			label = {"one_hand": "SWORD", "two_hand": "GREAT", "spear": "SPEAR"}.get(pl.weapon_class, "WEAPON")
+			if pl.aiming:
+				label = "EMBER %d" % InventoryService.count("fire_arrow") if pl.arrow_type == "fire_arrow" else "ARROW %d" % InventoryService.count("arrow")
+		if b.id == "attack" and pl != null and pl.aiming:
+			label = "SHOOT"
+		if b.id == "guard" and pl != null and pl.state == "surf":
+			label = "SURF"
 
 		txt(c + Vector2(0, 8), label, 20 if float(b.r) < 80 else 28, Color.WHITE)

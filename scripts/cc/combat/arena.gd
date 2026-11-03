@@ -6,11 +6,11 @@ extends Node3D
 const PlayerScript = preload("res://scripts/cc/combat/cc_player.gd")
 const EnemyScript = preload("res://scripts/cc/combat/cc_enemy.gd")
 const Tactics = preload("res://scripts/cc/combat/group_tactics.gd")
-const CameraScript = preload("res://scripts/cc/combat/combat_camera.gd")
+const CameraScript = preload("res://scripts/cc/combat/camera_director.gd")
 const HudScript = preload("res://scripts/cc/combat/combat_hud.gd")
 
 var player: CharacterBody3D
-var camera: Camera3D
+var camera: Node3D   # camera_director.gd (owns the Camera3D)
 var hud: Control
 var tactics: Node
 var enemies: Array = []
@@ -18,6 +18,9 @@ var round_no: int = 1
 var state: String = "play"
 var mats: Dictionary = {}
 var autopilot: bool = false     # tests drive the player directly
+const CLIFF: Vector3 = Vector3(-17, 0, 10)
+const LEDGE: Vector3 = Vector3(14, 0, 16)
+const TOWER: Vector3 = Vector3(17, 0, -10)
 
 func _ready() -> void:
 	setup_input()
@@ -33,7 +36,12 @@ func _ready() -> void:
 	hud.arena = self
 	layer.add_child(hud)
 	start_round(1)
-	if "--combat-test" in OS.get_cmdline_user_args():
+	if "--move-test" in OS.get_cmdline_user_args():
+		autopilot = true
+		var mt: Node = load("res://scripts/cc/combat/tests/movement_tests.gd").new()
+		mt.set("arena", self)
+		add_child(mt)
+	elif "--combat-test" in OS.get_cmdline_user_args():
 		autopilot = true
 		var t: Node = load("res://scripts/cc/combat/tests/combat_tests.gd").new()
 		t.set("arena", self)
@@ -41,7 +49,7 @@ func _ready() -> void:
 
 func setup_input() -> void:
 	var keys: Dictionary = {"cca_left": [KEY_A, KEY_LEFT], "cca_right": [KEY_D, KEY_RIGHT], "cca_up": [KEY_W, KEY_UP], "cca_down": [KEY_S, KEY_DOWN],
-		"cca_attack": [KEY_J], "cca_guard": [KEY_K], "cca_dodge": [KEY_L, KEY_SPACE], "cca_lock": [KEY_TAB], "cca_sprint": [KEY_SHIFT], "cca_crouch": [KEY_C], "cca_restart": [KEY_R]}
+		"cca_attack": [KEY_J], "cca_guard": [KEY_K], "cca_dodge": [KEY_L], "cca_jump": [KEY_SPACE], "cca_lock": [KEY_TAB], "cca_sprint": [KEY_SHIFT], "cca_crouch": [KEY_C], "cca_aim": [KEY_V], "cca_weapon": [KEY_Q], "cca_restart": [KEY_R]}
 	for n: String in keys:
 		if InputMap.has_action(n):
 			continue
@@ -89,7 +97,10 @@ func build_env() -> void:
 	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)
 
-func solid(pos: Vector3, size: Vector3, c: Color, round_top: bool = false) -> void:
+func climbable(b: StaticBody3D) -> void:
+	b.add_to_group("cc_climbable")
+
+func solid(pos: Vector3, size: Vector3, c: Color, round_top: bool = false) -> StaticBody3D:
 	var body: StaticBody3D = StaticBody3D.new()
 	body.collision_layer = 1
 	add_child(body)
@@ -117,6 +128,7 @@ func solid(pos: Vector3, size: Vector3, c: Color, round_top: bool = false) -> vo
 	body.add_child(cs)
 	mi.material_override = mat(c)
 	body.add_child(mi)
+	return body
 
 ## A round sand floor ringed by a low stone wall, four pillars to break line of sight.
 func build_arena() -> void:
@@ -169,6 +181,10 @@ func build_arena() -> void:
 		body.add_child(mi)
 	for p: Vector3 in [Vector3(-11, 0, -6), Vector3(11, 0, -6), Vector3(-7, 0, 11), Vector3(8, 0, 10)]:
 		solid(p + Vector3.UP * 2.0, Vector3(1.8, 4.0, 1.8), Color("9a9188"), true)
+	# traversal pieces: a climbable cliff, a waist-high ledge, a 12 m climbable tower
+	climbable(solid(CLIFF + Vector3.UP * 3.0, Vector3(8.0, 6.0, 2.0), Color("7d7368")))
+	solid(LEDGE + Vector3.UP * 0.5, Vector3(3.0, 1.0, 2.0), Color("a89a86"))
+	climbable(solid(TOWER + Vector3.UP * 6.0, Vector3(3.0, 12.0, 3.0), Color("857b70")))
 
 func clear_round() -> void:
 	for e: Node in enemies:
@@ -199,7 +215,7 @@ func start_round(n: int) -> void:
 	add_child(player)
 	player.global_position = Vector3(0, 0.1, 14)
 	player.yaw = 0.0
-	camera.player = player
+	camera.set_player(player)
 	camera.cam_yaw = 0.0
 	var knight: Resource = load("res://data/cc/combat/briar_knight.tres")
 	var archer: Resource = load("res://data/cc/combat/briar_archer.tres")

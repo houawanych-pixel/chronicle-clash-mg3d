@@ -35,6 +35,8 @@ var flash: float = 0.0
 var flash_color: Color = Color.WHITE
 var last_impact: Dictionary = {}  # {frame, spark_frame, sound_frame, hitstop}
 var is_player: bool = false
+var own_vertical: bool = false    # the subclass sets vy itself (jumps, glide, climb)
+var vy: float = 0.0
 
 func _init() -> void:
 	tuning = load("res://data/cc/combat/tuning.tres")
@@ -181,15 +183,24 @@ func _physics_process(dt: float) -> void:
 		v += world_rm / dt
 	velocity.x = lerpf(velocity.x, v.x, 0.6)
 	velocity.z = lerpf(velocity.z, v.z, 0.6)
-	if not is_on_floor():
+	if own_vertical:
+		velocity.x = v.x
+		velocity.z = v.z
+		velocity.y = vy
+	elif not is_on_floor():
 		velocity.y -= GRAVITY * cdt
 	else:
 		velocity.y = -0.5
 	move_and_slide()
+	after_move(cdt)
 	facing_pivot.rotation.y = yaw
 	flash = maxf(0.0, flash - cdt * 5.0)
 	rig.set_flash(flash * 0.6, flash_color)
 	rig.apply(pose(), cdt)
+
+## Override: after move_and_slide (landing checks).
+func after_move(_cdt: float) -> void:
+	pass
 
 ## Override: think for one step, return the wanted move velocity (m/s, world).
 func brain(_cdt: float) -> Vector3:

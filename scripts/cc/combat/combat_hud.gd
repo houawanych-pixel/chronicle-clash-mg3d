@@ -12,6 +12,9 @@ const BTN: Array = [
 	{"id": "lock", "c": Vector2(1195, 410), "r": 46.0, "label": "LOCK", "col": Color("ff7a8a")},
 	{"id": "crouch", "c": Vector2(990, 650), "r": 42.0, "label": "CROUCH", "col": Color("bff2c8")},
 	{"id": "sprint", "c": Vector2(860, 650), "r": 42.0, "label": "SPRINT", "col": Color("ffe14a")},
+	{"id": "jump", "c": Vector2(860, 525), "r": 52.0, "label": "JUMP", "col": Color("5fe3ff")},
+	{"id": "aim", "c": Vector2(1195, 300), "r": 40.0, "label": "AIM", "col": Color("ffd27a")},
+	{"id": "weapon", "c": Vector2(1080, 300), "r": 40.0, "label": "WEAPON", "col": Color("d8b45a")},
 ]
 
 var arena: Node
@@ -67,6 +70,12 @@ func down(id: int, p: Vector2) -> void:
 					arena.player.press("guard")
 				"lock":
 					arena.player.press("lock")
+				"jump":
+					arena.player.press("jump")
+				"aim":
+					arena.player.press("aim")
+				"weapon":
+					arena.player.press("weapon")
 				"crouch":
 					crouch_on = not crouch_on
 					sprint_on = false
@@ -112,6 +121,12 @@ func feed(pl: Node3D) -> void:
 		pl.press("guard")
 	if Input.is_action_just_pressed("cca_lock"):
 		pl.press("lock")
+	if Input.is_action_just_pressed("cca_jump"):
+		pl.press("jump")
+	if Input.is_action_just_pressed("cca_aim"):
+		pl.press("aim")
+	if Input.is_action_just_pressed("cca_weapon"):
+		pl.press("weapon")
 	if Input.is_action_just_pressed("cca_crouch"):
 		crouch_on = not crouch_on
 	pl.inp.attack_held = held.get("attack", false) or Input.is_action_pressed("cca_attack")
@@ -165,10 +180,15 @@ func _draw() -> void:
 	draw_circle(stick_origin + stick * 100.0, 34, Color(1, 1, 1, 0.35))
 	for b: Dictionary in BTN:
 		var c: Vector2 = btn_pos(b)
-		var on: bool = held.get(b.id, false) or (b.id == "crouch" and crouch_on) or (b.id == "sprint" and sprint_on) or (b.id == "lock" and pl != null and pl.lock_target != null)
+		var on: bool = held.get(b.id, false) or (b.id == "crouch" and crouch_on) or (b.id == "sprint" and sprint_on) or (b.id == "lock" and pl != null and pl.lock_target != null) or (b.id == "aim" and pl != null and pl.aiming)
 		draw_circle(c, b.r, Color(0.05, 0.14, 0.24, 0.85 if on else 0.55))
 		draw_arc(c, b.r, 0, TAU, 48, b.col, 4)
 		var label: String = str(b.label)
-		if b.id == "attack" and pl != null and pl.state == "heavy_charge":
+		if b.id == "attack" and pl != null and (pl.state == "heavy_charge" or pl.charging_loop):
 			label = "RELEASE"
+		if b.id == "jump" and pl != null:
+			label = {"glide": "CLOSE", "climb": "LEAP"}.get(pl.state, "JUMP" if pl.is_on_floor() else "GLIDE")
+		if b.id == "weapon" and pl != null:
+			label = {"one_hand": "SWORD", "two_hand": "GREAT", "spear": "SPEAR"}.get(pl.weapon_class, "WEAPON")
+
 		txt(c + Vector2(0, 8), label, 20 if float(b.r) < 80 else 28, Color.WHITE)

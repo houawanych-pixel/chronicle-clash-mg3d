@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/melee_move.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "th_slam"
+startup_f = 22
+active_f = 6
+recovery_f = 30
+hitstop_f = 12
+damage = 36.0
+stamina_cost = 0.0
+lunge_m = 0.3
+reach_m = 1.4
+radius_m = 2.2
+plane = "vertical"
+shake = 0.9
+stagger_f = 30
+knockback = 6.0
+chain_to = ""
+pose = "slam"

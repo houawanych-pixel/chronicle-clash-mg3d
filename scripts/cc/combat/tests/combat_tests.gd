@@ -302,11 +302,12 @@ func enemy_tests() -> void:
 	pl().inp.crouch = false
 	check("loses you, searches, goes back to roam", k.brain_state == "roam" and "forget" in path, str(path))
 	# readable wind-up + perfect dodge -> slow-mo -> flurry for each weapon class
-	for wc: String in ["one_hand", "two_hand", "spear"]:
+	for wc: String in ["one_hand", "two_hand", "spear"]:  # CC defaults 7 / 4 / 8
 		await reset(true, Vector3(0, 0.1, -2.0))
 		k = knight()
 		p = pl()
-		p.weapon_class = wc
+		p.set_weapon({"one_hand": "ironwood_blade", "two_hand": "warden_greatblade", "spear": "thornreach_spear"}[wc])
+		p.lock_target = k
 		k.hp = 500.0
 		k.max_hp = 500.0
 		k.plane_i = 1    # "vertical": beaten by a side hop
@@ -337,7 +338,7 @@ func enemy_tests() -> void:
 		while p.state == "flurry" and guard < 400:
 			await ticks(1)
 			guard += 1
-		var want: int = int(p.tuning.flurry_hits[wc])
+		var want: int = int(p.weapon.flurry_hits)
 		check("perfect dodge -> slow-mo -> flurry (%s: %d hits)" % [wc, want], perfect and p.flurry_hits_landed == want, "perfect %s, %d hits" % [str(perfect), p.flurry_hits_landed])
 		TimeDilation.release()
 		await ticks(20)
@@ -351,6 +352,7 @@ func enemy_tests() -> void:
 		if k.just_avoid_open():
 			break
 	pl().inp.move = Vector2.ZERO
+	pl().lock_target = k
 	pl().press("dodge")      # backflip vs an overhead
 	await ticks(2)
 	check("a wrong-way dodge gets no slow-mo", not TimeDilation.active())

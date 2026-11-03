@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/melee_move.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "th_spin"
+startup_f = 4
+active_f = 10
+recovery_f = 6
+hitstop_f = 4
+damage = 9.0
+stamina_cost = 0.0
+lunge_m = 0.0
+reach_m = 1.6
+radius_m = 1.9
+plane = "horizontal"
+shake = 0.35
+stagger_f = 12
+knockback = 2.5
+chain_to = ""
+pose = "spin"

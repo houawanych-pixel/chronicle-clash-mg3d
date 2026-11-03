@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/weapon_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "thornreach_spear"
+display_name = "Thornreach Spear"
+weapon_class = "spear"
+string_moves = Array[String](["sp1", "sp2", "sp3", "sp4", "sp5"])
+charge_kind = "rapid_thrust"
+charge_loop_move = "sp_rapid"
+finisher_move = ""
+charge_drain_per_sec = 18.0
+release_cost = 0.0
+can_guard = false
+flurry_hits = 8
+blade_len = 2.3
+blade_width = 0.045
+color = Color(0.490, 1.000, 0.812, 1)

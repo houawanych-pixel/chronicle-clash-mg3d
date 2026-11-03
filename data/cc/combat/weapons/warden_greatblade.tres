@@ -1,0 +1,21 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/weapon_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "warden_greatblade"
+display_name = "Warden Greatblade"
+weapon_class = "two_hand"
+string_moves = Array[String](["th1", "th2", "th3"])
+charge_kind = "spin_hold_slam"
+charge_loop_move = "th_spin"
+finisher_move = "th_slam"
+charge_drain_per_sec = 15.0
+release_cost = 0.0
+can_guard = false
+flurry_hits = 4
+blade_len = 1.85
+blade_width = 0.17
+color = Color(1.000, 0.604, 0.353, 1)
+walk_mult = 0.85

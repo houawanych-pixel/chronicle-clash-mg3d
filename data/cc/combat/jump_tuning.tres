@@ -1,0 +1,9 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/jump_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+peak_height = 2.0
+coyote_f = 8
+buffer_f = 8

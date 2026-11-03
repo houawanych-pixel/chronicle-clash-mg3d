@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/world/climb_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+stamina_drain_move = 12.0
+drain_jump = 40.0
+rain_drain_mult = 1.2
+slip_after_meters = 8.0
+slip_random_extra_meters = 8.0
+slip_distance = 2.0
+slip_stamina_penalty = 20.0
+no_climb_time_after_fall = 0.6
+no_climb_time_tired = 1.2

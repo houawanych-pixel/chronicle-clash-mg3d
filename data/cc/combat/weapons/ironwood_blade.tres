@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/weapon_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ironwood_blade"
+display_name = "Ironwood Blade"
+weapon_class = "one_hand"
+string_moves = Array[String](["light1", "light2", "light3"])
+charge_kind = "spin_release"
+finisher_move = "heavy"
+charge_drain_per_sec = 6.0
+release_cost = 25.0
+can_guard = true
+flurry_hits = 7
+blade_len = 1.2
+blade_width = 0.095
+color = Color(0.706, 0.549, 1.000, 1)

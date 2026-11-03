@@ -283,6 +283,8 @@ func menu_action(a: String) -> void:
 		"stage_trials":
 			if game.stage != "trials":
 				game.restart_with(game.hero_key if game.hero_key != "" else "blonde_lance", "trials")
+		"stage_arena":
+			get_tree().change_scene_to_file("res://scenes/systems/cc_combat_arena.tscn")
 		"stage_isles":
 			if game.stage != "isles":
 				game.restart_with("lance", "isles")
@@ -605,7 +607,7 @@ func draw_title() -> void:
 	group(dx_c)
 	text(Vector2(640, 150), "CHRONICLE CLASH", 84, Color("f4e3b0"))
 	text(Vector2(640, 196), "SWORD DEMO", 26, CYAN)
-	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"], ["trials", "TRAINING", "Sprint, climb, glide test course", "lance"], ["isles", "ISLES", "Islands, bombs and a boat", "lance"]]
+	var stages: Array = [["citadel", "SKY CITADEL", "Climb the ruin, beat the Dark Knight", "boss"], ["forest", "FOREST ESCAPE", "Sneak Elyza out of the forest", "ally"], ["village", "VILLAGE", "Villagers live their day", "lance"], ["frogtown", "FROGTOWN", "Crownfen frog-folk marsh", "ally"], ["trials", "TRAINING", "Sprint, climb, glide test course", "lance"], ["isles", "ISLES", "Islands, bombs and a boat", "lance"], ["arena", "ARENA", "Combat feel test: knights + archer", "boss"]]
 	var pitch: float = minf(244.0, (W - 24.0) / stages.size())
 	var roomy: bool = pitch >= 240.0
 	var pic: float = 66.0 if roomy else 50.0

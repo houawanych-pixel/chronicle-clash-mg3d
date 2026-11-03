@@ -209,6 +209,8 @@ func _ready() -> void:
 		stage = "forest"
 	elif url_has("trials"):
 		stage = "trials"
+	elif url_has("arena"):
+		get_tree().change_scene_to_file.call_deferred("res://scenes/systems/cc_combat_arena.tscn")
 	elif url_has("isles"):
 		stage = "isles"
 		hero_key = "lance"

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/enemy_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "briar_knight"
+display_name = "Briar Knight"
+hp = 60.0
+windup_f = 24
+active_f = 5
+recover_f = 30
+damage = 14.0
+keep_dist_m = 3.2

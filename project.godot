@@ -9,6 +9,8 @@ CookingService="*res://scripts/cc/survival/cooking_service.gd"
 StaminaPool="*res://scripts/cc/survival/stamina_pool.gd"
 WorldClock="*res://scripts/cc/survival/world_clock.gd"
 SaveService="*res://scripts/cc/survival/save_service.gd"
+TimeDilation="*res://scripts/cc/combat/time_dilation.gd"
+CombatFx="*res://scripts/cc/combat/combat_fx.gd"
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720

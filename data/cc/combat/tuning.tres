@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/combat_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+input_buffer_f = 8
+lock_assist_deg = 12.0
+lock_range_m = 14.0
+parry_window_f = 8
+parry_stun_f = 40
+guard_damage_mult = 0.25
+dodge_f = 22
+dodge_iframes_f = 12
+flurry_hits = {"one_hand": 7, "spear": 7, "two_hand": 4}
+flurry_time_scale = 0.3
+stagger_light_f = 12
+stagger_heavy_f = 30

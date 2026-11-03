@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/melee_move.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "light2"
+startup_f = 10
+active_f = 4
+recovery_f = 16
+hitstop_f = 5
+damage = 11.0
+stamina_cost = 0.0
+lunge_m = 0.5
+reach_m = 1.7
+radius_m = 0.9
+plane = "horizontal"
+shake = 0.3
+stagger_f = 12
+knockback = 2.0
+chain_to = "light3"
+pose = "slash1"

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cc/combat/enemy_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "briar_archer"
+display_name = "Briar Archer"
+hp = 40.0
+windup_f = 48
+active_f = 2
+recover_f = 36
+damage = 10.0
+is_archer = true
+keep_dist_m = 10.0
+attack_range_m = 13.0
+attack_cooldown_s = 2.4
+run_speed = 3.6
+planes = Array[String](["thrust"])

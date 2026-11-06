@@ -38,3 +38,7 @@ Built from the CC survival systems (`scripts/cc/survival/`, `docs/SURVIVAL.md`),
 - **Camp pot** (south of the start): **COOK** (key O) picks the best mix from your bag and cooks it. **POTION** eats your best meal first (badge shows meals+potions).
 - **Stormrunner bike**: **BIKE** (key M) summons it on land (not at sea, not inside the Mist Isle sanctum). Stick = throttle / brake / steer, JUMP jumps, hold GUARD to DRIFT, hold DODGE to WHEELIE, BOMB still works. The badge shows fuel. Empty tank: the button reads REFUEL (burns up to 5 wood / emberroot / sparkcoal).
 - Placeholder: Lance has no riding pose yet, he stands on the bike.
+
+## Foliage (Nov 2026)
+Canopy leaves, cliff vines (climbable) and flower beds with the big snapping flower: see `docs/FOLIAGE.md`.
+Bombs burn them; they grow back after the season (world clock).

@@ -243,6 +243,10 @@ func _ready() -> void:
 	if OS.has_feature("web"):
 		web_test = str(JavaScriptBridge.eval("location.search", true)).contains("autotest")
 		print("CITADEL web search check: ", web_test)
+	if "--foliage-test" in OS.get_cmdline_user_args():
+		var ft: Node = load("res://scripts/cc/foliage/tests/foliage_tests.gd").new()
+		ft.set("game", self)
+		add_child(ft)
 	if "--isles-test" in OS.get_cmdline_user_args():
 		var it: Node = load("res://scripts/citadel/IslesTest.gd").new()
 		it.set("game", self)
@@ -1756,7 +1760,8 @@ func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, ju
 	var up_in: float = -mv.y
 	var side_in: float = mv.x
 	var moving: bool = absf(up_in) > 0.2 or absf(side_in) > 0.2
-	trav.spend(dt * (trav.cfg.climb_drain if moving else trav.cfg.hang_drain))
+	var vine: Vector2 = isles.foliage.climb_k(f.global_position) if stage == "isles" and isles.foliage != null else Vector2.ONE   # (CC_VineBlock: climbable)
+	trav.spend(dt * (trav.cfg.climb_drain if moving else trav.cfg.hang_drain) * vine.x)
 	if jump:
 		if up_in < -0.3:
 			# kick off backwards
@@ -1775,7 +1780,7 @@ func wallclimb_tick(f: CharacterBody3D, dt: float, mv: Vector2, dir: Vector3, ju
 		f.velocity = wall_n * 1.5
 		hud.popup("OUT OF STAMINA", Color("ffd36b"))
 		return true
-	var cs: float = trav.cfg.climb_speed
+	var cs: float = trav.cfg.climb_speed * vine.y
 	var v: Vector3 = right * side_in * cs + Vector3.UP * up_in * cs
 	if climb_leap > 0.0:
 		climb_leap -= dt

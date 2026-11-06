@@ -15,6 +15,7 @@ signal lightning_strike(at: Vector3, target: Node3D)
 
 var tuning: Resource
 var fields: Array = []
+var burnables: Array = []        # foliage managers (scripts/cc/foliage): burn_sphere(p, r) -> int
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _tick: float = 0.0
 var _bolt_t: float = 0.0
@@ -32,6 +33,14 @@ func register(f: Node) -> void:
 
 func unregister(f: Node) -> void:
 	fields.erase(f)
+
+## Foliage (leaves, vines, flowers) burns from the same fire sources as the grass.
+func add_burnable(b: Node) -> void:
+	if not b in burnables:
+		burnables.append(b)
+
+func remove_burnable(b: Node) -> void:
+	burnables.erase(b)
 
 func reset() -> void:
 	fields = fields.filter(func(f: Variant) -> bool: return is_instance_valid(f))
@@ -58,6 +67,12 @@ func ignite_at(p: Vector3, radius: float) -> int:
 		return 0
 	var n: int = 0
 	var r: float = radius + float(tuning.fire_extra_radius)
+	var nf: int = 0
+	for b: Variant in burnables.duplicate():
+		if is_instance_valid(b):
+			nf += int((b as Node).burn_sphere(p, r))
+		else:
+			burnables.erase(b)
 	for f: Variant in fields:
 		if not is_instance_valid(f):
 			continue
@@ -69,7 +84,7 @@ func ignite_at(p: Vector3, radius: float) -> int:
 		if n > 0:
 			fld.dirty = true
 			ignited.emit(fld, n)
-	return n
+	return n + nf
 
 func fire_tick(f: Node, dt: float) -> void:
 	var rain: bool = WeatherService.is_precipitating

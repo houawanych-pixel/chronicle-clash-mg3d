@@ -13,6 +13,7 @@ extends RefCounted
 
 const IsleBlocks = preload("res://scripts/citadel/IsleBlocks.gd")
 const SurvivalScript = preload("res://scripts/citadel/IslesSurvival.gd")
+const FoliageScript = preload("res://scripts/citadel/IslesFoliage.gd")
 const TILE: float = 48.0
 const WORLD: float = 144.0
 const HALF: float = 72.0
@@ -59,6 +60,7 @@ var splashes: int = 0       # tests
 var rocks_broken: int = 0   # tests
 var bomb_mat: StandardMaterial3D
 var survival: RefCounted       # IslesSurvival.gd: trees, wildlife, forage, cooking pot, bike
+var foliage: RefCounted        # IslesFoliage.gd: canopy leaves, cliff vines, flower beds (scripts/cc/foliage)
 
 func _init(g: Node) -> void:
 	game = g
@@ -104,6 +106,8 @@ func build() -> void:
 	build_dust()
 	survival = SurvivalScript.new(self)
 	survival.build(root)
+	foliage = FoliageScript.new(self)
+	foliage.build(root)
 
 func look() -> void:
 	var sm: ProceduralSkyMaterial = game.env_res.sky.sky_material
@@ -121,6 +125,8 @@ func look() -> void:
 	game.sun.rotation_degrees = Vector3(-48, -36, 0)
 
 func leave() -> void:
+	if foliage != null:
+		foliage.leave()
 	active = false
 	aboard = false
 	if survival != null:
@@ -539,6 +545,8 @@ func tick_bombs(dt: float) -> void:
 
 func explode(p: Vector3) -> void:
 	var r: Dictionary = field.blast(p, BOMB_R, BOMB_POWER)
+	if foliage != null:
+		foliage.mgr.burn_sphere(p, BOMB_R + 0.6)   # a bomb's fire burns the foliage round it
 	game.fx.sparks(p, Color("ffb347"), 40, 13.0)
 	game.fx.sparks(p, Color("d8c7a4"), 24, 8.0)
 	game.sound("explosion", -2)

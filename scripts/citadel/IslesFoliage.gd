@@ -5,11 +5,10 @@ extends RefCounted
 ##   - vines hanging down Crag Isle's cliff faces (climbable, spreading down over the days);
 ##   - flower beds: Home Isle (verdant), Mist Isle (blue-green), Dune Isle (yellow / purple),
 ##     Crag Isle (highland), each with one 2x2 group that fuses into a big snapping flower.
-## Bombs burn foliage too (and Ember fire through ChemistryService). Burnt foliage grows back
-## after the season (world clock); its state is kept for the next visit and in the save.
+## Bombs burn foliage too (and Ember fire through ChemistryService). Burnt foliage stays burnt for
+## the visit; nothing is saved: it is placed fresh each time the isles are built.
 
 const Manager = preload("res://scripts/cc/foliage/foliage_manager.gd")
-const Store = preload("res://scripts/cc/foliage/foliage_store.gd")
 
 ## The ISLES block ground seen by the foliage manager.
 class Host extends RefCounted:
@@ -65,14 +64,6 @@ func build(root: Node3D) -> void:
 	for b: Array in BEDS:
 		flower_bed(b[0], b[1], b[2], b[3])
 	crag_vines()
-	var snap: Dictionary = Store.get_snapshot("isles")
-	if not snap.is_empty():
-		mgr.restore(snap)
-
-## Keep the state (with its world-clock times) for the next visit and the save.
-func leave() -> void:
-	if mgr != null and is_instance_valid(mgr):
-		Store.keep("isles", mgr.snapshot())
 
 func cell(p: Vector2) -> Vector2i:
 	return Vector2i(floori((p.x + field.HALF) / field.STEP), floori((p.y + field.HALF) / field.STEP))
@@ -200,7 +191,7 @@ func crag_vines() -> void:
 		var iz: int = cnd[2]
 		if used.has(Vector2i(ix, iz)):
 			continue
-		mgr.add_vine(ix, iz, cnd[3], int(cnd[4]) - 1, "highland", rng.randi_range(1, 3))
+		mgr.add_vine(ix, iz, cnd[3], int(cnd[4]) - 1, "highland", int(mgr.tuning.vine_max_hang))   # (hangs down to the ground)
 		made += 1
 		for oz in range(-3, 4):
 			for ox in range(-3, 4):

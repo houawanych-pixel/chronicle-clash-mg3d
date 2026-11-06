@@ -1,21 +1,21 @@
 extends Node3D
 ## CC Unified Foliage Subsystem: CC_LeafBlock, CC_VineBlock and CC_FlowerBlock on ONE shared
 ## chunk-foliage manager, ONE wind-sway shader (foliage.gdshader), ONE biome palette lookup
-## (foliage_palette.gd) and ONE burn / regrow tick.
+## (foliage_palette.gd) and ONE burn tick.
 ##
-## Lifecycle, the same for all three (and nothing else: no watering, saplings, wilting):
-##   INTACT  --fire-->  BURNED_CLEARED  --T_season_regrow (world clock)-->  INTACT (young)
-## Burn times are world-clock hours, so foliage that was not loaded catches up when it is.
+## Lifecycle, the same for all three (and nothing else: no watering, saplings, wilting, timers):
+##   INTACT  --fire-->  BURNED_CLEARED (for the rest of this visit)
+## Nothing is saved (owner: "a waste of memory"): the foliage is placed fresh from the world every
+## time the world is built, so leave and come back and it has all grown back.
 ##
 ## CC_LeafBlock   crossed-plane cards (an X of tilted double-sided cards, never cube faces).
 ##                One cell = young leaves. A 2x2 group of intact cells on the world grid (even
 ##                cell coordinates, same layer) is drawn as ONE mature cluster instead (bigger
-##                silhouette, smaller denser leaves). Burn one: the rest go back to young; when
-##                all four are intact again they fuse again. All automatic in the mesher.
+##                silhouette, smaller denser leaves). Burn one: the rest go back to young.
+##                All automatic in the mesher.
 ## CC_VineBlock   ONE quad on the face of its host block, 0.008 m off it (no z-fighting). Hangs
-##                down from an anchor and spreads one cell down per vine_spread_h world hours to a
-##                cap. Its face is CLIMBABLE (cheaper, quicker wall climbing). Fire cuts it where
-##                it burns; the surviving top regrows downward after the season.
+##                down from an anchor to the ground (or vine_max_hang cells). Its face is CLIMBABLE
+##                (cheaper, quicker wall climbing). Fire cuts it where it burns; the top keeps hanging.
 ## CC_FlowerBlock a faceted diamond-shell flower with a white 3D core on a curved green stalk, in a
 ##                tuft of lower-cut grass; shell and grass take the biome's colours, the core stays
 ##                white and the stalk green. A 2x2 group fuses into a big snapping flower (the
@@ -26,7 +26,6 @@ extends Node3D
 ## layer_y(k), solid(ix, iz, k), top(ix, iz), step).
 
 const Palette = preload("res://scripts/cc/foliage/foliage_palette.gd")
-const Store = preload("res://scripts/cc/foliage/foliage_store.gd")
 const SHADER = preload("res://scripts/cc/foliage/foliage.gdshader")
 const ATLAS_PATH: String = "res://assets/cc/foliage/foliage_atlas.png"
 
@@ -45,9 +44,9 @@ var host: Object
 var tuning: Resource
 var material: ShaderMaterial
 var world_id: String = "world"
-var leaves: Dictionary = {}        # Vector3i(ix, k, iz) -> {s, t, b, c (canopy centre)}
-var flowers: Dictionary = {}       # Vector2i(ix, iz) -> {s, t, b, k}
-var vines: Array = []              # chains: {ix, iz, dir, k, len, cap, b, burned_at, last}
+var leaves: Dictionary = {}        # Vector3i(ix, k, iz) -> {s, b, c (canopy centre)}
+var flowers: Dictionary = {}       # Vector2i(ix, iz) -> {s, b, k}
+var vines: Array = []              # chains: {ix, iz, dir, k, len, cap, b}
 var by_chunk: Dictionary = {}      # Vector2i chunk -> {leaves: [], flowers: [], vines: []}
 var meshes: Dictionary = {}        # Vector2i chunk -> MeshInstance3D
 var dirty: Dictionary = {}
@@ -59,9 +58,7 @@ var _tick_t: float = 0.0
 var _real: float = 0.0
 # counts (tests)
 var burns: int = 0
-var regrows: int = 0
 var bites: int = 0
-var vine_grown: int = 0
 
 const DIRS: Array = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
@@ -72,7 +69,6 @@ func _init() -> void:
 	material.set_shader_parameter("atlas", load(ATLAS_PATH))
 	material.set_shader_parameter("palette", Palette.uniform_array())
 	material.set_shader_parameter("sway_amount", float(tuning.sway_amount))
-	Store.register_save()
 
 func _ready() -> void:
 	if ChemistryService.has_method("add_burnable"):
@@ -81,12 +77,6 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if ChemistryService.has_method("remove_burnable"):
 		ChemistryService.remove_burnable(self)
-
-# ---------------------------------------------------------------- clock
-
-## World-clock hours since day 1, 00:00 (the season timer runs on this).
-static func now_h() -> float:
-	return float(WorldClock.day - 1) * 24.0 + WorldClock.hour
 
 # ---------------------------------------------------------------- placing
 
@@ -102,7 +92,7 @@ func add_leaf(ix: int, k: int, iz: int, biome: String, centre: Vector3) -> void:
 	var key := Vector3i(ix, k, iz)
 	if leaves.has(key):
 		return
-	leaves[key] = {"s": INTACT, "t": -1.0, "b": Palette.biome_index(biome), "c": centre}
+	leaves[key] = {"s": INTACT, "b": Palette.biome_index(biome), "c": centre}
 	var ck := chunk_of(ix, iz)
 	(_bucket(ck).leaves as Array).append(key)
 	dirty[ck] = true
@@ -111,7 +101,7 @@ func add_flower(ix: int, iz: int, biome: String) -> bool:
 	var key := Vector2i(ix, iz)
 	if flowers.has(key):
 		return false
-	flowers[key] = {"s": INTACT, "t": -1.0, "b": Palette.biome_index(biome), "k": int(host.top(ix, iz))}
+	flowers[key] = {"s": INTACT, "b": Palette.biome_index(biome), "k": int(host.top(ix, iz))}
 	var ck := chunk_of(ix, iz)
 	(_bucket(ck).flowers as Array).append(key)
 	dirty[ck] = true
@@ -120,7 +110,7 @@ func add_flower(ix: int, iz: int, biome: String) -> bool:
 ## A vine anchored on the face of the host block next to air cell (ix, iz) in direction dir
 ## (0 +x, 1 -x, 2 +z, 3 -z), its top at layer k.
 func add_vine(ix: int, iz: int, dir: int, k: int, biome: String, start_len: int) -> void:
-	var c: Dictionary = {"ix": ix, "iz": iz, "dir": dir, "k": k, "len": 0, "cap": int(tuning.vine_max_hang), "b": Palette.biome_index(biome), "burned_at": -1.0, "last": now_h()}
+	var c: Dictionary = {"ix": ix, "iz": iz, "dir": dir, "k": k, "len": 0, "cap": int(tuning.vine_max_hang), "b": Palette.biome_index(biome)}
 	vines.append(c)
 	var ck := chunk_of(ix, iz)
 	(_bucket(ck).vines as Array).append(vines.size() - 1)
@@ -151,7 +141,7 @@ func vine_cells(c: Dictionary) -> Array:
 # ---------------------------------------------------------------- fire
 
 ## Called by ChemistryService.ignite_at (Ember Arrows, fire sources) and by blasts: every intact
-## foliage cell within r of p burns. Returns how many caught.
+## foliage cell within r of p burns (for the rest of this visit). Returns how many caught.
 func burn_sphere(p: Vector3, r: float) -> int:
 	var n: int = 0
 	var st: float = float(host.step)
@@ -180,7 +170,6 @@ func _burn_leaf(key: Vector3i) -> void:
 	if int(d.s) != INTACT:
 		return
 	d.s = BURNED
-	d.t = now_h()
 	burns += 1
 	dirty[chunk_of(key.x, key.z)] = true
 	_puff(_cell_pos(key.x, key.y, key.z))
@@ -197,7 +186,6 @@ func _burn_flower(key: Vector2i) -> void:
 	if int(f.s) != INTACT:
 		return
 	f.s = BURNED
-	f.t = now_h()
 	burns += 1
 	dirty[chunk_of(key.x, key.y)] = true
 	_puff(_flower_pos(key))
@@ -218,7 +206,6 @@ func _burn_vine(ci: int, j: int) -> void:
 		_puff(_cell_pos(v.x, v.y, v.z))
 	burns += 1
 	c.len = j
-	c.burned_at = now_h()
 	dirty[chunk_of(int(c.ix), int(c.iz))] = true
 
 func _queue(kind: String, key: Variant) -> void:
@@ -256,57 +243,22 @@ func _process(dt: float) -> void:
 		draw_chunk(ck)
 	dirty.clear()
 
-## Regrowth and vine spreading, on the world clock (catches up any amount of elapsed time).
+## Every half second: foliage whose ground or host face was blasted away goes (no regrowth: it is all
+## placed fresh the next time the world is built).
 func season_tick() -> void:
-	var now: float = now_h()
-	var T: float = float(tuning.season_regrow_h)
-	for key: Vector3i in leaves.keys():
-		var d: Dictionary = leaves[key]
-		if int(d.s) == BURNED and now - float(d.t) >= T:
-			d.s = INTACT
-			d.t = -1.0
-			regrows += 1
-			dirty[chunk_of(key.x, key.z)] = true
 	for key: Vector2i in flowers.keys():
 		var f: Dictionary = flowers[key]
-		var top_now: int = int(host.top(key.x, key.y))
-		if int(f.s) == INTACT and top_now != int(f.k):   # the ground under it was blasted away
+		if int(f.s) == INTACT and int(host.top(key.x, key.y)) != int(f.k):
 			f.s = BURNED
-			f.t = now
 			dirty[chunk_of(key.x, key.y)] = true
-		elif int(f.s) == BURNED and now - float(f.t) >= T:
-			f.s = INTACT
-			f.t = -1.0
-			f.k = top_now
-			regrows += 1
-			dirty[chunk_of(key.x, key.y)] = true
-	var step_h: float = float(tuning.vine_spread_h)
-	for ci in vines.size():
-		var c: Dictionary = vines[ci]
-		# its host face blasted away: it is gone below there
+	for c: Dictionary in vines:
+		var dd: Vector2i = DIRS[int(c.dir)]
 		for i in int(c.len):
 			var k: int = int(c.k) - i
-			var dd: Vector2i = DIRS[int(c.dir)]
 			if not host.solid(int(c.ix) + dd.x, int(c.iz) + dd.y, k) or host.solid(int(c.ix), int(c.iz), k):
 				c.len = i
 				dirty[chunk_of(int(c.ix), int(c.iz))] = true
 				break
-		if float(c.burned_at) >= 0.0:
-			if now - float(c.burned_at) < T:
-				continue
-			c.last = float(c.burned_at) + T   # the season has passed: it grows again from then
-			c.burned_at = -1.0
-			regrows += 1
-		var steps: int = int(floor((now - float(c.last)) / step_h))
-		if steps <= 0:
-			continue
-		c.last = float(c.last) + steps * step_h
-		for s in steps:
-			if not _vine_can_grow(c):
-				break
-			c.len = int(c.len) + 1
-			vine_grown += 1
-			dirty[chunk_of(int(c.ix), int(c.iz))] = true
 
 # ---------------------------------------------------------------- queries
 
@@ -749,43 +701,3 @@ func _jaws_tick(dt: float) -> void:
 				if float(m.t) >= float(tuning.snap_cooldown_s):
 					m.state = "idle"
 					m.t = 0.0
-
-# ---------------------------------------------------------------- saving (with world timestamps)
-
-## Burn states and vine lengths with their world-clock times (placement itself is rebuilt from the
-## world seed). Loading it and ticking catches up on any time that passed.
-func snapshot() -> Dictionary:
-	var lv: Array = []
-	for key: Vector3i in leaves:
-		var d: Dictionary = leaves[key]
-		if int(d.s) != INTACT:
-			lv.append([key.x, key.y, key.z, int(d.s), float(d.t)])
-	var fl: Array = []
-	for key: Vector2i in flowers:
-		var f: Dictionary = flowers[key]
-		if int(f.s) != INTACT:
-			fl.append([key.x, key.y, int(f.s), float(f.t)])
-	var vn: Array = []
-	for c: Dictionary in vines:
-		vn.append([int(c.len), float(c.burned_at), float(c.last)])
-	return {"leaves": lv, "flowers": fl, "vines": vn, "saved_at": now_h()}
-
-func restore(d: Dictionary) -> void:
-	for e: Array in d.get("leaves", []):
-		var key := Vector3i(int(e[0]), int(e[1]), int(e[2]))
-		if leaves.has(key):
-			leaves[key].s = int(e[3])
-			leaves[key].t = float(e[4])
-	for e: Array in d.get("flowers", []):
-		var key := Vector2i(int(e[0]), int(e[1]))
-		if flowers.has(key):
-			flowers[key].s = int(e[2])
-			flowers[key].t = float(e[3])
-	var vn: Array = d.get("vines", [])
-	for i in mini(vn.size(), vines.size()):
-		vines[i].len = int(vn[i][0])
-		vines[i].burned_at = float(vn[i][1])
-		vines[i].last = float(vn[i][2])
-	for ck: Vector2i in by_chunk:
-		dirty[ck] = true
-	season_tick()   # catch up on the time that passed while it was not loaded

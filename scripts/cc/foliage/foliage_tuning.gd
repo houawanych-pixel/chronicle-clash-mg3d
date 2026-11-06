@@ -1,9 +1,7 @@
 extends Resource
 ## CC foliage numbers (leaves, vines, flowers). One table for all three block types.
 
-@export var season_regrow_h: float = 72.0      ## T_season_regrow: world-clock hours from BURNED_CLEARED back to INTACT
-@export var vine_spread_h: float = 6.0         ## world hours for an intact vine to hang one more cell down
-@export var vine_max_hang: int = 8             ## cells: the longest a vine hangs
+@export var vine_max_hang: int = 8             ## cells: the longest a vine hangs (it is placed down to the ground or this)
 @export var vine_offset: float = 0.008         ## m off the host face along its normal (no z-fighting)
 @export var burn_spread_chance: float = 0.75   ## a burning cell lights an intact neighbour this often
 @export var burn_spread_delay: Vector2 = Vector2(0.3, 0.8)   ## s before a neighbour catches

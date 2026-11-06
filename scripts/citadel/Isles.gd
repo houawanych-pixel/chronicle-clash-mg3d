@@ -125,8 +125,6 @@ func look() -> void:
 	game.sun.rotation_degrees = Vector3(-48, -36, 0)
 
 func leave() -> void:
-	if foliage != null:
-		foliage.leave()
 	active = false
 	aboard = false
 	if survival != null:

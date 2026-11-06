@@ -3,7 +3,6 @@ extends Node
 ## "FOLIAGE RESULT n/m". Run:
 ##   godot --path . -- --isles --foliage-test [--shots=/dir] [--quit-after-test]
 const Palette = preload("res://scripts/cc/foliage/foliage_palette.gd")
-const Store = preload("res://scripts/cc/foliage/foliage_store.gd")
 
 var game: Node
 var results: Array = []
@@ -125,15 +124,15 @@ func run() -> void:
 	look_at_point(tree_at - Vector3(0, 3.0, 0), 5.5)
 	await wait(0.8)
 	await shot("01_canopy")
-	# burn one of a 2x2 group: the rest go back to young; regrow: fused again
+	# burn one of a 2x2 group: the rest go back to young
 	m.spread_q.clear()
 	m._burn_leaf(c_key)
 	m.spread_q.clear()
 	var sib := Vector3i(c_key.x + 1, c_key.y, c_key.z)
 	check("burning one cell of a group breaks the mature cluster back into young cells", int(m.leaves[c_key].s) == m.BURNED and not m.is_merged_leaf(sib))
-	WorldClock.advance(float(m.tuning.season_regrow_h) + 1.0)
+	WorldClock.advance(200.0)
 	m.season_tick()
-	check("after the season it regrows and the four fuse again", int(m.leaves[c_key].s) == m.INTACT and m.is_merged_leaf(sib))
+	check("it stays burnt for the rest of the visit (no regrowth timer)", int(m.leaves[c_key].s) == m.BURNED and not m.is_merged_leaf(sib))
 
 	# ---- fire from the world's fire system (Ember fire / ChemistryService) and spreading
 	var b0: int = m.count("leaf", m.BURNED)
@@ -149,10 +148,9 @@ func run() -> void:
 	var none: int = ChemistryService.ignite_at(tree_at + Vector3(0.6, 0, 0), 0.4)
 	check("no fire in the rain", none == 0 and m.count("leaf", m.BURNED) == b2)
 	WeatherService.is_precipitating = false
-	var r0: int = m.regrows
-	WorldClock.advance(float(m.tuning.season_regrow_h) + 0.5)
+	WorldClock.advance(100.0)
 	m.season_tick()
-	check("every burnt leaf cell grows back after the season pass", m.count("leaf", m.BURNED) == 0 and m.regrows > r0, "%d regrown" % (m.regrows - r0))
+	check("burnt leaves stay burnt while you are here", m.count("leaf", m.BURNED) == b2)
 
 	# ---- vines
 	var vc: Dictionary = {}
@@ -163,17 +161,11 @@ func run() -> void:
 			vc = c
 			vi = i
 	var full_len: int = int(vc.len) if vi >= 0 else 0
-	if vi >= 0:   # cut it back to its anchor to watch it grow
-		vc.len = 1
-		vc.last = m.now_h()
-		m.dirty[m.chunk_of(int(vc.ix), int(vc.iz))] = true
-	check("found a cliff vine (hanging 3+ cells down a face)", vi >= 0, "%d cells" % full_len)
+	check("vines are placed hanging down their cliff faces (3+ cells)", vi >= 0, "%d cells" % full_len)
 	if vi >= 0:
 		st = SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		vc.len = 2
 		var cells: Array = m.vine_cells(vc)
-		vc.len = 1
 		m._vine_quad(st, vc, cells[0], 0)
 		var q: Dictionary = card_info(st)
 		var d2: Vector2i = m.DIRS[int(vc.dir)]
@@ -193,19 +185,12 @@ func run() -> void:
 		check("the vine face is CLIMBABLE for the climbing controller", m.climbable_at(Vector3(hp.x, hp.y - 1.0, hp.z)) and not m.climbable_at(hp + Vector3(6, 0, 6)))
 		var ck: Vector2 = fol.climb_k(Vector3(hp.x, hp.y - 1.0, hp.z))
 		check("climbing on vines costs less stamina and is quicker", ck.x < 1.0 and ck.y > 1.0, "drain x%.2f speed x%.2f" % [ck.x, ck.y])
-		var l0: int = int(vc.len)
-		WorldClock.advance(float(m.tuning.vine_spread_h) * 2.0 + 0.1)
-		m.season_tick()
-		check("an intact vine spreads down over the days", int(vc.len) > l0, "%d -> %d cells" % [l0, int(vc.len)])
 		var mid: Vector3i = m.vine_cells(vc)[1]
 		m.burn_sphere(m._cell_pos(mid.x, mid.y, mid.z), 0.1)
 		check("fire cuts a vine where it burns (the top keeps hanging)", int(vc.len) == 1)
-		WorldClock.advance(float(m.tuning.vine_spread_h) * 3.0)
+		WorldClock.advance(100.0)
 		m.season_tick()
-		check("a burnt vine waits for the season before it grows again", int(vc.len) == 1)
-		WorldClock.advance(float(m.tuning.season_regrow_h) + float(m.tuning.vine_spread_h) * 2.0)
-		m.season_tick()
-		check("after the season the surviving top regrows downward", int(vc.len) >= 2, "%d cells" % int(vc.len))
+		check("a burnt vine stays cut for the visit (no timers)", int(vc.len) == 1)
 
 	# ---- flowers and biome colours
 	var by_biome: Dictionary = {}
@@ -272,42 +257,15 @@ func run() -> void:
 	await wait(0.3)
 	check("a bomb's fire burns the big flower (it is gone)", not m.jaws.has(g) and int(m.flowers[fk].s) == m.BURNED)
 	await shot("07_maw_burned")
-	WorldClock.advance(float(m.tuning.season_regrow_h) + 0.5)
-	m.season_tick()
-	await wait(0.3)
-	var whole: bool = m.flower_group_whole(g)
-	check("the wild bed sprouts back and re-fuses into the snapping flower", whole == m.jaws.has(g) and m.count("flower", m.BURNED) == 0, "whole %s jaw %s" % [whole, m.jaws.has(g)])
-
-	# ---- world-clock catch-up on load (and the save file)
-	var some: Array = []
-	for key: Vector3i in m.leaves:
-		if some.size() < 6:
-			some.append(key)
-	for key: Vector3i in some:
-		m.leaves[key].s = m.BURNED
-		m.leaves[key].t = m.now_h()
-	fol.leave()
-	var snap: Dictionary = Store.get_snapshot("isles")
-	check("leaving keeps the burnt state with its world times", (snap.get("leaves", []) as Array).size() >= 6)
-	ok_save(snap)
-	# the world is not loaded while a season passes; on load it catches up
-	m.process_mode = Node.PROCESS_MODE_DISABLED
-	for key: Vector3i in some:
-		m.leaves[key].s = m.INTACT
-	m.restore(snap)
-	check("restored right away it is still burnt", int(m.leaves[some[0]].s) == m.BURNED)
-	WorldClock.advance(float(m.tuning.season_regrow_h) + 1.0)
-	m.restore(snap)
-	m.process_mode = Node.PROCESS_MODE_INHERIT
-	check("restored a season later it has caught up (grown back)", int(m.leaves[some[0]].s) == m.INTACT)
+	# leave and come back: the isles' foliage is placed fresh (nothing was kept)
+	var old: Node3D = fol.mgr
+	fol.build(old.get_parent())
+	old.queue_free()
+	await wait(0.6)
+	var m2: Node3D = fol.mgr
+	check("leave and come back: everything is placed fresh (all grown back, the big flowers fused)", m2 != old and m2.count("leaf", m2.BURNED) == 0 and m2.count("flower", m2.BURNED) == 0 and m2.jaws.size() == 3)
+	check("nothing about the foliage goes in the save file", not SaveService._parts.has("foliage"))
 	finish()
-
-func ok_save(snap: Dictionary) -> void:
-	var path: String = "user://cc_save_foliage_test.json"
-	SaveService.save_game(path)
-	Store.worlds.clear()
-	SaveService.load_game(path)
-	check("the foliage state goes in the save file and comes back", (Store.get_snapshot("isles").get("leaves", []) as Array).size() == (snap.get("leaves", []) as Array).size())
 
 func finish() -> void:
 	var ok: int = results.count(true)

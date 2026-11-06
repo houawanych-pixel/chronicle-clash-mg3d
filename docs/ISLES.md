@@ -41,4 +41,4 @@ Built from the CC survival systems (`scripts/cc/survival/`, `docs/SURVIVAL.md`),
 
 ## Foliage (Nov 2026)
 Canopy leaves, cliff vines (climbable) and flower beds with the big snapping flower: see `docs/FOLIAGE.md`.
-Bombs burn them; they grow back after the season (world clock).
+Bombs burn them for the visit; nothing is saved, so they are all back the next time.

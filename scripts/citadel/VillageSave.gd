@@ -35,3 +35,8 @@ static func save_data(d: Dictionary, path: String = PATH) -> bool:
 static func clear(path: String = PATH) -> void:
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
+	# The family records (scripts/cc/family) live in a companion file; a fresh
+	# village is a fresh family history too.
+	var fam: String = path.replace(".json", "_family.json")
+	if FileAccess.file_exists(fam):
+		DirAccess.remove_absolute(fam)

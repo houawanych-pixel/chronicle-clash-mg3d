@@ -16,7 +16,33 @@
   const EMO = ['normal', 'happy', 'sad', 'surprised', 'scared', 'angry'];
   let ctx = null, log = [], events = [], busy = false, speaking = false, listening = false, rec = null;
   let handsfree = load(HF, true), cfg = Object.assign({}, DEFAULT, load(STORE, {}));
-  let ui = null, abort = null;
+  let ui = null, abort = null, calls = [];
+
+  // Family context (scripts/cc/family/family_context.gd): short, capped lines.
+  // The brain may only *propose* a memory with a [remember: ...] tag; the game
+  // checks it. It can never decide births, ages, deaths, partners or jobs.
+  function familyLines(c) {
+    const f = c.family;
+    if (!f) return '';
+    const out = [];
+    if (f.stage && f.stage !== 'adult') out.push(`You are ${f.stage_words}. Talk like one: ${f.stage === 'toddler' ? 'only a few simple words' : f.stage === 'child' ? 'short, simple, excited sentences' : 'a little shy and short'}.`);
+    if (f.parents) out.push(`Your parents: ${f.parents}.`);
+    if (f.partner) out.push(`Your partner: ${f.partner}.`);
+    if (f.children) out.push(`Your children: ${f.children}.`);
+    if (f.memories) out.push(`Things you remember: ${f.memories}`);
+    if (f.world) out.push(`Around the village: ${f.world}`);
+    out.push('Never talk about romance in detail. If the knight tells you something worth remembering, you may end your answer with [remember: a short note]. You cannot make anything else happen.');
+    return '\n' + out.join('\n');
+  }
+  function overBudget() {
+    const n = ctx && ctx.family && ctx.family.ai_budget ? ctx.family.ai_budget : 0;
+    if (!n) return false;
+    const t = Date.now();
+    calls = calls.filter(x => t - x < 60000);
+    if (calls.length >= n) return true;
+    calls.push(t);
+    return false;
+  }
 
   function load(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -30,6 +56,7 @@
 About you: ${c.persona}
 Right now it is ${c.time} (${c.daypart}) and you were ${c.doing}.${c.carrying ? ' You are carrying a load from your work.' : ''}
 Your neighbours here: ${c.neighbours}. The road east or west leads to the next part of the village.
+${familyLines(c)}
 You are talking with ${c.hero}, a young knight${c.sword ? ' with a sword drawn' : ' with a sword on his back'}.
 Rules: Answer with spoken words only, 1 or 2 short sentences, plain everyday speech. No narration, no stage directions, no asterisks, no lists. Never say you are an AI or mention modern things. You only know village life, your work, your neighbours and local rumours.
 Start every answer with one feeling tag from this list: [normal] [happy] [sad] [surprised] [scared] [angry]. Example: [happy] Good morning to you, sir knight.`;
@@ -37,6 +64,8 @@ Start every answer with one feeling tag from this list: [normal] [happy] [sad] [
   }
   function parse(raw) {
     let t = String(raw || '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim(), emotion = 'normal';
+    const rm = t.match(/\[remember:\s*([^\]]{3,160})\]/i);
+    if (rm) { emit({ t: 'propose', proposal: { kind: 'remember', text: rm[1].trim() } }); t = t.replace(rm[0], ' '); }
     const m = t.match(/^[\[(]\s*(normal|happy|sad|surprised|scared|angry)\s*[\])]?[:\s-]*/i);
     if (m) { emotion = m[1].toLowerCase(); t = t.slice(m[0].length); }
     t = t.replace(/\*[^*]*\*/g, ' ').replace(/\[(normal|happy|sad|surprised|scared|angry)\]/gi, ' ');
@@ -75,6 +104,7 @@ Start every answer with one feeling tag from this list: [normal] [happy] [sad] [
     status('Thinking\u2026');
     let rep;
     try {
+      if (overBudget()) throw Error('Resting the brain for a moment.');
       rep = await ask(true);
       if (!rep.text) rep = await ask(false);
     } catch (e) {

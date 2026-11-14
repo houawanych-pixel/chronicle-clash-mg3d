@@ -44,6 +44,8 @@ func nearest() -> Node:
 	for v: Node in village.villagers:
 		if not is_instance_valid(v) or v.state == "inside" or not v.visible:
 			continue
+		if village.get("family") != null and not village.family.can_chat(v):
+			continue    # babies and infants don't hold conversations
 		var d: float = v.global_position.distance_to(game.hero.global_position)
 		if d < bd:
 			bd = d
@@ -120,6 +122,10 @@ func handle(e: Variant) -> void:
 			said.append(str(e.get("text", "")))
 		"closed":
 			stop()
+		"propose":
+			# Echo Vision may only propose; the family rules decide (family_context.gd).
+			if village.get("family") != null:
+				village.family.on_proposal(target, e.get("proposal", {}))
 
 ## Who this villager is and what is going on around them, for the brain.
 func context(v: Node) -> Dictionary:
@@ -139,7 +145,7 @@ func context(v: Node) -> Dictionary:
 	var m: int = int(fmod(village.clock, 1440.0))
 	var hero_def: Dictionary = game.HEROES.get(game.hero_key, {})
 	var seed: int = absi(hash(v.vid))
-	return {
+	var ctx: Dictionary = {
 		"id": v.vid,
 		"name": v.vname,
 		"job": v.job,
@@ -158,3 +164,6 @@ func context(v: Node) -> Dictionary:
 		"pitch": v.voice_pitch,
 		"rate": v.voice_rate,
 	}
+	if village.get("family") != null:
+		ctx["family"] = village.family.chat_context(v)
+	return ctx

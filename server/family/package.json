@@ -1,0 +1,10 @@
+{
+  "name": "cc-family-server",
+  "private": true,
+  "description": "Reference family server for Chronicle Clash's Living Village (not deployed). No dependencies.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" }
+}

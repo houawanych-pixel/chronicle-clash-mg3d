@@ -1,0 +1,18 @@
+{
+  "_note": "Server copy of data/cc/family/family_config.tres (rules part). test/parity.test.js checks they match the game.",
+  "stage_names": ["newborn", "crawling_infant", "early_walker", "toddler", "child", "adolescent", "adult"],
+  "stage_start_days": [0, 8, 15, 22, 31, 46, 60],
+  "seconds_per_day": 86400,
+  "allow_pregnancy": true,
+  "pregnancy_chance": 0.35,
+  "pregnancy_days": 3,
+  "birth_cooldown_days": 7,
+  "visit_cooldown_seconds": 3600,
+  "max_population": 40,
+  "max_children_per_family": 4,
+  "combat_jobs": ["guard", "soldier", "knight", "hunter", "mercenary", "recruit"],
+  "memory_max_entries": 8,
+  "memory_entry_chars": 120,
+  "memory_summary_chars": 480,
+  "applied_event_keep": 5000
+}

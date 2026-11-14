@@ -1,0 +1,6 @@
+{
+  "note": "Original given names for village-born children. Names are display text only; records are keyed by npc_id.",
+  "f": ["Wren", "Tilly", "Maren", "Isla", "Brin", "Lotte", "Elsie", "Junie", "Odette", "Posy", "Sabe", "Ilka"],
+  "m": ["Hob", "Arlo", "Tobin", "Edric", "Fen", "Rook", "Milo", "Corin", "Dace", "Otto", "Perrin"],
+  "traits": ["curious", "gentle", "stubborn", "cheerful", "shy", "bold", "dreamy", "chatty", "careful", "playful", "kind", "restless"]
+}

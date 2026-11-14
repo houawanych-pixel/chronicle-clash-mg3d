@@ -105,6 +105,17 @@ func run() -> void:
 				print("FROG path opt=", opt, " ", pr[0], " -> ", pr[1], " n=", path.size(), " end=", path[path.size() - 1] if path.size() else Vector3.INF)
 		get_tree().quit()
 		return
+	if "--family-only" in OS.get_cmdline_user_args():
+		await load("res://scripts/cc/family/tests/family_village_tests.gd").new().run(self)
+		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
+		get_tree().quit()
+		return
+	if "--village-only" in OS.get_cmdline_user_args():
+		await village_tests()
+		await frog_tests()
+		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
+		get_tree().quit()
+		return
 	if "--frog-only" in OS.get_cmdline_user_args():
 		await frog_tests()
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])

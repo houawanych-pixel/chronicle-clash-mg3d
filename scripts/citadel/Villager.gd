@@ -55,6 +55,12 @@ var desired_vel: Vector3 = Vector3.ZERO
 var head_node: MeshInstance3D
 var head_bone: int = -1
 var head_scale: float = 1.0
+## Family module (scripts/cc/family): what a parent was pulled away for,
+## where they went inside, and the newborn bundle they may be carrying.
+var family_need: Dictionary = {}
+var inside_at: Vector3 = Vector3.ZERO
+var carrying_baby: bool = false
+var baby_bundle: Node3D
 
 const LINES: Dictionary = {
 	"woodcutter": ["Good timber in these woods.", "Mind the axe, traveller.", "One more log and I'll rest."],
@@ -203,8 +209,13 @@ func doing_text() -> String:
 				_: return "working"
 		"sit":
 			return "sitting on a bench"
+		"inside":
+			if activity.begins_with("family:"):
+				return "at home looking after your little one"
 		"walk":
 			return "walking across the village" if goal_kind != "drop" else "carrying your load to the pile"
+	if activity.begins_with("family:"):
+		return "out with your little one" if carrying_baby else "looking after your family"
 	return "taking a short rest" if activity == "work" else ("eating" if activity == "eat" else "strolling and chatting")
 
 # ---------------------------------------------------------------- planning
@@ -223,8 +234,35 @@ func plan(act: String) -> void:
 				plan_point(true)
 		"social":
 			plan_point(false)
+		"visit":
+			var vd: RefCounted = village.family_home_door(self)
+			go_to((vd if vd else home_door).pos, "door")
 		_:
-			plan_point(true)
+			if act.begins_with("family:"):
+				plan_family()
+			else:
+				plan_point(true)
+
+## A family need (feed, put to sleep, park walk...) interrupts the routine.
+## When its time window ends the schedule asks for work again and plan()
+## sends the villager straight back to it.
+func plan_family() -> void:
+	var where: String = str(family_need.get("where", "home"))
+	carrying_baby = bool(family_need.get("carry", false))
+	if where == "home":
+		var d: RefCounted = village.family_home_door(self)
+		go_to((d if d else home_door).pos, "door")
+	else:
+		plan_point(false)
+
+## Whether the schedule wants this villager to stay indoors right now.
+func stays_inside_for(want: String) -> bool:
+	if want == "sleep" or want == "visit":
+		return true
+	if want.begins_with("family:") and str(family_need.get("where", "")) == "home":
+		var d: RefCounted = village.family_home_door(self)
+		return d != null and inside_at.distance_to(d.pos) < 1.5
+	return false
 
 func plan_work() -> void:
 	if village.stays_home(self):
@@ -291,6 +329,7 @@ func arrive() -> void:
 
 func go_inside() -> void:
 	release_spot()
+	inside_at = global_position
 	state = "inside"
 	visible = false
 	collision_layer = 0
@@ -352,8 +391,8 @@ func _physics_process(dt: float) -> void:
 						carrying = true
 						work_count += 1
 					plan(want)
-			elif want != "sleep":
-				come_out(home_door.pos)
+			elif not stays_inside_for(want):
+				come_out(inside_at if inside_at != Vector3.ZERO else home_door.pos)
 				plan(want)
 		"walk":
 			walk(dt)
@@ -481,9 +520,18 @@ func animate(dt: float) -> void:
 			var hs: float = Vector2(velocity.x, velocity.z).length()
 			speed_now = lerpf(speed_now, clampf(hs / 6.0, 0.0, 1.0), 1.0 - exp(-10.0 * dt))
 			run_phase += dt * (5.0 + 6.5 * speed_now)
-			pose = P.carry(run_phase, speed_now) if carrying else P.run_free(run_phase, speed_now)
+			pose = P.carry(run_phase, speed_now) if (carrying or carrying_baby) else P.run_free(run_phase, speed_now)
 		_:
-			pose = P.idle_free(anim_t)
+			pose = P.carry(0.0, 0.0) if carrying_baby else P.idle_free(anim_t)
+	if not activity.begins_with("family:"):
+		carrying_baby = false
+	if carrying_baby and baby_bundle == null:
+		baby_bundle = load("res://scripts/cc/family/child_anim.gd").make_bundle()
+		add_child(baby_bundle)
+	if baby_bundle:
+		baby_bundle.visible = carrying_baby and state != "inside"
+		baby_bundle.position = forward() * 0.3 + Vector3.UP * (height * 0.62 + sin(anim_t * 2.0) * 0.01)
+		baby_bundle.rotation.y = yaw
 	rig.set_tool(tool)
 	load_box.visible = carrying and state != "work"
 	load_box.position = forward() * 0.38 + Vector3.UP * (height * 0.6)

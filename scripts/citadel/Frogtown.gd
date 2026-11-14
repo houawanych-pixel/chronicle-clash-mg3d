@@ -84,6 +84,10 @@ func load_data() -> void:
 
 # ---------------------------------------------------------------- hooks
 
+## Frogtown keeps its own cast and saves; the family module stays off here.
+func family_enabled() -> bool:
+	return false
+
 func block_def() -> Dictionary:
 	var vs: Array = []
 	for v: Dictionary in data.get("villagers", []):

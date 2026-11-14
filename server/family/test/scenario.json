@@ -1,0 +1,30 @@
+{
+  "note": "Run through the game rules (Godot) and the server rules (Node); the results must match exactly.",
+  "seed": "res://server/family/seed_state.json",
+  "ops": [
+    {"op": "cfg", "key": "pregnancy_chance", "value": 1.0},
+    {"op": "cfg", "key": "birth_cooldown_days", "value": 0.0},
+    {"op": "apply", "ev": {"id": "e1", "type": "propose_partner", "at": 1000, "args": {"from": "sq_finn", "to": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e2", "type": "accept_partner", "at": 1100, "args": {"from": "sq_finn", "to": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e2", "type": "accept_partner", "at": 1100, "args": {"from": "sq_finn", "to": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e3", "type": "home_visit", "at": 5000, "args": {"a": "sq_finn", "b": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e4", "type": "home_visit", "at": 5200, "args": {"a": "ml_ada", "b": "ml_rolf"}}},
+    {"op": "apply", "ev": {"id": "e5", "type": "home_visit", "at": 5300, "args": {"a": "ml_ada", "b": "ml_pip"}}},
+    {"op": "apply", "ev": {"id": "e6", "type": "propose_partner", "at": 5400, "args": {"from": "sq_bram", "to": "ml_ada"}}},
+    {"op": "apply", "ev": {"id": "e7", "type": "birth", "at": 6000, "args": {"pregnancy_id": "preg_e3"}}},
+    {"op": "sync", "now": 300000},
+    {"op": "apply", "ev": {"id": "e8", "type": "birth", "at": 400000, "args": {"pregnancy_id": "preg_e3"}}},
+    {"op": "sync", "now": 2000000},
+    {"op": "apply", "ev": {"id": "e9", "type": "remember", "at": 2000001, "args": {"npc_id": "sq_lia", "text": "  The knight brought flowers.\nThen left.  "}}},
+    {"op": "apply", "ev": {"id": "e10", "type": "death", "at": 2000002, "args": {"npc_id": "sq_mara", "cause": "fever"}}},
+    {"op": "apply", "ev": {"id": "e11", "type": "recruit", "at": 2000003, "args": {"npc_id": "sq_mara", "by": "hero"}}},
+    {"op": "apply", "ev": {"id": "e12", "type": "recruit", "at": 2000004, "args": {"npc_id": "ml_kit", "by": "hero", "by_name": "Lance"}}},
+    {"op": "apply", "ev": {"id": "e13", "type": "set_job", "at": 2000005, "args": {"npc_id": "npc_preg_e3", "job": "guard"}}},
+    {"op": "apply", "ev": {"id": "e14", "type": "set_job", "at": 2000006, "args": {"npc_id": "npc_preg_e4", "job": "miller"}}},
+    {"op": "sync", "now": 7000000},
+    {"op": "apply", "ev": {"id": "e15", "type": "propose_partner", "at": 7000001, "args": {"from": "npc_preg_e3", "to": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e16", "type": "end_partner", "at": 7000002, "args": {"a": "sq_finn", "b": "sq_lia"}}},
+    {"op": "apply", "ev": {"id": "e17", "type": "set_location", "at": 7000003, "args": {"npc_id": "npc_preg_e4", "block": "square", "activity": "play"}}},
+    {"op": "apply", "ev": {"id": "e18", "type": "nonsense", "at": 7000004, "args": {}}}
+  ]
+}

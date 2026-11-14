@@ -7,6 +7,7 @@ const VillagerScript = preload("res://scripts/citadel/Villager.gd")
 const WorkSpotScript = preload("res://scripts/citadel/WorkSpot.gd")
 const SaveScript = preload("res://scripts/citadel/VillageSave.gd")
 const ChatScript = preload("res://scripts/citadel/VillageChat.gd")
+const FamilyScript = preload("res://scripts/cc/family/village_family.gd")
 const KIT: String = "res://assets/village/village_kit.glb"
 
 const HALF: float = 20.0           # blocks are 40 x 40 m
@@ -96,10 +97,22 @@ var switching: float = 0.0
 var deliveries: Dictionary = {}
 
 var chat: RefCounted
+## Living Village families (scripts/cc/family). null where turned off (Frogtown).
+var family: RefCounted
 
 func _init(g: Node) -> void:
 	game = g
 	chat = ChatScript.new(g, self)
+	if family_enabled():
+		family = FamilyScript.new(g, self)
+
+## Village tiles that run the family module. Frogtown overrides this.
+func family_enabled() -> bool:
+	return true
+
+## The door a villager's family lives behind (may differ from their own home).
+func family_home_door(v: Node) -> RefCounted:
+	return family.family_home_door(v) if family else null
 
 ## Hooks a village tile can override (Frogtown.gd does).
 func block_def() -> Dictionary:
@@ -122,8 +135,8 @@ func request_bark(_v: Node, _seconds: float) -> bool:
 func fall_y() -> float:
 	return -0.5
 
-func lines_for(_job: String) -> Array:
-	return []
+func lines_for(job: String) -> Array:
+	return family.lines_for(job) if family else []
 
 func minutes_per_second() -> float:
 	## One real hour is one village day (1440 game minutes / 3600 s).
@@ -141,6 +154,10 @@ func clock_text() -> String:
 
 ## The daily routine. Elders sit instead of working; wanderers socialise.
 func activity_for(v: Node) -> String:
+	if family:
+		var fa: String = family.activity_for(v)
+		if fa != "":
+			return fa
 	var h: float = hour()
 	if h < 6.0 or h >= 21.5:
 		return "sleep"
@@ -534,6 +551,8 @@ func spawn_villagers() -> void:
 				var sd: Dictionary = saved_v[v.vid]
 				v.work_count = int(sd.get("work_count", 0))
 			v.place_for_schedule()
+	if family:
+		family.spawn_children(saved_v, same_time)
 
 func clear_villagers() -> void:
 	chat.stop()
@@ -558,6 +577,8 @@ func save_now() -> void:
 	save["clock"] = snappedf(clock, 0.1)
 	save["block"] = block
 	SaveScript.save_data(save, save_path())
+	if family:
+		family.save()
 
 func load_save() -> void:
 	save = SaveScript.load_data(save_path())
@@ -568,6 +589,8 @@ func load_save() -> void:
 func enter() -> void:
 	## Called when the village stage is chosen.
 	load_save()
+	if family:
+		family.load_or_seed()
 	configure_stage()
 
 func start() -> void:
@@ -585,6 +608,8 @@ func progress(dt: float) -> void:
 	clock += dt * minutes_per_second()
 	apply_daylight()
 	chat.tick(dt)
+	if family:
+		family.tick(dt)
 	autosave_t += dt
 	if autosave_t > 20.0:
 		autosave_t = 0.0

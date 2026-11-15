@@ -48,3 +48,27 @@ hand's knuckle line and the strike time = the frame the sword hand moves fastest
   `ual_carry`, `ual_sit`, `ual_talk`.
 - Check pictures: `xvfb-run -a godot --rendering-driver opengl3 --path . -- --autotest --fight-shots --shots=/dir`.
 - More motions (emotions, talking, waving, more sword styles): Mixamo with the owner's Adobe login, baked the same way.
+
+## Movement clips in use (Nov 2026)
+| Hero state | Clip |
+|---|---|
+| dodge | `ual_roll` (dive and tumble during the dash, the get-up plays after it) |
+| jump (rising / in the air) | `ual_jump_start` blending into `ual_jump_air` |
+| hard landing | `ual_jump_land` |
+| pull-up over a ledge | `ual_mantle` |
+| crouch / crouch walk | `ual_crouch_idle` / `ual_crouch_walk` |
+
+Also baked (85 clips in all) and shared with Homelancer through its `scripts/anim_lib.gd`: pistol idle, aim
+(up / middle / down), shoot and reload; talking, phone call, sitting and talking, leaning on a rail, arms folded,
+nod, head shake, dance; walk, formal walk, jog, sprint, push; swim; eat, chest open, throw, kneel work (cooking),
+pick up, interact, plant seeds, water, harvest; zombie walk and attack; hook punch.
+
+## Still missing (get from Mixamo with the owner's free Adobe login)
+Download each as FBX, "Without Skin", 30 fps, then bake with `tools/anim/bake.gd` (map "mixamo").
+- Climbing: Climbing (wall), Hanging Idle, Braced Hang Shimmy (left and right), Braced Hang Hop Up, Climbing Ladder.
+- Gliding / falling: Hard Landing, Skydiving.
+- Bow: Standing Draw Arrow, Standing Aim Overdraw, Standing Aim Recoil.
+- Sword extras: Sword And Shield Slash (several), Sword And Shield Impact, Great Sword spin / slash.
+- Potion and cooking: Drinking, Kneeling / stirring.
+- Rifle (Homelancer): Rifle Aiming Idle, Rifle Run, Rifle Walk, strafe left / right with rifle, Firing Rifle, Reloading, Dodging Left / Right.
+- Emotes: Waving, Cheering, Laughing, Arguing, Thinking, Clapping, Salute, Shrugging, Looking Around.

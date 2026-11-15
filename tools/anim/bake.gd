@@ -96,6 +96,26 @@ const UAL_JOBS := [
 	["res://src/ual2.glb", "ual", "Idle_No", "ual_shake_head", false],
 	["res://src/ual2.glb", "ual", "Yes", "ual_nod", false],
 	["res://src/ual2.glb", "ual", "Farm_PlantSeed", "ual_plant", false],
+	# shared with Homelancer (station crowds, pilots)
+	["res://src/ual1.glb", "ual", "Pistol_Idle", "ual_pistol_idle", true],
+	["res://src/ual1.glb", "ual", "Pistol_Aim_Neutral", "ual_pistol_aim", true],
+	["res://src/ual1.glb", "ual", "Pistol_Aim_Up", "ual_pistol_aim_up", true],
+	["res://src/ual1.glb", "ual", "Pistol_Aim_Down", "ual_pistol_aim_down", true],
+	["res://src/ual1.glb", "ual", "Pistol_Shoot", "ual_pistol_shoot", false],
+	["res://src/ual1.glb", "ual", "Pistol_Reload", "ual_pistol_reload", false],
+	["res://src/ual1.glb", "ual", "Sitting_Talking", "ual_sit_talk", true],
+	["res://src/ual1.glb", "ual", "Dance", "ual_dance", true],
+	["res://src/ual1.glb", "ual", "Walk_Formal", "ual_walk_formal", true],
+	["res://src/ual1.glb", "ual", "Jog_Fwd", "ual_jog", true],
+	["res://src/ual1.glb", "ual", "Walk", "ual_walk", true],
+	["res://src/ual1.glb", "ual", "Idle", "ual_idle", true],
+	["res://src/ual1.glb", "ual", "Push", "ual_push", true],
+	["res://src/ual2.glb", "ual", "Idle_TalkingPhone", "ual_phone", true],
+	["res://src/ual2.glb", "ual", "Idle_Rail", "ual_lean_rail", true],
+	["res://src/ual2.glb", "ual", "Idle_Rail_Call", "ual_rail_call", false],
+	["res://src/ual2.glb", "ual", "Zombie_Walk_Fwd", "ual_zombie_walk", true],
+	["res://src/ual2.glb", "ual", "Zombie_Scratch", "ual_zombie_attack", false],
+	["res://src/ual2.glb", "ual", "Melee_Hook", "ual_hook_punch", false],
 ]
 const FPS := 30.0
 func _initialize() -> void: run.call_deferred()

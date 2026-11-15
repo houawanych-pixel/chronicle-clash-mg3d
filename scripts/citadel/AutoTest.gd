@@ -2066,3 +2066,20 @@ func fight_shots() -> void:
 	await shot("fight_block")
 	print("FIGHT block state=%s clip=%s" % [h.state, h.fight_on])
 	Input.action_release("cc_block")
+	await wait(0.5)
+	# movement clips: roll, jump, crouch
+	game.stamina = 100.0
+	game.hud.stick = Vector2(0, -1)
+	await wait(0.3)
+	game.hud.pressed["dodge"] = true
+	for i in 4:
+		await wait(0.07)
+		await shot("move_roll_%d" % i)
+		print("MOVE roll state=%s t=%.2f rollout=%.2f" % [h.state, h.state_t, h.rollout_t])
+	game.hud.stick = Vector2.ZERO
+	await wait(0.8)
+	game.hud.pressed["jump"] = true
+	for i in 4:
+		await wait(0.12)
+		await shot("move_jump_%d" % i)
+		print("MOVE jump floor=%s air=%.2f vy=%.1f" % [h.is_on_floor(), h.air_t, h.velocity.y])

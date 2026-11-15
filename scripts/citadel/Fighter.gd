@@ -332,6 +332,50 @@ func look_layer(p: Dictionary, dt: float) -> void:
 	p["Head"] = Quaternion(Vector3.UP, ang * 0.65 * w) * (p.get("Head", Quaternion()) as Quaternion)
 	p["Spine02"] = Quaternion(Vector3.UP, ang * 0.25 * w) * (p.get("Spine02", Quaternion()) as Quaternion)
 
+## Real movement clips for the hero (CC0, assets/anim/clips.json "ual_*").
+## Returns [pose, plant_feet] or [] when no clip applies. Airborne and mantle
+## clips don't plant: the body is really in the air there.
+var air_t: float = 0.0
+var rollout_t: float = 0.0
+const ROLLOUT: float = 0.35
+
+func move_clip(dt: float) -> Array:
+	var C: RefCounted = game.clips
+	if kind != "hero" or C == null or not C.has("ual_roll"):
+		return []
+	if is_on_floor():
+		air_t = 0.0
+	else:
+		air_t += dt
+	var u: float = clampf(state_t / maxf(state_len, 0.001), 0.0, 1.0)
+	match state:
+		"dodge":
+			# a quick combat roll: the dive and tumble, then the get-up plays out after
+			return [C.sample("ual_roll", 0.1 + u * 0.85), false]
+		"pullup":
+			var dur: float = maxf(game.trav.pull.get("dur", 0.5), 0.05)
+			return [C.sample("ual_mantle", clampf(state_t / dur, 0.0, 1.0) * (C.length("ual_mantle") - 0.01)), false]
+		"idle", "block":
+			if state == "block":
+				return []
+			if game.prone or game.in_cover():
+				return []
+			if not is_on_floor():
+				var rise: Dictionary = C.sample("ual_jump_start", clampf(0.15 + air_t * 1.2, 0.15, 0.7))
+				var hang: Dictionary = C.sample("ual_jump_air", anim_t)
+				return [C.mix(rise, hang, clampf(air_t * 2.0 - 0.5, 0.0, 1.0)), false]
+			if game.trav.land_t > 0.0:
+				return [C.sample("ual_jump_land", 0.06 + (1.0 - game.trav.land_t / 0.3) * 0.5), true]
+			if rollout_t > 0.0:
+				rollout_t = maxf(0.0, rollout_t - dt)
+				return [C.sample("ual_roll", 0.95 + (1.0 - rollout_t / ROLLOUT) * 0.45), true]
+			if game.crouched:
+				var hs: float = Vector2(velocity.x, velocity.z).length()
+				var k: float = clampf(hs / 1.2, 0.0, 1.0)
+				var walk: Dictionary = C.sample("ual_crouch_walk", run_phase * 0.35)
+				return [C.mix(C.sample("ual_crouch_idle", anim_t), walk, k), true]
+	return []
+
 ## Lowest ankle height above this fighter's feet (for planting the feet).
 func lowest_foot() -> float:
 	var low: float = INF
@@ -468,6 +512,8 @@ func animate(dt: float) -> void:
 	if prev_state == "attack" and state == "idle":
 		ready_t = READY_TIME
 		ready_combo = last_combo
+	if prev_state == "dodge" and state == "idle" and is_on_floor():
+		rollout_t = ROLLOUT
 	elif state != "idle":
 		ready_t = 0.0
 	prev_state = state
@@ -478,11 +524,19 @@ func animate(dt: float) -> void:
 		var rp: Dictionary = ready_pose(dt)
 		if not rp.is_empty() and hs2 < 1.0:
 			fp = rp
+	var plant: bool = true
+	if fp.is_empty():
+		var mc: Array = move_clip(dt)
+		if not mc.is_empty():
+			fp = mc[0]
+			plant = mc[1]
+			if not plant:
+				clip_lift = 0.0
 	if not fp.is_empty():
 		pose = fp
 		rate = maxf(rate, 26.0)
 		clip_on = true
-		fight_on = true
+		fight_on = plant
 	if kind == "hero" and state != "dead":
 		look_layer(pose, dt)
 	rig.rotation.y = yaw

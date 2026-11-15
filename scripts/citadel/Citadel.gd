@@ -1307,7 +1307,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 				if queued_attack and f.combo < 2:
 					queued_attack = false
 					f.combo += 1
-					f.set_state("attack", 0.36 if f.combo == 1 else 0.6)
+					f.set_state("attack", 0.36 if f.combo == 1 else 0.5)
 				else:
 					queued_attack = false
 					f.state = "idle"

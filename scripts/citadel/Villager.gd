@@ -523,6 +523,24 @@ func animate(dt: float) -> void:
 			pose = P.carry(run_phase, speed_now) if (carrying or carrying_baby) else P.run_free(run_phase, speed_now)
 		_:
 			pose = P.carry(0.0, 0.0) if carrying_baby else P.idle_free(anim_t)
+	# Real clips (CC0, assets/anim/clips.json) where one fits the job.
+	var C: RefCounted = game.clips
+	if C != null and C.has("ual_chop"):
+		match state:
+			"work":
+				var k2: String = spot.kind if spot else ""
+				if k2 in ["tree", "drum"]:
+					pose = C.sample("ual_chop", anim_t)
+				elif k2 in ["field", "reeds"]:
+					pose = C.sample("ual_harvest", fmod(anim_t, C.length("ual_harvest") - 0.01))
+			"sit":
+				pose = C.sample("ual_sit", anim_t)
+			"talk":
+				if not chatting or talk_t > 0.0:
+					pose = C.sample("ual_talk", anim_t)
+			"walk":
+				if carrying or carrying_baby:
+					pose = C.sample("ual_carry", run_phase * 0.32)
 	if not activity.begins_with("family:"):
 		carrying_baby = false
 	if carrying_baby and baby_bundle == null:

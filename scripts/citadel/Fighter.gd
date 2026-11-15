@@ -209,6 +209,150 @@ func loco_clip(dt: float, hs: float) -> Dictionary:
 	p["blade"] = P.d(0.7, -0.25, 0.25).slerp(held, clampf(hs / 1.5, 0.0, 1.0))
 	return p
 
+## Real fight animation: animator-made CC0 clips (Quaternius Universal Animation
+## Library 1 & 2, baked into assets/anim/clips.json as "ual_*" by tools/anim/bake.gd).
+## Each swing is time-warped so the clip's own strike (its fastest hand frame) lands
+## exactly on the game's hit time: wind-up, snap, then follow-through.
+var fight_on: bool = false
+var foot_rest: float = -1.0
+
+func clip_hit(name: String) -> float:
+	var c: Dictionary = game.clips.clips[name]
+	return float(c.get("hit", float(c.length) * 0.5))
+
+func warp(name: String, u: float, hit_u: float, follow: float) -> float:
+	var h: float = clip_hit(name)
+	var e: float = minf(game.clips.length(name) - 0.01, h + follow)
+	if u < hit_u:
+		return u / maxf(hit_u, 0.001) * h
+	return h + (u - hit_u) / maxf(1.0 - hit_u, 0.001) * (e - h)
+
+func fight_clip() -> Dictionary:
+	var C: RefCounted = game.clips
+	if C == null or not C.has("ual_slash_a"):
+		return {}
+	var u: float = clampf(state_t / maxf(state_len, 0.001), 0.0, 1.0)
+	match state:
+		"attack":
+			var n: String = ["ual_slash_a", "ual_slash_b", "ual_slash_c"][clampi(combo, 0, 2)]
+			return C.sample(n, warp(n, u, 0.5 if combo < 2 else 0.55, 0.35 if combo < 2 else 0.7))
+		"dashchain":
+			return C.sample("ual_slash_a", warp("ual_slash_a", clampf(0.25 + plunge_t / 0.24 * 0.75, 0, 1), 0.5, 0.3))
+		"spin":
+			return C.sample("ual_slash_c", warp("ual_slash_c", u, 0.45, 0.7))
+		"windup", "leap":
+			return C.sample("ual_sword_attack", u * clip_hit("ual_sword_attack") * 0.92)
+		"strike", "slam":
+			var h: float = clip_hit("ual_sword_attack")
+			return C.sample("ual_sword_attack", h * 0.92 + u * minf(0.55, C.length("ual_sword_attack") - h))
+		"block":
+			return C.sample("ual_block", clampf(0.1 + state_t * 1.5, 0.1, 0.6))
+		"hurt":
+			return C.sample("ual_hit_chest", u * (C.length("ual_hit_chest") - 0.01))
+		"stagger":
+			return C.sample("ual_knockback", minf(state_t, C.length("ual_knockback") - 0.01))
+		"dead":
+			return C.sample("ual_death", minf(dead_t, C.length("ual_death") - 0.01))
+	return {}
+
+## After a combo (our own additions on top of the clips): the swing's real
+## recovery clip plays out, then he settles into a ready stance with both hands
+## on the hilt; and after a hit his head follows the one he struck.
+var ready_t: float = 0.0
+var ready_combo: int = 0
+var last_combo: int = 0
+var prev_state: String = ""
+var look_target: Node3D
+var look_t: float = 0.0
+const READY_TIME: float = 1.8
+
+func look_at_target(e: Node3D) -> void:
+	look_target = e
+	look_t = 1.6
+
+## Directions in this fighter's model space (+X forward, +Y up, +Z right).
+func to_model(v: Vector3) -> Vector3:
+	var f: Vector3 = forward()
+	var r: Vector3 = f.cross(Vector3.UP)
+	return Vector3(v.dot(f), v.y, v.dot(r))
+
+func bone_pos(name: String) -> Vector3:
+	var i: int = rig.sk.find_bone(name)
+	return rig.sk.global_transform * rig.sk.get_bone_global_pose(i).origin if i >= 0 else global_position
+
+## Two-bone reach: point the left arm so the left hand closes on the sword grip
+## just below the right hand (elbow bends down and out).
+func two_hand_grip(p: Dictionary, k: float) -> void:
+	var sh: Vector3 = bone_pos("L_Upperarm")
+	var el: Vector3 = bone_pos("L_Forearm")
+	var wr: Vector3 = bone_pos("L_Hand")
+	var a: float = sh.distance_to(el)
+	var b: float = el.distance_to(wr)
+	var blade: Vector3 = p.get("blade", P.d(0.7, 0.3, 0.2))
+	var grip_m: Vector3 = to_model(bone_pos("R_Hand") - sh) - blade.normalized() * 0.09
+	var dist: float = clampf(grip_m.length(), 0.05, (a + b) * 0.98)
+	var dn: Vector3 = grip_m.normalized()
+	var pole: Vector3 = (Vector3(0, -1, -0.6) - dn * dn.dot(Vector3(0, -1, -0.6))).normalized()
+	var cos_a: float = clampf((a * a + dist * dist - b * b) / (2.0 * a * dist), -1.0, 1.0)
+	var upper: Vector3 = (dn * cos_a + pole * sqrt(1.0 - cos_a * cos_a)).normalized()
+	var fore: Vector3 = (dn * dist - upper * a).normalized()
+	p["L_Upperarm"] = (p.get("L_Upperarm", upper) as Vector3).slerp(upper, k).normalized()
+	p["L_Forearm"] = (p.get("L_Forearm", fore) as Vector3).slerp(fore, k).normalized()
+
+## The settle after the last swing, or {} when it's over.
+func ready_pose(dt: float) -> Dictionary:
+	var C: RefCounted = game.clips
+	if kind != "hero" or ready_t <= 0.0 or C == null or not C.has("ual_sword_idle") or unarmed():
+		return {}
+	var since: float = READY_TIME - ready_t
+	var p: Dictionary
+	var rec_len: float = 0.5
+	if since < rec_len:
+		# the swing's own recovery, sped up a little
+		match ready_combo:
+			0: p = C.sample("ual_slash_a_rec", since / rec_len * (C.length("ual_slash_a_rec") - 0.01))
+			1: p = C.sample("ual_slash_b_rec", since / rec_len * (C.length("ual_slash_b_rec") - 0.01))
+			_: p = C.sample("ual_slash_c", minf(clip_hit("ual_slash_c") + 0.7 + since * 1.6, C.length("ual_slash_c") - 0.01))
+		p = C.mix(p, C.sample("ual_sword_idle", anim_t), clampf(since / rec_len, 0.0, 1.0) * 0.5)
+	else:
+		p = C.sample("ual_sword_idle", anim_t)
+	# both hands on the hilt once the recovery is done, easing off at the end
+	var grip: float = clampf((since - 0.25) / 0.3, 0.0, 1.0) * clampf(ready_t / 0.35, 0.0, 1.0)
+	if grip > 0.0:
+		two_hand_grip(p, grip)
+	return p
+
+func look_layer(p: Dictionary, dt: float) -> void:
+	look_t = maxf(0.0, look_t - dt)
+	if look_t <= 0.0 or look_target == null or not is_instance_valid(look_target):
+		return
+	var to: Vector3 = to_model(look_target.global_position - global_position)
+	var ang: float = clampf(atan2(-to.z, to.x), -1.1, 1.1)
+	var w: float = clampf(look_t / 0.4, 0.0, 1.0)
+	p["Head"] = Quaternion(Vector3.UP, ang * 0.65 * w) * (p.get("Head", Quaternion()) as Quaternion)
+	p["Spine02"] = Quaternion(Vector3.UP, ang * 0.25 * w) * (p.get("Spine02", Quaternion()) as Quaternion)
+
+## Lowest ankle height above this fighter's feet (for planting the feet).
+func lowest_foot() -> float:
+	var low: float = INF
+	for b: String in ["L_Foot", "R_Foot"]:
+		var i: int = rig.sk.find_bone(b)
+		if i >= 0:
+			low = minf(low, (rig.sk.global_transform * rig.sk.get_bone_global_pose(i)).origin.y - global_position.y)
+	return low
+
+func ensure_heights() -> void:
+	if hip_h <= 0.0:
+		var hi: int = rig.sk.find_bone("Hip")
+		hip_h = (rig.model.transform * rig.sk.get_bone_global_rest(hi)).origin.y if hi >= 0 else height * 0.55
+	if foot_rest < 0.0:
+		var low: float = INF
+		for b: String in ["L_Foot", "R_Foot"]:
+			var i: int = rig.sk.find_bone(b)
+			if i >= 0:
+				low = minf(low, (rig.model.transform * rig.sk.get_bone_global_rest(i)).origin.y)
+		foot_rest = low if low != INF else 0.08
+
 ## Hero with the sword on his back walks and stands with loose arms.
 func unarmed() -> bool:
 	return kind == "hero" and not game.sword_out
@@ -318,8 +462,40 @@ func animate(dt: float) -> void:
 			if kind == "ally" and game.stage == "forest" and game.hero_low():
 				run_phase += dt * 6.0 * speed_now / 0.45
 				pose = P.crouch(run_phase, clampf(speed_now / 0.45, 0, 1))
+	fight_on = false
+	if state == "attack":
+		last_combo = combo
+	if prev_state == "attack" and state == "idle":
+		ready_t = READY_TIME
+		ready_combo = last_combo
+	elif state != "idle":
+		ready_t = 0.0
+	prev_state = state
+	var fp: Dictionary = fight_clip()
+	if fp.is_empty() and state == "idle" and ready_t > 0.0:
+		var hs2: float = Vector2(velocity.x, velocity.z).length()
+		ready_t = maxf(0.0, ready_t - dt * (4.0 if hs2 > 1.0 else 1.0))
+		var rp: Dictionary = ready_pose(dt)
+		if not rp.is_empty() and hs2 < 1.0:
+			fp = rp
+	if not fp.is_empty():
+		pose = fp
+		rate = maxf(rate, 26.0)
+		clip_on = true
+		fight_on = true
+	if kind == "hero" and state != "dead":
+		look_layer(pose, dt)
 	rig.rotation.y = yaw
-	if state == "dead":
+	if state == "dead" and fight_on:
+		dead_t += dt
+		rig.rotation.x = lerpf(rig.rotation.x, 0.0, 1.0 - exp(-10.0 * dt))
+		ensure_heights()
+		rig.position.y = lerpf(rig.position.y, float(pose.get("lift", 0.0)) * hip_h, 1.0 - exp(-20.0 * dt))
+		if kind != "hero" and dead_t > 2.6:
+			rig.position.y -= (dead_t - 2.6) * 0.6
+			if dead_t > 4.0:
+				visible = false
+	elif state == "dead":
 		dead_t += dt
 		rig.rotation.x = lerpf(rig.rotation.x, PI / 2.0 * 0.92, 1.0 - exp(-6.0 * dt))
 		rig.position.y = lerpf(rig.position.y, 0.25, 1.0 - exp(-6.0 * dt))
@@ -370,6 +546,17 @@ func animate(dt: float) -> void:
 			for key2: String in wp:
 				pose[key2] = wp[key2]
 	rig.apply(pose, dt, rate)
+	if fight_on and state != "dead":
+		# Plant the feet: the clip's legs come from a different body, so put the
+		# lowest ankle back at its standing height (unless the clip is airborne).
+		ensure_heights()
+		var lift: float = float(pose.get("lift", 0.0))
+		if lift > 0.12:
+			clip_lift = lift * hip_h
+		else:
+			var lf: float = lowest_foot()
+			if lf != INF:
+				clip_lift = clampf(rig.position.y + (foot_rest - lf), -hip_h * 0.6, hip_h * 0.6)
 	rig.update_trail()
 	var tint: float = flash
 	var col: Color = flash_color

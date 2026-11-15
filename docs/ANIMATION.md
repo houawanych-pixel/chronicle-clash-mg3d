@@ -24,3 +24,27 @@ The hero's idle, walk, run and sprint now come from real motion-capture clips in
 - `Fighter.loco_clip()` banks the hips into turns (yaw rate x 0.06, up to 0.3 rad, scaled by run speed) and leans
   forward when speeding up / back when stopping (acceleration x 0.012). Ideas from studying BotW's animation system
   design (speed blender, per-transition cross-fades, separate turn and brake actions); no Nintendo data is used.
+
+## Fighting animation (real clips, Nov 2026)
+Sword swings, block, getting hit, knockback and death no longer use code-made poses. They come from
+animator-made clips in Quaternius' Universal Animation Library 1 & 2 (CC0, free for commercial games),
+baked with `tools/anim/bake.gd -- --only=ual` (map "ual"; the bake also stores the sword direction from the
+hand's knuckle line and the strike time = the frame the sword hand moves fastest).
+
+| Game state | Clip |
+|---|---|
+| combo hit 1 / 2 / 3 | `ual_slash_a` / `ual_slash_b` / `ual_slash_c` (jump-spin finisher) |
+| dash slash chain | `ual_slash_a` |
+| charged spin | `ual_slash_c` |
+| enemy wind-up / strike | `ual_sword_attack` (split at its strike frame) |
+| block | `ual_block` (held at the guard frames) |
+| hurt / stagger / dead | `ual_hit_chest` / `ual_knockback` / `ual_death` |
+
+- `Fighter.fight_clip()` time-warps each swing so the clip's strike frame lands on the game's hit time
+  (wind-up, snap, follow-through), as action games do; hit-stop still freezes on contact.
+- Feet are planted after posing (lowest ankle back to its standing height) unless the clip is airborne.
+- Also baked for later: `ual_heavy_combo`, `ual_combo`, `ual_dash_slash`, `ual_shield_idle`, `ual_shield_bash`,
+  `ual_shield_break`, `ual_hit_head`, `ual_cast`, and village work clips `ual_chop`, `ual_harvest`, `ual_water`,
+  `ual_carry`, `ual_sit`, `ual_talk`.
+- Check pictures: `xvfb-run -a godot --rendering-driver opengl3 --path . -- --autotest --fight-shots --shots=/dir`.
+- More motions (emotions, talking, waving, more sword styles): Mixamo with the owner's Adobe login, baked the same way.

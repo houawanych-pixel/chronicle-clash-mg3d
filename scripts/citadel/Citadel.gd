@@ -1307,7 +1307,7 @@ func hero_tick(f: CharacterBody3D, dt: float) -> void:
 				if queued_attack and f.combo < 2:
 					queued_attack = false
 					f.combo += 1
-					f.set_state("attack", 0.36 if f.combo == 1 else 0.5)
+					f.set_state("attack", 0.36 if f.combo == 1 else 0.6)
 				else:
 					queued_attack = false
 					f.state = "idle"
@@ -1452,6 +1452,7 @@ func hero_strike(f: CharacterBody3D, dmg: float, reach: float, arc_cos: float, s
 		wake(e)
 		var heavy: bool = stagger >= 0.6
 		e.damage(dmg, f.global_position, stagger)
+		f.look_at_target(e)
 		fx.sword_hit(f, e, f.rig.blade_color, heavy, f.combo if f.state == "attack" else 2)
 		hit_any = true
 	if stage == "isles":

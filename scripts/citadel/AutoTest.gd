@@ -121,6 +121,10 @@ func run() -> void:
 		print("CITADEL RESULT %d/%d" % [results.count(true), results.size()])
 		get_tree().quit()
 		return
+	if "--fight-shots" in OS.get_cmdline_user_args():
+		await fight_shots()
+		get_tree().quit()
+		return
 	if "--anim-shots" in OS.get_cmdline_user_args():
 		await anim_shots()
 		get_tree().quit()
@@ -2026,3 +2030,39 @@ func anim_shots() -> void:
 		await wait(0.03)
 		await shot("anim_stop_%d" % i)
 		print("ANIM stop surge ", h.surge)
+
+
+## Pictures of the clip-driven sword combo, block and hit (-- --autotest --fight-shots --shots=/dir).
+func fight_shots() -> void:
+	game.restart_with("blonde_lance", "trials")
+	game.start_game()
+	await wait(0.6)
+	var h: CharacterBody3D = game.hero
+	game.sword_out = true
+	place(Vector3(0, 0.2, 4), 0.0)
+	game.cam_yaw = 0.0
+	await wait(0.5)
+	var n: int = 0
+	for hit in 3:
+		game.hud.pressed["attack"] = true
+		var t0: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < (360 if hit < 2 else 620):
+			await shot("fight_%02d" % n)
+			print("FIGHT %02d state=%s combo=%d t=%.2f clip=%s lift=%.2f" % [n, h.state, h.combo, h.state_t, h.fight_on, h.clip_lift])
+			n += 1
+			await wait(0.06)
+	await wait(0.55)
+	await shot("fight_ready_a")
+	print("FIGHT ready t=%.2f state=%s" % [h.ready_t, h.state])
+	await wait(0.5)
+	await shot("fight_ready_b")
+	game.cam_yaw = PI * 0.5
+	await wait(0.2)
+	await shot("fight_ready_side")
+	game.cam_yaw = 0.0
+	await wait(1.6)
+	Input.action_press("cc_block")
+	await wait(0.5)
+	await shot("fight_block")
+	print("FIGHT block state=%s clip=%s" % [h.state, h.fight_on])
+	Input.action_release("cc_block")

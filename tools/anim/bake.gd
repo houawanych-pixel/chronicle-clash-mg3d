@@ -11,6 +11,12 @@ const MAPS := {
 	"kaykit": {"L_Upperarm": ["upperarm.l","lowerarm.l"], "L_Forearm": ["lowerarm.l","wrist.l"], "R_Upperarm": ["upperarm.r","lowerarm.r"], "R_Forearm": ["lowerarm.r","wrist.r"],
 		"L_Thigh": ["upperleg.l","lowerleg.l"], "L_Calf": ["lowerleg.l","foot.l"], "R_Thigh": ["upperleg.r","lowerleg.r"], "R_Calf": ["lowerleg.r","foot.r"],
 		"turn": {"Hip": "hips", "Waist": "spine", "Spine02": "chest", "Head": "head"}, "hips": "hips", "lleg": "upperleg.l", "rleg": "upperleg.r"},
+	# Quaternius Universal Animation Library 1 & 2 (CC0), UE-mannequin-style names.
+	# "blade": knuckle line pinky->index of the sword hand = the direction a gripped blade points.
+	"ual": {"L_Upperarm": ["upperarm_l","lowerarm_l"], "L_Forearm": ["lowerarm_l","hand_l"], "R_Upperarm": ["upperarm_r","lowerarm_r"], "R_Forearm": ["lowerarm_r","hand_r"],
+		"L_Thigh": ["thigh_l","calf_l"], "L_Calf": ["calf_l","foot_l"], "R_Thigh": ["thigh_r","calf_r"], "R_Calf": ["calf_r","foot_r"],
+		"turn": {"Hip": "pelvis", "Waist": "spine_01", "Spine01": "spine_02", "Spine02": "spine_03", "Head": "Head"}, "hips": "pelvis", "lleg": "thigh_l", "rleg": "thigh_r",
+		"blade": ["pinky_01_r", "index_01_r"], "hand": "hand_r"},
 }
 ## [source file, map, clip in file, output name, loop]
 const JOBS := [
@@ -30,12 +36,46 @@ const JOBS := [
 	["res://src/kaykit.glb", "kaykit", "Walking_A", "kk_walk", true],
 	["res://src/kaykit.glb", "kaykit", "Idle", "kk_idle", true],
 ]
+## CC0 combat and village clips (Quaternius UAL 1 & 2). Bake with -- --only=ual; merged into clips.json.
+const UAL_JOBS := [
+	["res://src/ual1.glb", "ual", "Sword_Idle", "ual_sword_idle", true],
+	["res://src/ual1.glb", "ual", "Sword_Attack", "ual_sword_attack", false],
+	["res://src/ual1.glb", "ual", "Hit_Chest", "ual_hit_chest", false],
+	["res://src/ual1.glb", "ual", "Hit_Head", "ual_hit_head", false],
+	["res://src/ual1.glb", "ual", "Death01", "ual_death", false],
+	["res://src/ual1.glb", "ual", "Spell_Simple_Shoot", "ual_cast", false],
+	["res://src/ual1.glb", "ual", "Sitting_Idle", "ual_sit", true],
+	["res://src/ual1.glb", "ual", "Idle_Talking", "ual_talk", true],
+	["res://src/ual2.glb", "ual", "Sword_Regular_A", "ual_slash_a", false],
+	["res://src/ual2.glb", "ual", "Sword_Regular_A_Rec", "ual_slash_a_rec", false],
+	["res://src/ual2.glb", "ual", "Sword_Regular_B", "ual_slash_b", false],
+	["res://src/ual2.glb", "ual", "Sword_Regular_B_Rec", "ual_slash_b_rec", false],
+	["res://src/ual2.glb", "ual", "Sword_Regular_C", "ual_slash_c", false],
+	["res://src/ual2.glb", "ual", "Sword_Regular_Combo", "ual_combo", false],
+	["res://src/ual2.glb", "ual", "Sword_Heavy_Combo", "ual_heavy_combo", false],
+	["res://src/ual2.glb", "ual", "Sword_Block", "ual_block", false],
+	["res://src/ual2.glb", "ual", "Sword_Dash", "ual_dash_slash", false],
+	["res://src/ual2.glb", "ual", "Idle_Shield", "ual_shield_idle", true],
+	["res://src/ual2.glb", "ual", "Idle_Shield_Break", "ual_shield_break", false],
+	["res://src/ual2.glb", "ual", "Shield_OneShot", "ual_shield_bash", false],
+	["res://src/ual2.glb", "ual", "Hit_Knockback", "ual_knockback", false],
+	["res://src/ual2.glb", "ual", "TreeChopping", "ual_chop", true],
+	["res://src/ual2.glb", "ual", "Farm_Harvest", "ual_harvest", false],
+	["res://src/ual2.glb", "ual", "Farm_Watering", "ual_water", false],
+	["res://src/ual2.glb", "ual", "Walk_Carry", "ual_carry", true],
+]
 const FPS := 30.0
 func _initialize() -> void: run.call_deferred()
 func r4(v: float) -> float: return snappedf(v, 0.0001)
 func run() -> void:
 	var out: Dictionary = {}
-	for job: Array in JOBS:
+	var jobs: Array = JOBS
+	if "--only=ual" in OS.get_cmdline_user_args():
+		jobs = UAL_JOBS
+		# keep the clips already baked (their sources aren't in the repo)
+		if FileAccess.file_exists("res://clips.json"):
+			out = JSON.parse_string(FileAccess.get_file_as_string("res://clips.json"))
+	for job: Array in jobs:
 		var s: Node = (load(job[0]) as PackedScene).instantiate()
 		root.add_child(s)
 		await process_frame
@@ -61,12 +101,15 @@ func run() -> void:
 		var frames: Array = []
 		var z0 := 0.0
 		var z1 := 0.0
+		var hand_prev := Vector3.INF
+		var hit_t := 0.0
+		var hit_v := 0.0
 		for f in n:
 			var t: float = anim.length * f / n
 			ap.seek(t, true)
 			var fr := {"d": {}, "t": {}}
 			for key: String in m:
-				if key in ["turn","hips","lleg","rleg"]: continue
+				if key in ["turn","hips","lleg","rleg","blade","hand"]: continue
 				var a: int = idx.call(m[key][0]); var b: int = idx.call(m[key][1])
 				var v: Vector3 = sk.get_bone_global_pose(b).origin - sk.get_bone_global_pose(a).origin
 				var mv: Vector3 = (M.inverse() * v).normalized()
@@ -84,12 +127,26 @@ func run() -> void:
 				var bm: Basis = C * local * C.inverse()
 				var q: Quaternion = bm.get_rotation_quaternion()
 				fr.t[tk] = [r4(q.x), r4(q.y), r4(q.z), r4(q.w)]
+			if m.has("blade"):
+				var bv: Vector3 = sk.get_bone_global_pose(idx.call(m.blade[1])).origin - sk.get_bone_global_pose(idx.call(m.blade[0])).origin
+				var bm2: Vector3 = Vector3(fwd.dot(bv), up.dot(bv), right.dot(bv)).normalized()
+				fr.d["blade"] = [r4(bm2.x), r4(bm2.y), r4(bm2.z)]
+				# the strike: when the sword hand moves fastest relative to the hips
+				var hpos: Vector3 = sk.get_bone_global_pose(idx.call(m.hand)).origin - sk.get_bone_global_pose(hip_i).origin
+				if hand_prev != Vector3.INF:
+					var v: float = hpos.distance_to(hand_prev) * FPS
+					if v > hit_v:
+						hit_v = v
+						hit_t = t
+				hand_prev = hpos
 			var hp: Vector3 = sk.get_bone_global_pose(hip_i).origin
 			fr["lift"] = r4((hp.y - hip_h) / hip_h)
 			if f == 0: z0 = fwd.dot(hp)
 			z1 = fwd.dot(hp)
 			frames.append(fr)
 		out[job[3]] = {"fps": FPS, "length": anim.length, "loop": job[4], "move": r4((z1 - z0) / hip_h / anim.length), "frames": frames}
+		if m.has("blade"):
+			out[job[3]]["hit"] = r4(hit_t)
 		print("baked ", job[3], " frames ", n, " len ", anim.length, " move/hip/s ", out[job[3]].move, " fwd ", fwd)
 		s.queue_free()
 	var f2 := FileAccess.open("res://clips.json", FileAccess.WRITE)
